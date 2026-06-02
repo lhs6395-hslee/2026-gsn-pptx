@@ -1,0 +1,888 @@
+{
+  "version": "1.0",
+  "slide_count": 41,
+  "template": "2026_PPT_Template",
+  "layouts": {
+    "6": {
+      "name": "cover",
+      "label": "표지",
+      "group": "structure",
+      "description": "날짜+대제목(최대2줄)+부제목(1줄). 좌하단 네이비 배경",
+      "content_capacity": {
+        "title": 1,
+        "subtitle": 1,
+        "date": 1
+      },
+      "best_for": [
+        "발표 첫 장",
+        "cover",
+        "표지"
+      ],
+      "icon_count": 0,
+      "image_count": 0,
+      "columns": 1,
+      "editable_shapes": {
+        "id12": "대제목(48pt)",
+        "id6": "부제목(32pt)",
+        "id15": "날짜(14pt)"
+      },
+      "complexity": "low",
+      "text_only": true,
+      "reliability": "high"
+    },
+    "7": {
+      "name": "toc",
+      "label": "대목차",
+      "group": "structure",
+      "description": "좌측 발표제목 + 7개 번호 목차 항목(중앙). 네이비 좌측 패널",
+      "content_capacity": {
+        "items": 7
+      },
+      "best_for": [
+        "목차",
+        "table of contents",
+        "agenda"
+      ],
+      "icon_count": 0,
+      "image_count": 0,
+      "columns": 1,
+      "editable_shapes": {
+        "id10": "목차항목(7개)",
+        "id11": "번호(7개)",
+        "id42": "발표제목",
+        "id14": "페이지번호"
+      },
+      "complexity": "medium",
+      "text_only": true,
+      "reliability": "high"
+    },
+    "8": {
+      "name": "section",
+      "label": "섹션구분",
+      "group": "structure",
+      "description": "다크 네이비 전체 배경. 좌하단 섹션 대제목 + 우측 소목차 7개",
+      "content_capacity": {
+        "section_title": 1,
+        "sub_items": 7
+      },
+      "best_for": [
+        "챕터 전환",
+        "섹션 시작",
+        "파트 구분"
+      ],
+      "icon_count": 0,
+      "image_count": 0,
+      "columns": 2,
+      "editable_shapes": {
+        "id2": "섹션제목(40pt)",
+        "id4": "소목차항목",
+        "id5": "소목차번호"
+      },
+      "complexity": "medium",
+      "text_only": true,
+      "dark_bg": true,
+      "reliability": "high"
+    },
+    "9": {
+      "name": "3img_bottom_text",
+      "label": "3열 이미지+하단 설명",
+      "group": "image",
+      "description": "상단 3개 이미지 플레이스홀더 + 하단 3열 제목+설명 텍스트",
+      "content_capacity": {
+        "items": 3,
+        "images": 3
+      },
+      "best_for": [
+        "3가지 사례 비교",
+        "제품 3종 소개",
+        "솔루션 3가지 시각화"
+      ],
+      "icon_count": 0,
+      "image_count": 3,
+      "columns": 3,
+      "complexity": "high",
+      "text_only": false,
+      "needs_real_image": true,
+      "reliability": "medium_low"
+    },
+    "10": {
+      "name": "3img_insight",
+      "label": "3열 이미지+Insight 배너",
+      "group": "image",
+      "description": "slide9 + 하단 Insight 배너 추가. 푸른 강조 배너",
+      "content_capacity": {
+        "items": 3,
+        "images": 3,
+        "insight": 1
+      },
+      "best_for": [
+        "사례연구",
+        "근거+결론 세트",
+        "데이터 기반 설명"
+      ],
+      "icon_count": 0,
+      "image_count": 3,
+      "columns": 3,
+      "complexity": "high",
+      "text_only": false,
+      "needs_real_image": true,
+      "reliability": "medium_low"
+    },
+    "11": {
+      "name": "3img_vertical_left",
+      "label": "좌측 텍스트+우측 3단 이미지",
+      "group": "image",
+      "description": "우측에 이미지 3개 세로 배열, 좌측에 설명 텍스트 1개",
+      "content_capacity": {
+        "items": 3,
+        "images": 3
+      },
+      "best_for": [
+        "단계별 프로세스 이미지",
+        "시리즈 3개"
+      ],
+      "icon_count": 0,
+      "image_count": 3,
+      "columns": 2,
+      "complexity": "high",
+      "text_only": false,
+      "needs_real_image": true,
+      "reliability": "medium_low"
+    },
+    "12": {
+      "name": "3img_small_large_text",
+      "label": "3열 소이미지+우측 대형 텍스트",
+      "group": "image",
+      "description": "좌측 3개 소형 이미지, 우측 큰 텍스트 설명 블록",
+      "content_capacity": {
+        "items": 3,
+        "images": 3
+      },
+      "best_for": [
+        "기술스택 소개",
+        "도구 3종 + 상세설명"
+      ],
+      "icon_count": 0,
+      "image_count": 3,
+      "columns": 2,
+      "complexity": "high",
+      "text_only": false,
+      "needs_real_image": true,
+      "reliability": "medium_low"
+    },
+    "13": {
+      "name": "3icon_square_bottom",
+      "label": "3열 정사각 아이콘+설명",
+      "group": "icon",
+      "description": "3개 아이콘(정방형) + 제목 라운드 레이블 + 하단 설명 텍스트 + Insight 푸터",
+      "content_capacity": {
+        "items": 3
+      },
+      "best_for": [
+        "핵심기능 3가지",
+        "서비스 특징 3가지",
+        "장점 3가지"
+      ],
+      "icon_count": 3,
+      "image_count": 0,
+      "columns": 3,
+      "complexity": "medium",
+      "text_only": false,
+      "needs_real_image": false,
+      "reliability": "medium"
+    },
+    "14": {
+      "name": "4icon_tall",
+      "label": "4열 세로형 아이콘+설명",
+      "group": "icon",
+      "description": "4개 아이콘(세로형) + 제목 + 하단 설명 + 하단 Insight 4열",
+      "content_capacity": {
+        "items": 4
+      },
+      "best_for": [
+        "기능 4가지",
+        "구성요소 4개",
+        "특징 4가지"
+      ],
+      "icon_count": 4,
+      "image_count": 0,
+      "columns": 4,
+      "complexity": "medium",
+      "text_only": false,
+      "needs_real_image": false,
+      "reliability": "medium"
+    },
+    "15": {
+      "name": "3icon_large_center",
+      "label": "3열 대형 아이콘(중앙)",
+      "group": "icon",
+      "description": "3개 대형 아이콘(중앙 배치) + 제목 레이블 + 설명. 수평 기준선 있음",
+      "content_capacity": {
+        "items": 3
+      },
+      "best_for": [
+        "핵심 가치 3가지",
+        "강조 포인트 3개",
+        "주요 기능 클린 표현"
+      ],
+      "icon_count": 3,
+      "image_count": 0,
+      "columns": 3,
+      "complexity": "low",
+      "text_only": false,
+      "needs_real_image": false,
+      "reliability": "medium"
+    },
+    "16": {
+      "name": "4icon_compact",
+      "label": "4열 아이콘 컴팩트",
+      "group": "icon",
+      "description": "4개 아이콘(상단 배치, 작게) + 제목 + 설명. slide14보다 간결",
+      "content_capacity": {
+        "items": 4
+      },
+      "best_for": [
+        "구성요소 4개 간결 표현",
+        "기능 4가지"
+      ],
+      "icon_count": 4,
+      "image_count": 0,
+      "columns": 4,
+      "complexity": "medium",
+      "text_only": false,
+      "needs_real_image": false,
+      "reliability": "medium"
+    },
+    "17": {
+      "name": "2x2_img_text",
+      "label": "2x2 이미지+우측 텍스트",
+      "group": "image",
+      "description": "2행×2열 이미지 + 각 이미지 우측에 좁은 설명 텍스트",
+      "content_capacity": {
+        "items": 4,
+        "images": 4
+      },
+      "best_for": [
+        "4가지 기능 시각화",
+        "2×2 매트릭스 설명"
+      ],
+      "icon_count": 0,
+      "image_count": 4,
+      "columns": 3,
+      "complexity": "high",
+      "text_only": false,
+      "needs_real_image": true,
+      "reliability": "medium_low"
+    },
+    "18": {
+      "name": "2col_fullheight_img",
+      "label": "2열 전체높이 이미지",
+      "group": "image",
+      "description": "이미지 2개가 슬라이드 전체 높이 차지. 좌측 짧은 설명 텍스트",
+      "content_capacity": {
+        "items": 2,
+        "images": 2
+      },
+      "best_for": [
+        "Before/After 이미지 비교",
+        "2개 환경/장면 대비"
+      ],
+      "icon_count": 0,
+      "image_count": 2,
+      "columns": 2,
+      "complexity": "high",
+      "text_only": false,
+      "needs_real_image": true,
+      "reliability": "medium_low"
+    },
+    "19": {
+      "name": "3col_fullheight_img",
+      "label": "3열 전체높이 이미지",
+      "group": "image",
+      "description": "이미지 3개가 슬라이드 전체 높이 차지",
+      "content_capacity": {
+        "items": 3,
+        "images": 3
+      },
+      "best_for": [
+        "3단계 과정 사진",
+        "3가지 환경/장면"
+      ],
+      "icon_count": 0,
+      "image_count": 3,
+      "columns": 3,
+      "complexity": "high",
+      "text_only": false,
+      "needs_real_image": true,
+      "reliability": "medium_low"
+    },
+    "20": {
+      "name": "2x2_img_grid",
+      "label": "2×2 이미지 그리드",
+      "group": "image",
+      "description": "4개 이미지 균등 2×2 배치. 좌측 짧은 설명",
+      "content_capacity": {
+        "items": 4,
+        "images": 4
+      },
+      "best_for": [
+        "4가지 사례 사진",
+        "갤러리형 구성"
+      ],
+      "icon_count": 0,
+      "image_count": 4,
+      "columns": 2,
+      "complexity": "high",
+      "text_only": false,
+      "needs_real_image": true,
+      "reliability": "medium_low"
+    },
+    "21": {
+      "name": "fullimg_left_text",
+      "label": "풀이미지+좌측 텍스트+인사이트 배너",
+      "group": "emphasis",
+      "description": "우측 3/4 이미지, 좌측 설명 2블록, 하단 핵심문장 배너",
+      "content_capacity": {
+        "items": 2,
+        "insight": 1,
+        "images": 1
+      },
+      "best_for": [
+        "강력한 비주얼+핵심 메시지",
+        "임팩트 있는 개념 슬라이드"
+      ],
+      "icon_count": 0,
+      "image_count": 1,
+      "columns": 2,
+      "complexity": "high",
+      "text_only": false,
+      "needs_real_image": true,
+      "reliability": "medium_low"
+    },
+    "22": {
+      "name": "fullimg_3keyword_bottom",
+      "label": "풀이미지+3키워드 배너",
+      "group": "emphasis",
+      "description": "우측 3/4 이미지, 좌측 설명, 하단 3키워드 강조 배너",
+      "content_capacity": {
+        "keywords": 3,
+        "images": 1
+      },
+      "best_for": [
+        "결론 강조",
+        "3가지 핵심 메시지 + 비주얼"
+      ],
+      "icon_count": 0,
+      "image_count": 1,
+      "columns": 2,
+      "complexity": "high",
+      "text_only": false,
+      "needs_real_image": true,
+      "reliability": "medium_low"
+    },
+    "23": {
+      "name": "img_callout",
+      "label": "이미지+우측 콜아웃 레이블",
+      "group": "diagram",
+      "description": "블루 배경. 중앙 이미지/다이어그램 + 우측 세부 레이블 3개",
+      "content_capacity": {
+        "callouts": 3,
+        "images": 1
+      },
+      "best_for": [
+        "시스템 구성도 설명",
+        "다이어그램 주석",
+        "아키텍처 구성요소 설명"
+      ],
+      "icon_count": 0,
+      "image_count": 1,
+      "columns": 2,
+      "complexity": "high",
+      "text_only": false,
+      "needs_real_image": true,
+      "dark_bg": true,
+      "reliability": "medium_low"
+    },
+    "24": {
+      "name": "text_2blocks",
+      "label": "2블록 텍스트 전용",
+      "group": "text",
+      "description": "좌측 짧은 설명 2개 블록. 이미지 없음. 순수 텍스트",
+      "content_capacity": {
+        "items": 2
+      },
+      "best_for": [
+        "2가지 요점 설명",
+        "짧은 2개 항목 나열"
+      ],
+      "icon_count": 0,
+      "image_count": 0,
+      "columns": 1,
+      "complexity": "low",
+      "text_only": true,
+      "reliability": "high"
+    },
+    "25": {
+      "name": "img_right3block",
+      "label": "좌측 이미지+우측 3항목",
+      "group": "image",
+      "description": "좌측 2/3 이미지 + 우측 제목+설명 3개 블록",
+      "content_capacity": {
+        "items": 3,
+        "images": 1
+      },
+      "best_for": [
+        "장점/특징 3가지 + 비주얼",
+        "솔루션 설명 3항목"
+      ],
+      "icon_count": 0,
+      "image_count": 1,
+      "columns": 2,
+      "complexity": "high",
+      "text_only": false,
+      "needs_real_image": true,
+      "reliability": "medium_low"
+    },
+    "26": {
+      "name": "img_right3block_banner",
+      "label": "좌측 이미지+우측 3항목(배너형)",
+      "group": "image",
+      "description": "slide25와 유사, 우측 항목 배너 스타일",
+      "content_capacity": {
+        "items": 3,
+        "images": 1
+      },
+      "best_for": [
+        "특징 3가지 배너형 표현"
+      ],
+      "icon_count": 0,
+      "image_count": 1,
+      "columns": 2,
+      "complexity": "high",
+      "text_only": false,
+      "needs_real_image": true,
+      "reliability": "medium_low"
+    },
+    "27": {
+      "name": "img_right3block_oneline",
+      "label": "좌측 이미지+우측 3항목(한줄 제목)",
+      "group": "image",
+      "description": "slide25/26과 동일 구조, 제목이 한 줄로 짧을 때",
+      "content_capacity": {
+        "items": 3,
+        "images": 1
+      },
+      "best_for": [
+        "특징 3가지(짧은 제목)"
+      ],
+      "icon_count": 0,
+      "image_count": 1,
+      "columns": 2,
+      "complexity": "high",
+      "text_only": false,
+      "needs_real_image": true,
+      "reliability": "medium_low"
+    },
+    "28": {
+      "name": "img_right3block_multiline",
+      "label": "좌측 이미지+우측 3항목(긴 제목)",
+      "group": "image",
+      "description": "slide25/26과 동일 구조, 제목이 2~3줄로 길 때",
+      "content_capacity": {
+        "items": 3,
+        "images": 1
+      },
+      "best_for": [
+        "특징 3가지(긴 설명)"
+      ],
+      "icon_count": 0,
+      "image_count": 1,
+      "columns": 2,
+      "complexity": "high",
+      "text_only": false,
+      "needs_real_image": true,
+      "reliability": "medium_low"
+    },
+    "29": {
+      "name": "year_timeline",
+      "label": "연도별 타임라인",
+      "group": "timeline",
+      "description": "가로 바 타임라인 (2023~2026). 연도별 제목+설명",
+      "content_capacity": {
+        "items": 4,
+        "years": [
+          "2023",
+          "2024",
+          "2025",
+          "2026"
+        ]
+      },
+      "best_for": [
+        "로드맵",
+        "연도별 계획",
+        "연혁/히스토리"
+      ],
+      "icon_count": 0,
+      "image_count": 0,
+      "columns": 4,
+      "complexity": "medium",
+      "text_only": true,
+      "reliability": "high"
+    },
+    "30": {
+      "name": "4step",
+      "label": "4단계 스텝",
+      "group": "process",
+      "description": "Step1→Step2→Step3→Step4 박스형 흐름도",
+      "content_capacity": {
+        "steps": 4
+      },
+      "best_for": [
+        "4단계 프로세스",
+        "절차 순서",
+        "구현 단계"
+      ],
+      "icon_count": 0,
+      "image_count": 0,
+      "columns": 4,
+      "complexity": "medium",
+      "text_only": true,
+      "reliability": "high"
+    },
+    "31": {
+      "name": "quarterly_timeline",
+      "label": "분기별 타임라인",
+      "group": "timeline",
+      "description": "Q1→Q2→Q3→Q4 마일스톤 타임라인",
+      "content_capacity": {
+        "quarters": 4
+      },
+      "best_for": [
+        "분기 계획",
+        "연간 일정",
+        "분기별 마일스톤"
+      ],
+      "icon_count": 0,
+      "image_count": 0,
+      "columns": 4,
+      "complexity": "medium",
+      "text_only": true,
+      "reliability": "high"
+    },
+    "32": {
+      "name": "text_banner",
+      "label": "텍스트+상단 배너",
+      "group": "text",
+      "description": "상단 배너 + 전체 텍스트 영역. 긴 설명용",
+      "content_capacity": {
+        "paragraphs": "many"
+      },
+      "best_for": [
+        "긴 텍스트 설명",
+        "참조 내용",
+        "부록"
+      ],
+      "icon_count": 0,
+      "image_count": 0,
+      "columns": 1,
+      "complexity": "low",
+      "text_only": true,
+      "reliability": "high"
+    },
+    "33": {
+      "name": "text_quarterly",
+      "label": "텍스트+분기 마커",
+      "group": "timeline",
+      "description": "텍스트 + Q1~Q4 마커 포함 타임라인 혼합",
+      "content_capacity": {
+        "paragraphs": "few",
+        "quarters": 4
+      },
+      "best_for": [
+        "분기별 텍스트 계획",
+        "시간순 설명"
+      ],
+      "icon_count": 0,
+      "image_count": 0,
+      "columns": 1,
+      "complexity": "medium",
+      "text_only": true,
+      "reliability": "high"
+    },
+    "34": {
+      "name": "4bubble_keyword",
+      "label": "4개 키워드 버블",
+      "group": "concept",
+      "description": "4개 타원(Keyword) 가로 배치. 연결 화살표",
+      "content_capacity": {
+        "keywords": 4
+      },
+      "best_for": [
+        "연관 개념 4가지",
+        "키워드 맵",
+        "관련 요소 시각화"
+      ],
+      "icon_count": 0,
+      "image_count": 0,
+      "columns": 4,
+      "complexity": "medium",
+      "text_only": false,
+      "reliability": "medium"
+    },
+    "35": {
+      "name": "before_after_bubble",
+      "label": "Before→After 버블 변환",
+      "group": "concept",
+      "description": "좌측 Before 소버블 군집 → 우측 After 대형 버블. 변환 표현",
+      "content_capacity": {
+        "before_items": "few",
+        "after": "one_central"
+      },
+      "best_for": [
+        "이관/전환 효과",
+        "통합 결과 표현",
+        "Before→After 개념"
+      ],
+      "icon_count": 0,
+      "image_count": 0,
+      "columns": 2,
+      "complexity": "medium",
+      "text_only": false,
+      "reliability": "medium"
+    },
+    "36": {
+      "name": "as_is_to_be_venn",
+      "label": "As-is/To-be 벤다이어그램",
+      "group": "comparison",
+      "description": "좌: As-is 원형 군집, 우: To-be 원형 군집 + 우측 설명 텍스트",
+      "content_capacity": {
+        "as_is_keywords": "few",
+        "to_be_keywords": "few",
+        "explanations": 2
+      },
+      "best_for": [
+        "현황→목표 비교",
+        "개선 전후 개념",
+        "As-is To-be 분석"
+      ],
+      "icon_count": 0,
+      "image_count": 0,
+      "columns": 2,
+      "complexity": "medium",
+      "text_only": false,
+      "reliability": "medium"
+    },
+    "37": {
+      "name": "bar_compare",
+      "label": "막대그래프 비교(As-is/To-be)",
+      "group": "comparison",
+      "description": "좌: 낮은 막대(2025/As-is), 우: 높은 막대(2026/To-be) + % 수치",
+      "content_capacity": {
+        "before_value": 1,
+        "after_value": 1
+      },
+      "best_for": [
+        "수치 기반 개선 효과",
+        "정량 비교",
+        "목표 달성률"
+      ],
+      "icon_count": 0,
+      "image_count": 0,
+      "columns": 2,
+      "complexity": "medium",
+      "text_only": false,
+      "reliability": "medium"
+    },
+    "38": {
+      "name": "3row_flow",
+      "label": "3행 흐름도 (키워드→솔루션→서비스)",
+      "group": "flow",
+      "description": "3행: [keyword 박스] → [Solution 박스] → [Service 박스]. 각 행 좌→우 흐름",
+      "content_capacity": {
+        "rows": 3,
+        "flow_steps": 3
+      },
+      "best_for": [
+        "니즈→솔루션→효과 매핑",
+        "CDC 파이프라인 흐름",
+        "문제→원인→해결 매핑"
+      ],
+      "icon_count": 0,
+      "image_count": 0,
+      "columns": 3,
+      "complexity": "medium",
+      "text_only": true,
+      "reliability": "high"
+    },
+    "39": {
+      "name": "3row_flow_detail",
+      "label": "3행 상세 흐름도",
+      "group": "flow",
+      "description": "slide38 + 각 keyword 아래 세부 항목 목록 추가",
+      "content_capacity": {
+        "rows": 3,
+        "flow_steps": 3,
+        "sub_items": "few"
+      },
+      "best_for": [
+        "상세 매핑",
+        "복잡한 흐름 + 세부항목"
+      ],
+      "icon_count": 0,
+      "image_count": 0,
+      "columns": 3,
+      "complexity": "high",
+      "text_only": true,
+      "reliability": "high"
+    },
+    "40": {
+      "name": "3donut_chart",
+      "label": "3개 도넛 차트",
+      "group": "chart",
+      "description": "3개 도넛차트(%) + 하단 인사이트 배너 텍스트",
+      "content_capacity": {
+        "metrics": 3
+      },
+      "best_for": [
+        "KPI 3가지 달성률",
+        "비율 데이터 3개",
+        "성과 지표"
+      ],
+      "icon_count": 0,
+      "image_count": 0,
+      "columns": 3,
+      "complexity": "low",
+      "text_only": false,
+      "chart_type": "donut",
+      "reliability": "low"
+    },
+    "41": {
+      "name": "line_chart_callout",
+      "label": "라인차트+콜아웃 레이블",
+      "group": "chart",
+      "description": "꺾은선 그래프 + 주요 포인트 레이블 3개 + 인사이트 배너",
+      "content_capacity": {
+        "datapoints": "many",
+        "callouts": 3
+      },
+      "best_for": [
+        "트렌드 시각화",
+        "성장 추이",
+        "시계열 데이터"
+      ],
+      "icon_count": 0,
+      "image_count": 0,
+      "columns": 1,
+      "complexity": "low",
+      "text_only": false,
+      "chart_type": "line",
+      "reliability": "low"
+    },
+    "42": {
+      "name": "3donut_large",
+      "label": "3개 대형 도넛 차트",
+      "group": "chart",
+      "description": "3개 도넛차트(큰 사이즈, 65%/75%/75%) + 제목+설명",
+      "content_capacity": {
+        "metrics": 3
+      },
+      "best_for": [
+        "핵심 KPI 강조",
+        "비율 3개 임팩트 표현"
+      ],
+      "icon_count": 0,
+      "image_count": 0,
+      "columns": 3,
+      "complexity": "low",
+      "text_only": false,
+      "chart_type": "donut",
+      "reliability": "low"
+    },
+    "43": {
+      "name": "line_chart_2insight",
+      "label": "라인차트+2가지 인사이트",
+      "group": "chart",
+      "description": "좌측 라인그래프 + 우측 2개 설명 블록",
+      "content_capacity": {
+        "insights": 2
+      },
+      "best_for": [
+        "데이터 분석 결과+인사이트 2가지"
+      ],
+      "icon_count": 0,
+      "image_count": 0,
+      "columns": 2,
+      "complexity": "low",
+      "text_only": false,
+      "chart_type": "line",
+      "reliability": "low"
+    },
+    "44": {
+      "name": "qa",
+      "label": "Q&A",
+      "group": "closing",
+      "description": "풀스크린 블루 그라디언트 + 'Q&A' 대형 텍스트",
+      "content_capacity": {
+        "text": 1
+      },
+      "best_for": [
+        "Q&A",
+        "질의응답"
+      ],
+      "icon_count": 0,
+      "image_count": 0,
+      "columns": 1,
+      "complexity": "low",
+      "text_only": true,
+      "dark_bg": true,
+      "reliability": "high"
+    },
+    "45": {
+      "name": "contact",
+      "label": "문의/상담",
+      "group": "closing",
+      "description": "블루 배경 + 이메일 주소 + GS Neotek 로고",
+      "content_capacity": {
+        "email": 1
+      },
+      "best_for": [
+        "연락처",
+        "문의처",
+        "Contact"
+      ],
+      "icon_count": 0,
+      "image_count": 0,
+      "columns": 1,
+      "complexity": "low",
+      "text_only": true,
+      "dark_bg": true,
+      "reliability": "high"
+    },
+    "46": {
+      "name": "thank_you",
+      "label": "감사합니다",
+      "group": "closing",
+      "description": "블루 그라디언트 + '감사합니다.' + Drive Neo Technology",
+      "content_capacity": {
+        "text": 1
+      },
+      "best_for": [
+        "마지막 슬라이드",
+        "감사합니다",
+        "Thank You",
+        "closing"
+      ],
+      "icon_count": 0,
+      "image_count": 0,
+      "columns": 1,
+      "complexity": "low",
+      "text_only": true,
+      "dark_bg": true,
+      "reliability": "high"
+    }
+  },
+  "thumbnail_source": "powerpoint",
+  "thumbnail_dpi": 96,
+  "thumbnail_note": "macOS AppleScript으로 PowerPoint에서 직접 PDF 내보내기 후 pdftoppm 변환. LibreOffice 렌더링 아님.",
+  "generated_at": "2026-06-02"
+}

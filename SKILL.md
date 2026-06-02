@@ -46,6 +46,37 @@ Claude 자신이 오케스트레이터로서 각 단계를 직접 수행한다.
 
 ## 실행 흐름
 
+### 주 경로 — 통합 엔진 호출 (권장)
+
+생성·편집·패킹·시각 QA 로직은 모두 `~/.ppt-skill/ppt_generator.py` 엔진에 구현되어 있다.
+슬라이드 XML을 손으로 편집하지 말고 **검증된 엔진을 호출**한다 (재현성·신뢰성 확보).
+
+```bash
+python3 - <<'PY'
+import sys, pathlib
+sys.path.insert(0, str(pathlib.Path.home() / ".ppt-skill"))
+from ppt_generator import run_ppt_generation
+out, vision_issues = run_ppt_generation(
+    topic="<주제>",
+    template_path=pathlib.Path.home()/".ppt-skill"/"templates"/"default.pptx",
+    work_dir=pathlib.Path.home()/".ppt-skill"/"runs"/"<날짜>_<주제>",
+    audience="<청중>",
+    n_slides=<장수>,
+)
+print("완료:", out, "| vision_issues:", vision_issues)
+PY
+```
+
+엔진이 자동으로 수행하는 것:
+- 템플릿 언팩 → 41슬라이드 존 분석(`layout_zone_map.json`)
+- LLM 기반 plan 생성 → 레이아웃-콘텐츠 적합성 가드(타임라인/차트 오용 차단)
+- 존 맵 기반 슬라이드 편집(아이콘/이미지 자리·정렬 정확) → 패킹 → PowerPoint 시각 QA
+
+생성된 `output.pptx`를 사용자 지정 위치로 복사해 전달한다.
+아래 0~9단계는 엔진 내부 동작의 참고용 상세 설명이다.
+
+---
+
 ### 0. 환경 확인
 
 ```bash
@@ -89,7 +120,24 @@ extract-text template.pptx
 
 분석 결과로 슬라이드 레이아웃 목록을 파악한다.
 
-### 4. 슬라이드 계획 수립 (plan.json)
+### 4. 레이아웃 선택 — 반드시 이 순서대로
+
+1. `~/.ppt-skill/harness/layout_features.json` Read → 알고리즘 필터 (신뢰도·컬럼수·아이콘수 매칭)
+2. `~/.ppt-skill/harness/thumbnails/slide{NN}.png` Read → 시각 확인 (이미지 로드)
+3. `~/.ppt-skill/harness/long_term_memory.json` Read → 과거 성공/실패 사례 참조
+
+```
+아키텍처/파이프라인 매핑 → slide38
+기능/특징 3가지          → slide13 또는 slide15
+기능/특징 4가지          → slide14 또는 slide16
+4단계 프로세스           → slide30
+로드맵 연도별            → slide29
+현황→목표 비교           → slide36 (개념) / slide37 (수치)
+이관/전환 효과           → slide35
+표지/목차/섹션/QA/감사   → slide6/7/8/44/46
+```
+
+### 5. 슬라이드 계획 수립 (plan.json)
 
 Claude가 직접 plan.json을 작성한다:
 - 사용 가능한 레이아웃에서 각 슬라이드에 적합한 것을 선택
@@ -113,7 +161,7 @@ Claude가 직접 plan.json을 작성한다:
 }
 ```
 
-### 5. 슬라이드 XML 편집
+### 6. 슬라이드 XML 편집
 
 각 슬라이드를 순서대로 편집한다.
 
@@ -138,7 +186,7 @@ print('XML valid')
 "
 ```
 
-### 6. 클린 & 패킹
+### 7. 클린 & 패킹
 
 ```bash
 python3 ~/.ppt-skill/scripts/clean.py unpacked/
@@ -146,7 +194,7 @@ python3 ~/.ppt-skill/scripts/office/pack.py \
   unpacked/ output.pptx --original template.pptx
 ```
 
-### 7. 시각 QA
+### 8. 시각 QA
 
 **soffice를 직접 호출 금지.** PowerPoint 우선 → LibreOffice 폴백 순서를 반드시 지킨다.
 
@@ -154,7 +202,7 @@ python3 ~/.ppt-skill/scripts/office/pack.py \
 # ppt_generator.py의 visual_qa() 함수 사용 (PowerPoint AppleScript 우선)
 python3 -c "
 import sys, pathlib
-sys.path.insert(0, '$HOME/Documents/claude/ppt_harness_project')
+sys.path.insert(0, '$HOME/.ppt-skill')
 from ppt_generator import visual_qa
 images = visual_qa(pathlib.Path('$WORK'), pathlib.Path('$WORK/output.pptx'))
 print('QA images:', len(images), 'slides')
@@ -185,14 +233,14 @@ pdftoppm -jpeg -r 120 "$WORK/output.pdf" "$WORK/qa_images/slide"
 - 한국어 폰트 깨짐 (??? 표시)
 - 헤더 중복
 
-### 8. 콘텐츠 검증
+### 9. 콘텐츠 검증
 
 ```bash
 extract-text output.pptx | grep -iE "lorem|작성해주세요|TODO|\[insert" && \
   echo "PLACEHOLDER FOUND" || echo "CONTENT CLEAN"
 ```
 
-### 9. 결과 전달
+### 10. 결과 전달
 
 ```bash
 # 최종 파일을 사용자 지정 위치로 복사
@@ -205,7 +253,7 @@ echo "완료: $DEST"
 
 ## AHE 진화 루프 (--evolve 시에만 실행)
 
-진화 루프가 활성화된 경우, 위 5~8단계 후 추가로 실행:
+진화 루프가 활성화된 경우, 위 6~9단계 후 추가로 실행:
 
 ### Trace 기록
 각 슬라이드 결과를 `~/.ppt-skill/traces/` 에 JSON으로 저장한다.
@@ -225,6 +273,16 @@ digest를 읽고 `harness/` 파일들을 개선한다:
 
 ### 예측 검증
 다음 라운드 결과와 이전 예측을 비교해 manifest를 업데이트한다.
+
+---
+
+## 알려진 이슈 & 해결법
+
+1. **목차(slide7) 번호 정렬**: `anchor="ctr"` + `spcPct val="150000"` 필수
+2. **섹션(slide8) 서브아이템 정렬**: `anchorCtr="0"` 추가 필요
+3. **헤더 중복**: `>PPT <` 교체 후 다음 run 중복 발생 → regex로 제거
+4. **XML 이스케이프**: `&` → `&amp;`, `<` → `&lt;` 필수. 미처리 시 pack 실패
+5. **lorem ipsum 잔여**: 여러 `<a:r>` run에 분산됨. 단순 replace 아닌 regex sub 필요
 
 ---
 

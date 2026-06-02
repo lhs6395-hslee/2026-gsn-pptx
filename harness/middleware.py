@@ -1,25 +1,22 @@
 """
-PPT 하네스 미들웨어 — v0.0
-PreToolUse 훅: XML 편집 전 이스케이프 검사
+PPT 하네스 미들웨어 — v0.2 (2026-06-02)
+PreToolUse 훅: XML 편집 전 검사
 PostToolUse 훅: 편집 후 ET.parse() 자동 실행
-AHE 진화 대상: 이 파일에 규칙을 추가·수정하면 하네스가 개선된다
 """
 
 import re
 import xml.etree.ElementTree as ET
 
-MIDDLEWARE_VERSION = "0.0"
-EVOLUTION_NOTES = "시드 버전 - 기본 XML 검증만 있음"
+MIDDLEWARE_VERSION = "0.2"
+EVOLUTION_NOTES = "v0.2: run/endParaRPr 순서 검사, lang=ko-KR 검사 추가"
 
 
 def pre_xml_edit(replacement: str) -> dict:
     """XML 편집 전 이스케이프 검사"""
     issues = []
-    # 날 & 탐지 (엔티티가 아닌 것)
     raw_amp = re.findall(r'&(?!amp;|lt;|gt;|quot;|apos;|#\w+;)', replacement)
     if raw_amp:
         issues.append({"type": "unescaped_ampersand", "detail": str(raw_amp)})
-    # 날 < 탐지 (태그가 아닌 것)
     raw_lt = re.findall(r'<(?![a-zA-Z/!?])', replacement)
     if raw_lt:
         issues.append({"type": "unescaped_lt", "detail": str(raw_lt)})
@@ -27,12 +24,43 @@ def pre_xml_edit(replacement: str) -> dict:
 
 
 def post_xml_edit(filepath: str) -> dict:
-    """XML 편집 후 유효성 검증"""
+    """XML 편집 후 유효성 검증 + run/endParaRPr 순서 검사"""
+    NS_A = "http://schemas.openxmlformats.org/drawingml/2006/main"
     try:
-        ET.parse(filepath)
-        return {"pass": True, "issues": []}
+        tree = ET.parse(filepath)
     except ET.ParseError as e:
         return {"pass": False, "issues": [{"type": "xml_parse_error", "detail": str(e)}]}
+
+    issues = []
+    for para in tree.getroot().iter(f"{{{NS_A}}}p"):
+        children = list(para)
+        tags = [c.tag.split("}")[-1] for c in children]
+        if "endParaRPr" in tags and "r" in tags:
+            end_idx = tags.index("endParaRPr")
+            # endParaRPr 뒤에 r이 있으면 경고
+            if any(t == "r" for t in tags[end_idx + 1:]):
+                issues.append({
+                    "type": "run_after_endpararpr",
+                    "detail": "PowerPoint ignores <a:r> after <a:endParaRPr>",
+                    "file": filepath,
+                })
+                break  # 첫 번째 발견만 보고
+
+    return {"pass": len(issues) == 0, "issues": issues}
+
+
+def check_lang_attribute(xml_str: str, has_korean: bool = True) -> dict:
+    """한국어 텍스트 run의 lang 속성 검사"""
+    issues = []
+    if has_korean:
+        # lang=en-US인 run에 한국어가 있으면 경고
+        pattern = r'lang="en-US"[^>]*>\s*<a:t>[가-힣]+'
+        if re.search(pattern, xml_str):
+            issues.append({
+                "type": "korean_in_en_us_run",
+                "detail": "lang=ko-KR 필요. en-US run의 한국어 텍스트는 ?? 렌더링될 수 있음",
+            })
+    return {"pass": len(issues) == 0, "issues": issues}
 
 
 def check_placeholder_remaining(text: str) -> dict:

@@ -71,10 +71,13 @@ ANTHROPIC_API_KEY 존재            →  Anthropic 직접
 > AI 전략 슬라이드 12장 --evolve
 ```
 
-### 2. Python 직접 실행
+### 2. Python 직접 실행 (터미널 — 추후 확장)
+
+> 엔진(`ppt_generator.py`, `main.py`)은 `~/.ppt-skill/`에 설치된다.
+> 현재는 Claude Code 스킬 경로를 주로 사용하고, 터미널 실행은 추후 확장 예정.
 
 ```bash
-cd ppt_harness_project
+cd ~/.ppt-skill
 
 # 기본 (백엔드 자동 선택)
 python3 main.py --topic "Kafka 아키텍처"
@@ -166,13 +169,15 @@ PPT_SKILL_BACKEND=bedrock python3 main.py --topic "..."
 │       ├── qa_report.json      ← 시각 QA 결과
 │       └── qa_images/          ← 슬라이드 이미지 (41장)
 ├── traces/                     ← AHE 실행 트레이스
-└── evolution/                  ← AHE 변경 매니페스트
-
-ppt_harness_project/            ← Python 구현체 (Claude Code 없을 때 직접 실행)
-├── main.py                     ← CLI 진입점 (--topic, --slides, --backend, --evolve)
-├── ppt_generator.py            ← 핵심 생성 로직
+├── evolution/                  ← AHE 변경 매니페스트
+│
+├── ppt_generator.py            ← 핵심 엔진 (분석·계획·편집·패킹·QA)
+├── analyze_zones.py            ← 템플릿 존 자동 분류 → layout_zone_map.json
+├── main.py                     ← CLI 진입점 (터미널, 추후 확장)
 └── ahe_loop.py                 ← AHE 세 기둥 구현
 ```
+
+> 이전의 별도 `ppt_harness_project/` 폴더는 `ppt-skill`로 통합되었다 (엔진이 스킬과 한 곳에서 동작).
 
 ---
 
