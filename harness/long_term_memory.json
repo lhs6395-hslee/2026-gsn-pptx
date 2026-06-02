@@ -1,0 +1,84 @@
+{
+  "version": "0.1",
+  "template_patterns": {
+    "2025_PPT_Template_FINAL.pptx": {
+      "brand": "GS Neotek",
+      "colors": {
+        "navy": "#1419AB",
+        "blue": "#3C41E6",
+        "accent_red": "#FF4B4B"
+      },
+      "fonts": ["Pretendard SemiBold", "Pretendard Medium", "Pretendard Regular", "Pretendard Light"],
+      "total_slides": 41,
+      "layout_map": {
+        "slide6": "cover — 날짜·제목·부제목·로고",
+        "slide7": "toc — 7개 항목, 번호 별도 텍스트박스",
+        "slide8": "section — 다크 배경, 우측 서브아이템 목록",
+        "slide9": "closing — 감사합니다",
+        "slide14": "three_col — 아이콘+제목+설명 3열",
+        "slide29": "timeline — 연도별 바 차트(간트)",
+        "slide30": "steps — Step1→Step4",
+        "slide36": "as_is_to_be — 벤다이어그램 비교",
+        "slide38": "keyword_solution — 3행 화살표 흐름",
+        "slide46": "closing_alt — 감사합니다(대체)"
+      },
+      "known_issues": [
+        {
+          "slide": "slide7",
+          "issue": "목차 번호 정렬 불일치",
+          "detail": "번호 박스와 내용 박스가 별도 shape으로 분리되어 있음. 세로 정렬이 틀어지기 쉬움.",
+          "fix": "anchor=\"ctr\" + spcPct val=\"150000\" 를 번호 shape과 내용 shape 모두에 적용",
+          "xml_attr": "anchor=\"ctr\"",
+          "xml_child": "<a:spcPct val=\"150000\"/>"
+        },
+        {
+          "slide": "slide8",
+          "issue": "섹션 서브아이템 세로 정렬 틀어짐",
+          "detail": "우측 서브아이템 텍스트박스의 수직 중앙 정렬이 기본값으로 복원됨",
+          "fix": "txBody의 bodyPr에 anchorCtr=\"0\" 추가",
+          "xml_attr": "anchorCtr=\"0\""
+        },
+        {
+          "slide": "any",
+          "issue": "헤더 중복 텍스트",
+          "detail": "제목 run을 교체한 후 바로 다음 <a:r>에 원본 텍스트가 남아 중복 표시",
+          "fix": "첫 번째 run만 교체하고, 나머지 run의 <a:t>를 빈 문자열로 설정. 단순 str.replace 금지 — regex로 처리"
+        },
+        {
+          "slide": "any",
+          "issue": "XML 이스케이프 누락",
+          "detail": "콘텐츠에 & < > 문자가 포함될 때 XML 파싱 실패",
+          "fix": "ElementTree가 자동 이스케이프하므로 .text 직접 할당 사용. f-string으로 XML 직접 조립 금지"
+        },
+        {
+          "slide": "any",
+          "issue": "Lorem ipsum 잔여",
+          "detail": "여러 <a:r> run에 분산된 placeholder — 단일 run 교체만으로 제거 불가",
+          "fix": "모든 <a:t> 요소를 순회해 lorem/placeholder 패턴을 regex로 감지 후 빈 문자열 치환"
+        }
+      ]
+    }
+  },
+  "known_failure_fixes": [
+    {
+      "pattern": "ET.ParseError after edit",
+      "cause": "XML 직접 문자열 조립 시 이스케이프 누락",
+      "fix": "ElementTree .text 속성으로 값 설정 — 이스케이프 자동 처리"
+    },
+    {
+      "pattern": "pack.py 실패 (content_types 충돌)",
+      "cause": "unpack 후 중복 파일 또는 _rels 손상",
+      "fix": "clean.py 재실행 후 pack.py 재시도"
+    }
+  ],
+  "slide_layout_hints": {
+    "cover": "slide6. 날짜는 YYYY.MM.DD 형식. 부제목은 subtitle shape(두 번째 텍스트박스).",
+    "toc": "slide7. 번호 shape과 내용 shape이 1:1 대응. anchor=ctr 필수.",
+    "section": "slide8. 다크 배경 유지. 서브아이템은 anchorCtr=0.",
+    "three_col": "slide14. 3열 각각 아이콘(이미지) + 제목 + 설명 구조. 텍스트만 교체.",
+    "closing": "slide9 또는 slide46. 텍스트 최소화."
+  },
+  "runs": [],
+  "total_runs": 0,
+  "evolution_notes": "v0.1 — GS Neotek 템플릿 패턴 및 알려진 이슈 추가 (2026-06-01)"
+}

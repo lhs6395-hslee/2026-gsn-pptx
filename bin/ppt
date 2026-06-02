@@ -1,0 +1,114 @@
+#!/usr/bin/env bash
+# ppt <주제> [슬라이드수] [청중]
+# 예: ppt "Kafka 아키텍처"
+#     ppt "React 입문" 8 "프론트엔드 개발자"
+#     ppt "AI 전략" 12 전문가 --evolve
+
+SKILL_DIR="$HOME/.ppt-skill"
+
+# ── 도움말 ──────────────────────────────────────────────
+usage() {
+cat << 'EOF'
+사용법: ppt <주제> [슬라이드수] [청중] [옵션]
+
+예시:
+  ppt "Kafka 아키텍처"
+  ppt "React 입문" 8
+  ppt "AI 전략" 12 "임원진" --evolve
+  ppt "DevOps 실전" --template ~/my_template.pptx
+
+옵션:
+  --slides N        슬라이드 수 (기본: 10)
+  --audience TEXT   대상 청중 (기본: 전문가)
+  --template PATH   템플릿 경로 (기본: ~/.ppt-skill/templates/default.pptx)
+  --output DIR      출력 디렉토리 (기본: ~/Desktop)
+  --evolve          AHE 진화 루프 활성화
+  --max-iter N      AHE 최대 이터레이션 (기본: 3)
+  -h, --help        이 도움말 표시
+EOF
+}
+
+if [[ $# -eq 0 ]] || [[ "$1" == "-h" ]] || [[ "$1" == "--help" ]]; then
+    usage; exit 0
+fi
+
+# ── 인자 파싱 ──────────────────────────────────────────
+TOPIC=""
+SLIDES=10
+AUDIENCE="전문가"
+TEMPLATE="${PPT_TEMPLATE:-$SKILL_DIR/templates/default.pptx}"
+OUTPUT_DIR="${HOME}/Desktop"
+EVOLVE=false
+MAX_ITER=3
+
+while [[ $# -gt 0 ]]; do
+    case "$1" in
+        --slides)    SLIDES="$2";    shift 2 ;;
+        --audience)  AUDIENCE="$2";  shift 2 ;;
+        --template)  TEMPLATE="$2";  shift 2 ;;
+        --output)    OUTPUT_DIR="$2"; shift 2 ;;
+        --evolve)    EVOLVE=true;    shift ;;
+        --max-iter)  MAX_ITER="$2";  shift 2 ;;
+        -*)          echo "알 수 없는 옵션: $1"; usage; exit 1 ;;
+        *)
+            if [[ -z "$TOPIC" ]]; then
+                TOPIC="$1"
+            elif [[ "$1" =~ ^[0-9]+$ ]] && [[ "$SLIDES" == "10" ]]; then
+                SLIDES="$1"
+            else
+                AUDIENCE="$1"
+            fi
+            shift ;;
+    esac
+done
+
+if [[ -z "$TOPIC" ]]; then
+    echo "오류: 주제를 입력하세요"
+    usage; exit 1
+fi
+
+# ── 환경 확인 ──────────────────────────────────────────
+if [[ ! -f "$SKILL_DIR/harness/CLAUDE.md" ]]; then
+    echo "오류: 스킬이 설치되지 않았습니다."
+    echo "먼저 실행하세요: bash $SKILL_DIR/../setup.sh"
+    exit 1
+fi
+
+if [[ ! -f "$TEMPLATE" ]]; then
+    echo "오류: 템플릿 파일이 없습니다: $TEMPLATE"
+    echo "배치 방법: cp your_template.pptx ~/.ppt-skill/templates/default.pptx"
+    exit 1
+fi
+
+if [[ -z "$ANTHROPIC_API_KEY" ]]; then
+    echo "오류: ANTHROPIC_API_KEY가 설정되지 않았습니다"
+    echo "설정 방법: export ANTHROPIC_API_KEY='sk-ant-...'"
+    exit 1
+fi
+
+# ── 실행 ──────────────────────────────────────────────
+echo ""
+echo "PPT 생성 시작"
+echo "  주제:     $TOPIC"
+echo "  슬라이드: ${SLIDES}장"
+echo "  청중:     $AUDIENCE"
+echo "  템플릿:   $TEMPLATE"
+echo "  AHE:      $($EVOLVE && echo 'ON (max '$MAX_ITER'회)' || echo 'OFF')"
+echo ""
+
+# Claude Code 환경이면 스킬로 처리, 아니면 Python 직접 실행
+if command -v claude &>/dev/null; then
+    # Claude Code CLI를 통해 스킬 실행
+    claude -p "주제 '$TOPIC' 로 ${SLIDES}장짜리 PPT를 만들어줘. 대상 청중: $AUDIENCE. 템플릿: $TEMPLATE. 출력 디렉토리: $OUTPUT_DIR. $($EVOLVE && echo 'AHE 진화 루프 활성화.')" \
+        --allowedTools "bash,str_replace_based_edit_tool,read_file,write_file"
+else
+    # 폴백: Python 직접 실행 (Claude Code 없을 때)
+    python3 "$SKILL_DIR/../main.py" \
+        --topic "$TOPIC" \
+        --template "$TEMPLATE" \
+        --slides "$SLIDES" \
+        --audience "$AUDIENCE" \
+        --output-dir "$OUTPUT_DIR" \
+        $($EVOLVE && echo "--evolve") \
+        --max-iter "$MAX_ITER"
+fi

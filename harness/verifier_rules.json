@@ -1,0 +1,61 @@
+{
+  "version": "0.1",
+  "rules": {
+    "xml_validity": {
+      "description": "모든 slide XML이 ET.parse()를 통과해야 함",
+      "severity": "CRITICAL",
+      "action": "FAIL",
+      "check": "xml.etree.ElementTree.parse(slide_xml)"
+    },
+    "placeholder_check": {
+      "description": "플레이스홀더 텍스트가 남아있으면 안 됨",
+      "patterns": ["lorem", "작성해주세요", "TODO", "\\[insert", "x{3,}", "placeholder"],
+      "severity": "CRITICAL",
+      "action": "FAIL",
+      "check": "extract-text | grep -iE patterns"
+    },
+    "visual_overflow": {
+      "description": "텍스트가 shape 경계 밖으로 넘치는지 슬라이드 이미지로 판단",
+      "severity": "HIGH",
+      "action": "FAIL",
+      "check": "pdftoppm → 이미지 시각 확인",
+      "known_patterns": [
+        "slide14 three_col: 설명 텍스트 4줄 초과 시 오버플로우",
+        "slide7 toc: 항목 8개 이상 시 마지막 항목 잘림",
+        "slide8 section: 서브아이템 6개 이상 시 오버플로우"
+      ],
+      "mitigation": "폰트 크기 2pt 축소 또는 내용 1줄 단축"
+    },
+    "header_duplication": {
+      "description": "헤더/제목 텍스트가 두 번 이상 나타나는지 확인",
+      "severity": "MEDIUM",
+      "action": "WARN",
+      "check": "slide XML에서 같은 텍스트가 연속된 <a:r>에 중복 존재",
+      "known_cause": "run 교체 후 다음 run에 원본 텍스트 잔존",
+      "fix": "첫 run만 교체, 나머지 run의 <a:t> 빈 문자열로 설정"
+    },
+    "toc_alignment": {
+      "description": "목차(slide7) 번호-내용 shape 세로 정렬 일치 여부",
+      "severity": "MEDIUM",
+      "action": "WARN",
+      "check": "slide7.xml의 번호 shape와 내용 shape에 anchor=\"ctr\" 존재 여부",
+      "required_xml": "anchor=\"ctr\" + <a:spcPct val=\"150000\"/>"
+    },
+    "section_anchor": {
+      "description": "섹션(slide8) 서브아이템 anchorCtr 속성 존재 여부",
+      "severity": "MEDIUM",
+      "action": "WARN",
+      "check": "slide8.xml의 bodyPr에 anchorCtr=\"0\" 존재 여부",
+      "required_xml": "anchorCtr=\"0\""
+    },
+    "xml_escape": {
+      "description": "& < > 문자가 이스케이프 없이 XML 본문에 포함되어 있는지 확인",
+      "severity": "CRITICAL",
+      "action": "FAIL",
+      "check": "ET.parse() 실패 시 raw text에서 미이스케이프 문자 탐지",
+      "fix": "ElementTree .text 속성 사용 — 직접 XML 문자열 조립 금지"
+    }
+  },
+  "pass_threshold": "ALL_CRITICAL_PASS",
+  "evolution_notes": "v0.1 — toc_alignment, section_anchor, xml_escape, visual_overflow known_patterns 추가 (2026-06-01)"
+}
