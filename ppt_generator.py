@@ -182,26 +182,21 @@ def generate_plan_with_claude(
         "slide9.xml   → content  : 3가지 사례/제품 (이미지+제목+설명 3열)\n"
         "slide10.xml  → content  : 3가지 사례 + 하단 Insight 배너\n"
         "slide12.xml  → content  : 3가지 도구/기술 (이미지+우측 텍스트)\n"
-        "slide25.xml  → content  : 솔루션/장점 3가지 (좌측 이미지+우측 3블록)\n"
         "slide30.xml  → steps    : 4단계 프로세스 (Step1→Step2→Step3→Step4)\n"
-        "slide32.xml  → content  : 텍스트+배너 (순수 텍스트, 긴 설명/개요/서술형)\n"
-        "slide24.xml  → content  : 2블록 텍스트 (짧은 2가지 요점)\n"
-        "slide35.xml  → content  : Before→After 비교 (키워드 버블)\n"
+        "slide32.xml  → content  : 텍스트+배너 (순수 텍스트, 긴 설명/개요/서술형/2~3가지 요점)\n"
         "slide36.xml  → content  : As-is/To-be 벤다이어그램 (현황→목표 비교)\n"
-        "slide38.xml  → flow     : 3행 흐름도 keyword→solution (아키텍처/파이프라인)\n"
-        "slide39.xml  → flow     : 3행 상세 흐름도 (항목 목록 포함)\n"
+        "slide38.xml  → flow     : 3행 흐름도 keyword→solution→service (아키텍처/파이프라인)\n"
         "slide46.xml  → closing  : 감사합니다 (전용, 변경 불가)\n\n"
         "=== template 선택 기준 (반드시 콘텐츠 형태와 일치시킬 것) ===\n"
         "- 서술형 설명·시장동향·개요·배경 등 줄글 → slide32 (절대 타임라인 금지)\n"
         "- 3가지 기능/장점 나열 → slide13 (items 3개 + descriptions 3개 필수)\n"
         "- 4가지 기능/구성요소 → slide14 또는 slide16 (items 4개 + descriptions 4개)\n"
-        "- 3가지 사례·제품·도구(시각 강조) → slide9/slide10/slide12/slide25 "
+        "- 3가지 사례·제품·도구(시각 강조) → slide9/slide10/slide12 "
         "(items + descriptions + image_descriptions 3개)\n"
         "- 4단계 프로세스 → slide30 (steps 4개 필수)\n"
-        "- 아키텍처/파이프라인 흐름 → slide38 또는 slide39 (keywords 필수)\n"
-        "- 이전↔이후 비교, 개선효과 → slide35 (before/after 필수)\n"
-        "- 현황(As-is)↔목표(To-be) → slide36 (as_is/to_be 필수)\n"
-        "- 짧은 2가지 요점 → slide24\n"
+        "- 아키텍처/파이프라인 흐름 → slide38 (keywords + solutions + services/details 필수)\n"
+        "- 현황↔목표·이전↔이후·비교 → slide36 (as_is/to_be 각 키워드 필수)\n"
+        "- 짧은 2~3가지 요점 → slide32 (body + bullets)\n"
         "- 연도별 로드맵/연혁 → slide29 (periods=[{label,content}] 필수, 시계열일 때만)\n"
         "- 분기별 계획 → slide31/slide33 (quarters 필수, 시계열일 때만)\n"
         "- 챕터 시작 구분 → slide8 (사용자가 '섹션 구분' 명시 요청 시에만)\n"
@@ -213,17 +208,16 @@ def generate_plan_with_claude(
         "=== role별 content 필드 ===\n"
         "cover  : subtitle(30자 이내 1줄), date\n"
         "toc    : items(문자열 배열)\n"
-        "steps  : steps(4개 문자열), subtitle\n"
+        "steps  : steps(4개, 각 25자 이내 짧은 한 줄 — 예 '1단계: PoC 검증'. 긴 설명 금지, 잘림), subtitle\n"
         "flow   : keywords(3개), solutions(3개), details(3개, 선택)\n"
         "content(slide13/15): items(3개, 각 16자 이내), descriptions(3개, 각 45자 이내 — 길면 잘림)\n"
         "content(slide14/16): items(4개, 16자 이내), descriptions(4개, 40자 이내)\n"
-        "content(slide9/10/12/25): items(제목 3개), descriptions(설명 3개), "
+        "content(slide9/10/12): items(제목 3개), descriptions(설명 3개), "
         "image_descriptions(각 칸에 '어떤 이미지를 넣어야 하는지' 구체적 설명 3개 — 실제 이미지 아님)\n"
         "content(slide10): items/descriptions/image_descriptions(3개) + insight(하단 배너 1개)\n"
         "content(slide35): before(3개 키워드), after(4개 키워드)\n"
         "content(slide36): as_is(4개 키워드), to_be(4개 키워드), body\n"
         "content(slide32): body(긴 텍스트), bullets(선택)\n"
-        "content(slide24): bullets(2개), body\n"
         "closing: 없음\n\n"
         "출력 형식:\n"
         '{"title":"...","topic":"...","audience":"...","n_slides":N,'
@@ -1642,6 +1636,10 @@ _BANNED_SLIDES: set[str] = {
     "slide21.xml", "slide22.xml",
     # 버블 개념도 (복잡 — 전용 편집기 필요)
     "slide34.xml", "slide35.xml",
+    # 3행 상세 흐름도 — service(4번째) 컬럼 미충전 이슈 → flow는 slide38로 통일
+    "slide39.xml",
+    # 레이아웃에 영상(media) placeholder가 있어 ▶ 아이콘 노출 → 텍스트는 slide32 사용
+    "slide24.xml", "slide25.xml", "slide26.xml", "slide27.xml", "slide28.xml",
     # 차트 고정 (Excel 데이터 임베딩 미완성 — 추후 과제)
     "slide40.xml", "slide41.xml", "slide42.xml", "slide43.xml",
 }
@@ -1651,10 +1649,8 @@ _BANNED_SLIDES: set[str] = {
 _ALLOWED_CONTENT_SLIDES: list[str] = [
     # 텍스트 위주 (가장 안전 — 이미지/도형 불필요, 미배정 시 기본 폴백)
     "slide32.xml",  # ✅ 텍스트+배너 (긴 설명/개요/서술형)
-    "slide24.xml",  # ✅ 2블록 텍스트
     # 프로세스/흐름
-    "slide38.xml",  # ✅ 3행 흐름도 (keyword→Solution→Service)
-    "slide39.xml",  # ✅ 3행 상세 흐름도 (세부 항목 포함)
+    "slide38.xml",  # ✅ 3행 흐름도 (keyword→Solution→Service) — flow 표준
     "slide30.xml",  # ✅ 4단계 스텝 프로세스
     # 시간축 레이아웃 (반드시 연도/분기 시계열 콘텐츠일 때만)
     "slide29.xml",  # ✅ 연도별/월별 타임라인 (2023→2026)
@@ -1662,7 +1658,6 @@ _ALLOWED_CONTENT_SLIDES: list[str] = [
     "slide33.xml",  # ✅ 분기별 (상단 설명+Q4열, slide31 변형)
     # 비교/분석
     "slide36.xml",  # 🟡 As-is/To-be 벤다이어그램
-    "slide35.xml",  # 🟡 Before→After 버블 변환
     # 카드/아이콘 (아이콘 영역은 비워둠 — placeholder 텍스트 미노출)
     "slide13.xml",  # 🟡 3열 아이콘카드 (3가지 기능/특징/장점)
     "slide15.xml",  # 🟡 3열 대형아이콘 (3가지 핵심 가치)
@@ -1674,9 +1669,8 @@ _ALLOWED_CONTENT_SLIDES: list[str] = [
     "slide11.xml",  # 3행 이미지(좌)+설명
     "slide12.xml",  # 3열 이미지+우측 텍스트
     "slide17.xml",  # 2x2 이미지+설명
-    "slide25.xml",  # 좌측 이미지+우측 3블록
-    "slide26.xml", "slide27.xml", "slide28.xml",
-    # 차트(40~43)는 Excel 데이터 임베딩 미완성 — 추후 과제(현재 자동선택 제외)
+    # slide24~28(영상 placeholder), slide34/35(버블), slide39(4컬럼), slide40~43(차트)
+    # 는 _BANNED — 추후 전용 처리 후 활성화
 ]
 
 # 레이아웃별 필수 콘텐츠 필드 — 하나도 없으면 텍스트 배너(slide32)로 리맵.
@@ -1687,7 +1681,6 @@ _LAYOUT_CONTENT_REQ: dict[str, list[str]] = {
     "slide33.xml": ["quarters"],
     "slide30.xml": ["steps"],
     "slide38.xml": ["keywords"],
-    "slide39.xml": ["keywords"],
     "slide35.xml": ["before", "after"],
     "slide36.xml": ["as_is", "to_be"],
     "slide13.xml": ["items"],
@@ -1699,10 +1692,6 @@ _LAYOUT_CONTENT_REQ: dict[str, list[str]] = {
     "slide11.xml": ["items"],
     "slide12.xml": ["items"],
     "slide17.xml": ["items"],
-    "slide25.xml": ["items"],
-    "slide26.xml": ["items"],
-    "slide27.xml": ["items"],
-    "slide28.xml": ["items"],
 }
 
 
