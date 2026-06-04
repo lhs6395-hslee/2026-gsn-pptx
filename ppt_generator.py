@@ -2305,7 +2305,9 @@ def _apply_common_zones(root, slide_plan: dict, template_file: str) -> None:
         # section_title: 'N. 소제목' 또는 'N.M 소제목' 형식. 미지정 시 title로 폴백
         label_text = sec_title or title
         _set_shape(label_id, label_text)
-        # 텍스트 줄 수에 맞게 body_title 높이 동적 확장 + body_desc 위치 재조정
+        # 1) 텍스트박스 cy 동적 확장 (줄바꿈 발생 시)
+        _auto_resize_textbox(root, label_id, label_text)
+        # 2) 확장된 body_title 기준으로 body_desc 위치 재조정 (겹침 방지)
         _resize_sidebar_and_reposition_desc(root, label_id, desc_id, label_text)
     if desc_id and sec_desc:
         _set_shape(desc_id, _truncate_to_lines(sec_desc, 2_200_000, 12, 5))
