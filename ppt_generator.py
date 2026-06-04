@@ -208,7 +208,9 @@ def generate_plan_with_claude(
         "=== role별 content 필드 ===\n"
         "cover  : subtitle(30자 이내 1줄), date\n"
         "toc    : items(문자열 배열)\n"
-        "steps  : steps(4개, 각 25자 이내 짧은 한 줄 — 예 '1단계: PoC 검증'. 긴 설명 금지, 잘림), subtitle\n"
+        "steps  : section_no(예 '4'), section_title(사이드바 제목 2줄 이내), "
+        "section_desc(사이드바 설명 3줄 이내), "
+        "steps(4개, 각 25자 이내 짧은 한 줄 — 예 '1단계: PoC 검증'. 긴 설명 금지, 잘림)\n"
         "flow   : keywords(3개), solutions(3개), details(3개, 선택)\n"
         "content(slide13/15): items(3개, 각 16자 이내), descriptions(3개, 각 45자 이내 — 길면 잘림)\n"
         "content(slide14/16): items(4개, 16자 이내), descriptions(4개, 40자 이내)\n"
@@ -2129,7 +2131,8 @@ def _apply_common_zones(root, slide_plan: dict, template_file: str) -> None:
     subtitle = slide_plan.get("subtitle", "")
     content  = slide_plan.get("content", {})
     sec_no   = content.get("section_no", "")
-    sec_title= content.get("section_title", title[:25])
+    # section_title 없으면 비워둠 — 슬라이드 제목(대제목)을 본문제목에 중복 삽입하지 않음
+    sec_title= content.get("section_title", "")
     sec_desc = content.get("section_desc", "")
 
     def _set_shape(sid: str, text: str) -> None:
@@ -2166,8 +2169,9 @@ def _apply_common_zones(root, slide_plan: dict, template_file: str) -> None:
     label_id = z.get("body_title") or _SIDEBAR_LABEL_ID.get(template_file)
     desc_id  = z.get("body_desc")  or _SIDEBAR_DESC_ID.get(template_file)
     if label_id:
-        # section_title 미지정 시 제목을 그대로 반복하면 사이드바를 넘치므로 짧게 자름
-        label_text = f"{sec_no}\n{sec_title}" if sec_no else sec_title
+        # section_title 미지정 시 슬라이드 제목으로 폴백 (사이드바 공백 방지)
+        effective_title = sec_title or title
+        label_text = f"{sec_no}\n{effective_title}" if sec_no else effective_title
         _set_shape(label_id, label_text)
         lbl = _find_shape_by_id(root, label_id)
         if lbl is not None:
