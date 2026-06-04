@@ -32,12 +32,12 @@ PLAN_CONTENT_SCHEMA: dict[str, dict] = {
     #   section_title: 사이드바 본문제목 (20자 이내)
     #   section_desc: 사이드바 본문설명 (3줄 이내)
     #   body: 슬라이드 유형별 상세 내용
-    "content":   {"required": ["section_no","section_title"], "optional": ["section_desc","body"]},
-    "timeline":  {"required": ["section_no","section_title"], "recommended": ["periods"]},
-    "quarterly": {"required": ["section_no","section_title"], "recommended": ["quarters"]},
-    "steps":     {"required": ["section_no","section_title"], "recommended": ["steps"]},
-    "flow":      {"required": ["section_no","section_title"], "recommended": ["keywords","solutions"]},
-    "comparison":{"required": ["section_no","section_title"], "recommended": ["before","after"]},
+    "content":   {"required": ["section_title"], "optional": ["section_desc","body"]},
+    "timeline":  {"required": ["section_title"], "recommended": ["periods"]},
+    "quarterly": {"required": ["section_title"], "recommended": ["quarters"]},
+    "steps":     {"required": ["section_title"], "recommended": ["steps"]},
+    "flow":      {"required": ["section_title"], "recommended": ["keywords","solutions"]},
+    "comparison":{"required": ["section_title"], "recommended": ["before","after"]},
 }
 
 # 슬라이드별 사이드바 shape ID 매핑
@@ -65,7 +65,7 @@ _SIDEBAR_DESC_ID: dict[str, str] = {
 # shape 구조:
 #   slide24: ID=8(제목), ID=7(본문1/bullets), ID=10(본문2/body)        — 순수 텍스트 2블록
 #   slide30: ID=8(제목), ID=9(부제목), ID=28-31(Step1~4)               — 4단계 프로세스
-#   slide32: ID=8(제목), ID=9(부제목), ID=26(본문/wide text)            — 텍스트+배너
+#   slide32: ID=8(제목), ID=9(부제목), ID=25(본문제목), ID=26(본문설명글)  — 상단텍스트+하단3열(텍스트/이미지 삽입형)
 #   slide38: ID=8(제목), ID=13-15(keyword×3), ID=7/10/11(solution×3)  — 3행 흐름도
 #   slide8:  ID=2(섹션제목/40pt), ID=4(서브항목 목록)                    — 섹션 구분
 LAYOUT_REGISTRY: dict[str, dict] = {
@@ -73,7 +73,7 @@ LAYOUT_REGISTRY: dict[str, dict] = {
                     "editor": "_edit_slide24"},
     "slide30.xml": {"label": "4단계 스텝",   "best_for": ["steps", "process"],
                     "editor": "_edit_slide30"},
-    "slide32.xml": {"label": "텍스트+배너",  "best_for": ["content", "description"],
+    "slide32.xml": {"label": "상단텍스트+하단3열콘텐츠", "best_for": ["content", "three_points"],
                     "editor": "_edit_slide32"},
     "slide38.xml": {"label": "3행 흐름도",   "best_for": ["flow", "architecture"],
                     "editor": "_edit_slide38"},
@@ -183,12 +183,12 @@ def generate_plan_with_claude(
         "slide10.xml  → content  : 3가지 사례 + 하단 Insight 배너\n"
         "slide12.xml  → content  : 3가지 도구/기술 (이미지+우측 텍스트)\n"
         "slide30.xml  → steps    : 4단계 프로세스 (Step1→Step2→Step3→Step4)\n"
-        "slide32.xml  → content  : 텍스트+배너 (순수 텍스트, 긴 설명/개요/서술형/2~3가지 요점)\n"
+        "slide32.xml  → content  : 상단 텍스트+하단 3열 콘텐츠 (본문설명글+3가지 핵심 포인트/이미지)\n"
         "slide36.xml  → content  : As-is/To-be 벤다이어그램 (현황→목표 비교)\n"
         "slide38.xml  → flow     : 3행 흐름도 keyword→solution→service (아키텍처/파이프라인)\n"
         "slide46.xml  → closing  : 감사합니다 (전용, 변경 불가)\n\n"
         "=== template 선택 기준 (반드시 콘텐츠 형태와 일치시킬 것) ===\n"
-        "- 서술형 설명·시장동향·개요·배경 등 줄글 → slide32 (절대 타임라인 금지)\n"
+        "- 서술형 설명+3가지 핵심 포인트 → slide32 (상단: 본문설명글, 하단 3열: bullets 3개 또는 이미지)\n"
         "- 3가지 기능/장점 나열 → slide13 (items 3개 + descriptions 3개 필수)\n"
         "- 4가지 기능/구성요소 → slide14 또는 slide16 (items 4개 + descriptions 4개)\n"
         "- 3가지 사례·제품·도구(시각 강조) → slide9/slide10/slide12 "
@@ -196,36 +196,49 @@ def generate_plan_with_claude(
         "- 4단계 프로세스 → slide30 (steps 4개 필수)\n"
         "- 아키텍처/파이프라인 흐름 → slide38 (keywords + solutions + services/details 필수)\n"
         "- 현황↔목표·이전↔이후·비교 → slide36 (as_is/to_be 각 키워드 필수)\n"
-        "- 짧은 2~3가지 요점 → slide32 (body + bullets)\n"
+        "- 짧은 2가지 요점 비교 → slide24 (body 2개)\n"
         "- 연도별 로드맵/연혁 → slide29 (periods=[{label,content}] 필수, 시계열일 때만)\n"
         "- 분기별 계획 → slide31/slide33 (quarters 필수, 시계열일 때만)\n"
         "- 챕터 시작 구분 → slide8 (사용자가 '섹션 구분' 명시 요청 시에만)\n"
         "★ 중요: 실사진/아이콘 이미지는 제공되지 않는다. 이미지가 필수인 레이아웃은 쓰지 말 것.\n"
         "★ 중요: slide29/31/33(타임라인)은 연도·분기 등 '시간 흐름' 데이터일 때만. "
-        "그 외 모든 설명은 slide32를 기본으로 사용.\n"
+        "그 외 서술형+3포인트 구조는 slide32를 기본으로 사용.\n"
         "★ 레이아웃별 필수 필드가 없으면 자동으로 slide32(텍스트)로 교체되니, "
         "선택한 레이아웃에 맞는 content 필드를 반드시 채울 것.\n\n"
+        "=== 본문 슬라이드 헤더 3존 규칙 (cover/toc/closing 제외 모든 슬라이드 필수) ===\n"
+        "① title(대제목)   : 이 슬라이드가 속한 목차 챕터 제목 — TOC items 중 해당 번호의 텍스트 그대로\n"
+        "                    (예: TOC 2번 항목이 '핵심 아키텍처 및 처리 모델'이면 title='핵심 아키텍처 및 처리 모델')\n"
+        "② subtitle(중제목): 챕터 번호 2자리 (예: '01', '02', '03'...)\n"
+        "③ section_title   : 슬라이드 소제목 — content 내부에 위치\n"
+        "   - 해당 챕터에 슬라이드 1개: 'N. 챕터제목' (예: '1. 실시간 스트리밍 시장 동향')\n"
+        "   - 해당 챕터에 슬라이드 여러 개: 'N.1 소제목', 'N.2 소제목' (예: '2.1 JobManager 구조')\n"
+        "   ★ title과 section_title은 반드시 다른 텍스트여야 한다\n\n"
         "=== role별 content 필드 ===\n"
         "cover  : subtitle(30자 이내 1줄), date\n"
         "toc    : items(문자열 배열)\n"
-        "steps  : section_no(예 '4'), section_title(사이드바 제목 2줄 이내), "
-        "section_desc(사이드바 설명 3줄 이내), "
+        "steps  : section_title(소제목), section_desc(본문제목 설명 2줄 이내), "
         "steps(4개, 각 25자 이내 짧은 한 줄 — 예 '1단계: PoC 검증'. 긴 설명 금지, 잘림)\n"
-        "flow   : keywords(3개), solutions(3개), details(3개, 선택)\n"
-        "content(slide13/15): items(3개, 각 16자 이내), descriptions(3개, 각 45자 이내 — 길면 잘림)\n"
-        "content(slide14/16): items(4개, 16자 이내), descriptions(4개, 40자 이내)\n"
-        "content(slide9/10/12): items(제목 3개), descriptions(설명 3개), "
-        "image_descriptions(각 칸에 '어떤 이미지를 넣어야 하는지' 구체적 설명 3개 — 실제 이미지 아님)\n"
-        "content(slide10): items/descriptions/image_descriptions(3개) + insight(하단 배너 1개)\n"
-        "content(slide35): before(3개 키워드), after(4개 키워드)\n"
-        "content(slide36): as_is(4개 키워드), to_be(4개 키워드), body\n"
-        "content(slide32): body(긴 텍스트), bullets(선택)\n"
+        "flow   : section_title(소제목), section_desc(2줄 이내), keywords(3개), solutions(3개), details(3개)\n"
+        "content(slide13/15): section_title, section_desc(2줄 이내), "
+        "items(3개, 각 16자 이내), descriptions(3개, 각 45자 이내), "
+        "image_descriptions(이미지 영역에 넣어야 할 이미지 상세 설명 3개 — 실제 이미지 아님)\n"
+        "content(slide14/16): section_title, section_desc(2줄 이내), "
+        "items(4개, 16자 이내), descriptions(4개, 40자 이내), "
+        "image_descriptions(이미지 영역 상세 설명 4개)\n"
+        "content(slide9/10/12): section_title, section_desc, items(3개), descriptions(3개), "
+        "image_descriptions(각 칸 이미지 상세 설명 3개)\n"
+        "content(slide10): section_title, section_desc, items/descriptions/image_descriptions(3개) + insight(배너 1개)\n"
+        "content(slide32): section_title, section_desc, "
+        "body(상단 본문설명글 3줄 이내), bullets(하단 3열 핵심 포인트 3개 필수), "
+        "image_descriptions(하단 3열 이미지 상세 설명 3개)\n"
+        "content(slide35): section_title, section_desc, before(3개 키워드), after(4개 키워드)\n"
+        "content(slide36): section_title, section_desc, as_is(4개 키워드), to_be(4개 키워드), body\n"
         "closing: 없음\n\n"
         "출력 형식:\n"
         '{"title":"...","topic":"...","audience":"...","n_slides":N,'
         '"slides":[{"index":1,"template_file":"slideN.xml",'
         '"role":"cover|toc|section|content|steps|flow|closing",'
-        '"title":"...","content":{...}}]}'
+        '"title":"목차챕터제목(대제목)","subtitle":"01(중제목)","content":{"section_title":"N. 소제목",...}}]}'
     )
 
     layout_summary = "\n".join(f"  {f}: {t}" for f, t in list(available_layouts.items())[:15])
@@ -1650,7 +1663,7 @@ _BANNED_SLIDES: set[str] = {
 # Claude가 콘텐츠를 분석한 후 아래 목록에서 template_file을 선택
 _ALLOWED_CONTENT_SLIDES: list[str] = [
     # 텍스트 위주 (가장 안전 — 이미지/도형 불필요, 미배정 시 기본 폴백)
-    "slide32.xml",  # ✅ 텍스트+배너 (긴 설명/개요/서술형)
+    "slide32.xml",  # ✅ 상단 텍스트 + 하단 3열 콘텐츠 (텍스트/이미지 삽입형)
     # 프로세스/흐름
     "slide38.xml",  # ✅ 3행 흐름도 (keyword→Solution→Service) — flow 표준
     "slide30.xml",  # ✅ 4단계 스텝 프로세스
@@ -2116,24 +2129,18 @@ def _edit_slide8(xml_path: Path, slide_plan: dict) -> None:
 def _apply_common_zones(root, slide_plan: dict, template_file: str) -> None:
     """
     모든 본문 슬라이드 공통 3-Zone 처리:
-      Zone 1 (헤더 바): ID=8(대제목), ID=9(중제목)
-      Zone 2 (사이드바): 슬라이드별 label/desc ID → 본문제목, 본문설명글
-      Zone 3 (본문 구역): 각 편집기가 직접 처리
-
-    사이드바 형식:
-      label: "1.1\\n본문제목" (번호 + 제목 분리)
-      desc:  "본문설명글 (3줄 이내)"
+      Zone 1 헤더 바: ID=8(대제목=목차챕터제목), ID=9(중제목=챕터번호 '01','02'...)
+      Zone 2 사이드바: body_title → 본문제목(section_title), body_desc → 본문설명글(section_desc)
+      Zone 3 본문 구역: 각 편집기가 직접 처리
     """
     import copy as _copy
     ns_p, ns_a = _NS_P, _NS_A
 
-    title    = slide_plan.get("title", "")
-    subtitle = slide_plan.get("subtitle", "")
+    title    = slide_plan.get("title", "")       # 대제목: 목차 챕터 제목
+    subtitle = slide_plan.get("subtitle", "")    # 중제목: 챕터 번호 ('01','02'...)
     content  = slide_plan.get("content", {})
-    sec_no   = content.get("section_no", "")
-    # section_title 없으면 비워둠 — 슬라이드 제목(대제목)을 본문제목에 중복 삽입하지 않음
-    sec_title= content.get("section_title", "")
-    sec_desc = content.get("section_desc", "")
+    sec_title = content.get("section_title", "") # 본문제목: 'N. 소제목' 또는 'N.M 소제목'
+    sec_desc  = content.get("section_desc", "")  # 본문설명글
 
     def _set_shape(sid: str, text: str) -> None:
         sp = _find_shape_by_id(root, sid)
@@ -2169,9 +2176,8 @@ def _apply_common_zones(root, slide_plan: dict, template_file: str) -> None:
     label_id = z.get("body_title") or _SIDEBAR_LABEL_ID.get(template_file)
     desc_id  = z.get("body_desc")  or _SIDEBAR_DESC_ID.get(template_file)
     if label_id:
-        # section_title 미지정 시 슬라이드 제목으로 폴백 (사이드바 공백 방지)
-        effective_title = sec_title or title
-        label_text = f"{sec_no}\n{effective_title}" if sec_no else effective_title
+        # section_title: 'N. 소제목' 또는 'N.M 소제목' 형식. 미지정 시 title로 폴백
+        label_text = sec_title or title
         _set_shape(label_id, label_text)
         lbl = _find_shape_by_id(root, label_id)
         if lbl is not None:
@@ -2530,7 +2536,7 @@ def _edit_slide30(xml_path: Path, slide_plan: dict) -> None:
 
 
 def _edit_slide32(xml_path: Path, slide_plan: dict) -> None:
-    """slide32 (타임라인/텍스트+배너): Zone1+2 공통 + Zone3 body wide text."""
+    """slide32 (상단텍스트+하단3열): Zone1+2 공통 + Zone3 본문설명글(#26) + 하단3열(#19,20,31) bullets/이미지."""
     content = slide_plan.get("content", {})
     body    = content.get("body") or "\n".join(content.get("bullets", []))
     try:
