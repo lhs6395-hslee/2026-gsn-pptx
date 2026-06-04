@@ -1628,7 +1628,39 @@ def restructure_sections(output_path: Path) -> None:
             tmp.unlink()
 
 
-# ── 7. 콘텐츠 검증 ───────────────────────────────────────────
+# ── 7. 폰트 컴플라이언스 검사 ─────────────────────────────────
+
+def check_font_compliance(slides_dir: Path, font: str = _TEMPLATE_FONT) -> list[str]:
+    """
+    모든 슬라이드 XML을 검사해 지정 폰트(기본: Pretendard) 미사용 shape를 보고.
+    반환: [경고 문자열 목록]
+    """
+    warnings = []
+    if not slides_dir.exists():
+        return warnings
+    for xml_path in sorted(slides_dir.glob("slide*.xml")):
+        if "Layout" in xml_path.name or "Master" in xml_path.name:
+            continue
+        try:
+            tree = ET.parse(xml_path); root = tree.getroot()
+        except ET.ParseError:
+            continue
+        for sp in root.iter(f"{{{_NS_P}}}sp"):
+            cpr = sp.find(f"{{{_NS_P}}}nvSpPr/{{{_NS_P}}}cNvPr")
+            sid = cpr.get("id","?") if cpr is not None else "?"
+            for rPr in sp.findall(f".//{{{_NS_A}}}rPr"):
+                for tag in ("latin", "ea", "cs"):
+                    elem = rPr.find(f"{{{_NS_A}}}{tag}")
+                    if elem is not None:
+                        tf = elem.get("typeface","")
+                        if tf and tf not in (font, "+mj-lt", "+mn-lt", "+mj-ea", "+mn-ea"):
+                            warnings.append(
+                                f"{xml_path.name} shape {sid}: {tag}={tf!r} (expected {font})"
+                            )
+    return warnings
+
+
+# ── 8. 콘텐츠 검증 ───────────────────────────────────────────
 
 def verify_content(output_path: Path) -> list[str]:
     """pptx 텍스트를 추출해 플레이스홀더 잔여 여부를 확인한다."""
@@ -2450,8 +2482,52 @@ def _edit_slide21(xml_path: Path, slide_plan: dict) -> None:
     _clear_residual_placeholders(root); _write_xml(root, xml_path)
 
 
+def _auto_resize_textbox(root, sid: str, text: str, default_font_pt: float = 14.0) -> None:
+    """
+    텍스트가 텍스트박스를 초과해 자동 줄바꿈될 경우 cy를 동적으로 확장.
+    - font_pt: shape의 rPr.sz에서 읽음 (없으면 default_font_pt 사용)
+    - box_capacity: cx_pt / (font_pt * 0.8) — 경험적 Korean/ASCII 혼용 기준
+    - line_height_emu: font_pt × 12700 × 1.25
+    - cx=0인 layout 상속 shape는 건드리지 않음
+    """
+    import math as _math
+    sp = _find_shape_by_id(root, sid)
+    if sp is None: return
+    spPr = sp.find(f"{{{_NS_P}}}spPr")
+    xfrm = spPr.find(f"{{{_NS_A}}}xfrm") if spPr else None
+    if xfrm is None: return
+    ext = xfrm.find(f"{{{_NS_A}}}ext")
+    if ext is None: return
+    cx = int(ext.get('cx', 0))
+    if cx == 0: return  # layout 상속 — 리사이즈 불가
+
+    # 폰트 크기 읽기
+    rPr = next((r.find(f"{{{_NS_A}}}rPr") for r in sp.findall(f".//{{{_NS_A}}}r")
+                if r.find(f"{{{_NS_A}}}rPr") is not None), None)
+    sz_h = int(rPr.get('sz', str(int(default_font_pt * 100)))) if rPr is not None else int(default_font_pt * 100)
+    font_pt = sz_h / 100.0
+
+    # 줄 수 계산
+    cx_pt = cx / 12700.0
+    box_cap = cx_pt / (font_pt * 0.8)
+
+    def _cw(c: str) -> float:
+        if '가' <= c <= '힣' or '一' <= c <= '鿿': return 1.0
+        if c in (' ', '\t', '\n'): return 0.35
+        return 0.55
+
+    w = sum(_cw(c) for c in (text or ""))
+    lines = max(1, _math.ceil(w / box_cap))
+
+    line_h_emu = int(font_pt * 12700 * 1.25)
+    new_cy = lines * line_h_emu
+    orig_cy = int(ext.get('cy', 0))
+    if new_cy > orig_cy:
+        ext.set('cy', str(new_cy))
+
+
 def _slide_set_helper(root, ns_p, ns_a, sid, text):
-    """편집기 공통 shape 텍스트 설정 헬퍼."""
+    """편집기 공통 shape 텍스트 설정 헬퍼. 텍스트 설정 후 자동 줄바꿈 발생 시 cy 동적 확장."""
     import copy as _copy
     sp = _find_shape_by_id(root, sid)
     if sp is None: return
@@ -2467,6 +2543,9 @@ def _slide_set_helper(root, ns_p, ns_a, sid, text):
         r_new = ET.Element(f"{{{ns_a}}}r")
         if orig_rPr: r_new.append(_copy2.deepcopy(orig_rPr))
         ET.SubElement(r_new, f"{{{ns_a}}}t").text = text; p.insert(idx, r_new); break
+    # 자동 줄바꿈 발생 시 cy 동적 확장
+    if text:
+        _auto_resize_textbox(root, sid, text)
 
 
 def _edit_slide35(xml_path: Path, slide_plan: dict) -> None:
@@ -3433,7 +3512,12 @@ def _run_vision_fix_agent(
 - shape ID=9("01 중제목 작성", "01 컨텐츠 작성" 등이 보이면): 레이아웃 placeholder — set_text("")로 비우거나 무시할 것, 슬라이드 콘텐츠로 교체 금지
 - shape ID=8("PPT 대제목 작성"이 보이면): 레이아웃 placeholder — 비울 것
 - "Solution 01", "keyword", "Sevice 01", "Step1"~"Step4" 등 템플릿 안내 텍스트는 placeholder — 비울 것
-- 이미 실제 콘텐츠(한국어 설명문)가 있는 shape는 수정 금지"""
+- 이미 실제 콘텐츠(한국어 설명문)가 있는 shape는 수정 금지
+
+가시성 검증 (시각적으로 판단):
+- 텍스트가 배경색과 대비가 낮아 거의 안 보이는 경우: issue_summary에 "가시성 낮음: shape_id=X (다크 배경에 다크 텍스트)" 형태로 보고. fixes는 비워둘 것 (폰트 색 변경은 별도 처리)
+- 다크(네이비/다크블루) 배경 영역의 텍스트가 흰색/밝은색이 아니면 가시성 문제로 보고
+- 라이트(흰색/회색) 배경 영역의 텍스트가 흰색/밝은색이면 가시성 문제로 보고"""
 
     # 슬라이드별 정보 구성
     content_parts = []
@@ -3940,6 +4024,15 @@ def run_ppt_generation(
             print(f"    - {issue}")
     else:
         print("  ✓ 콘텐츠 검증 통과")
+
+    # ── 폰트 컴플라이언스 검사 ──────────────────────
+    font_warns = check_font_compliance(work_dir / "unpacked" / "ppt" / "slides")
+    if font_warns:
+        print(f"  ⚠ 폰트 비준수 {len(font_warns)}건 (Pretendard 미지정):")
+        for w in font_warns[:3]:
+            print(f"    - {w}")
+    else:
+        print("  ✓ 폰트 검증 통과 (Pretendard)")
 
     # Vision 이슈 수를 meta로 반환 (조건부 auto-evolve용)
     _vision_critical_total = sum(
