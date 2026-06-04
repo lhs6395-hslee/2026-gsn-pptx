@@ -1416,6 +1416,7 @@ def pack_output(work_dir: Path, output_path: Path,
         return False
 
     print(f"  ✓ 패킹 완료: {output_path}")
+    restructure_sections(output_path)
     return True
 
 
