@@ -2740,13 +2740,75 @@ def _edit_slide21(xml_path: Path, slide_plan: dict) -> None:
     _clear_residual_placeholders(root); _write_xml(root, xml_path)
 
 
-def _auto_resize_textbox(root, sid: str, text: str, default_font_pt: float = 14.0) -> None:
+def _resolve_layout_shape_bounds(xml_path: Path, sid: str) -> dict | None:
+    """
+    레이아웃 상속 shape(cx=0)의 실제 좌표를 슬라이드 레이아웃 XML에서 읽어온다.
+    반환: {'x':int,'y':int,'cx':int,'cy':int} 또는 None
+    """
+    try:
+        import xml.etree.ElementTree as _ET2
+        ns_p = _NS_P; ns_a = _NS_A
+        # _rels에서 레이아웃 파일 경로 찾기
+        rels_path = xml_path.parent / '_rels' / (xml_path.name + '.rels')
+        if not rels_path.exists(): return None
+        rels_root = _ET2.parse(rels_path).getroot()
+        rns = 'http://schemas.openxmlformats.org/officeDocument/2006/relationships'
+        layout_target = next((r.get('Target','') for r in rels_root
+                              if 'slideLayout' in r.get('Target','')), None)
+        if not layout_target: return None
+        layout_path = (xml_path.parent.parent / layout_target.lstrip('../')).resolve()
+        if not layout_path.exists(): return None
+        layout_root = _ET2.parse(layout_path).getroot()
+        for sp in layout_root.iter(f'{{{ns_p}}}sp'):
+            cpr = sp.find(f'{{{ns_p}}}nvSpPr/{{{ns_p}}}cNvPr')
+            if cpr is None or cpr.get('id') != str(sid): continue
+            xfrm = sp.find(f'.//{{{ns_a}}}xfrm')
+            if xfrm is None: continue
+            off = xfrm.find(f'{{{ns_a}}}off')
+            ext = xfrm.find(f'{{{ns_a}}}ext')
+            if off is None or ext is None: continue
+            return {'x': int(off.get('x',0)), 'y': int(off.get('y',0)),
+                    'cx': int(ext.get('cx',0)), 'cy': int(ext.get('cy',0))}
+    except Exception:
+        pass
+    return None
+
+
+def _materialize_layout_shape(root, sid: str, xml_path: Path) -> bool:
+    """
+    레이아웃 상속 shape에 레이아웃의 실제 좌표를 명시적으로 설정.
+    이후 _auto_resize_textbox 등이 동작 가능해짐.
+    반환: 성공 여부
+    """
+    bounds = _resolve_layout_shape_bounds(xml_path, sid)
+    if not bounds or bounds['cx'] == 0: return False
+    sp = _find_shape_by_id(root, sid)
+    if sp is None: return False
+    spPr = sp.find(f'{{{_NS_P}}}spPr')
+    if spPr is None: return False
+    xfrm = spPr.find(f'{{{_NS_A}}}xfrm')
+    if xfrm is None:
+        xfrm = ET.SubElement(spPr, f'{{{_NS_A}}}xfrm')
+        ET.SubElement(xfrm, f'{{{_NS_A}}}off', x=str(bounds['x']), y=str(bounds['y']))
+        ET.SubElement(xfrm, f'{{{_NS_A}}}ext', cx=str(bounds['cx']), cy=str(bounds['cy']))
+    else:
+        off = xfrm.find(f'{{{_NS_A}}}off')
+        ext = xfrm.find(f'{{{_NS_A}}}ext')
+        if off is not None:
+            off.set('x', str(bounds['x'])); off.set('y', str(bounds['y']))
+        if ext is not None:
+            ext.set('cx', str(bounds['cx'])); ext.set('cy', str(bounds['cy']))
+    return True
+
+
+def _auto_resize_textbox(root, sid: str, text: str, default_font_pt: float = 14.0,
+                         xml_path: Path | None = None) -> None:
     """
     텍스트가 텍스트박스를 초과해 자동 줄바꿈될 경우 cy를 동적으로 확장.
     - font_pt: shape의 rPr.sz에서 읽음 (없으면 default_font_pt 사용)
     - box_capacity: cx_pt / (font_pt * 0.8) — 경험적 Korean/ASCII 혼용 기준
     - line_height_emu: font_pt × 12700 × 1.25
-    - cx=0인 layout 상속 shape는 건드리지 않음
+    - cx=0인 layout 상속 shape: xml_path 제공 시 레이아웃에서 좌표를 읽어 명시화 후 진행
     """
     import math as _math
     sp = _find_shape_by_id(root, sid)
@@ -2757,7 +2819,14 @@ def _auto_resize_textbox(root, sid: str, text: str, default_font_pt: float = 14.
     ext = xfrm.find(f"{{{_NS_A}}}ext")
     if ext is None: return
     cx = int(ext.get('cx', 0))
-    if cx == 0: return  # layout 상속 — 리사이즈 불가
+    if cx == 0:
+        # layout 상속 shape → xml_path 있으면 실제 좌표로 명시화 후 재시도
+        if xml_path is not None and _materialize_layout_shape(root, sid, xml_path):
+            xfrm = spPr.find(f"{{{_NS_A}}}xfrm")
+            ext = xfrm.find(f"{{{_NS_A}}}ext") if xfrm else None
+            if ext is None: return
+            cx = int(ext.get('cx', 0))
+        if cx == 0: return
 
     # 폰트 크기 읽기
     rPr = next((r.find(f"{{{_NS_A}}}rPr") for r in sp.findall(f".//{{{_NS_A}}}r")
@@ -4000,21 +4069,20 @@ def _apply_fix_instructions(work_dir: Path, fix_instructions: list[dict]) -> boo
                 # 텍스트박스 cy 동적 조정 + 연관 shape 재배치
                 new_cy = fix.get("new_cy")
                 if new_cy and sp is not None:
+                    # 레이아웃 상속 shape이면 실제 좌표 먼저 명시화
+                    _materialize_layout_shape(root, shape_id, xml_path)
                     spPr = sp.find(f"{{{ns_p}}}spPr")
                     if spPr is not None:
                         xfrm = spPr.find(f"{{{ns_a}}}xfrm")
                         if xfrm is not None:
                             ext = xfrm.find(f"{{{ns_a}}}ext")
                             if ext is not None:
-                                old_cy = int(ext.get("cy", 0))
                                 ext.set("cy", str(new_cy))
                                 # body_title이면 body_desc도 재배치
-                                if old_cy > 0 and new_cy != old_cy:
-                                    off = xfrm.find(f"{{{ns_a}}}off")
-                                    title_y = int(off.get("y", 0)) if off is not None else 0
+                                text_for_resize = fix.get("text", "")
+                                if text_for_resize:
                                     _resize_sidebar_and_reposition_desc(
-                                        root, shape_id, None,
-                                        fix.get("text", "")
+                                        root, shape_id, None, text_for_resize
                                     )
                                 modified = True
 
