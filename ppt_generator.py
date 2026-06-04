@@ -1629,6 +1629,7 @@ def restructure_sections(output_path: Path) -> None:
 
 
 # ── 7. 폰트 컴플라이언스 검사 ─────────────────────────────────
+_TEMPLATE_FONT = "Pretendard"   # GS Neotek 템플릿 기본 폰트
 
 def check_font_compliance(slides_dir: Path, font: str = _TEMPLATE_FONT) -> list[str]:
     """
@@ -2180,6 +2181,7 @@ _TEMPLATE_FONT = "Pretendard"
 
 # ── 사이드바 동적 리사이징 상수 (3p slide13 기준) ────────────────
 _SIDEBAR_LINE_HEIGHT_EMU = 314_603   # 629206 cy / 2줄
+# _TEMPLATE_FONT 는 line 1632 에서 선언됨 (check_font_compliance 앞)
 _SIDEBAR_REF_GAP_EMU     = 217_772   # body_desc.y - (body_title.y + body_title.cy)
 _SIDEBAR_CHARS_PER_LINE  = 10        # 한국어 ~20pt, cx=2,200,409 EMU 기준
 
