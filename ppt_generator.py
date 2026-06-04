@@ -2143,6 +2143,53 @@ def _edit_slide8(xml_path: Path, slide_plan: dict) -> None:
     _write_xml(root, xml_path)
 
 
+# ── 사이드바 동적 리사이징 상수 (3p slide13 기준) ────────────────
+_SIDEBAR_LINE_HEIGHT_EMU = 314_603   # 629206 cy / 2줄
+_SIDEBAR_REF_GAP_EMU     = 217_772   # body_desc.y - (body_title.y + body_title.cy)
+_SIDEBAR_CHARS_PER_LINE  = 10        # 한국어 ~20pt, cx=2,200,409 EMU 기준
+
+
+def _count_sidebar_lines(text: str) -> int:
+    import math
+    total = 0
+    for seg in text.split('\n'):
+        total += max(1, math.ceil(len(seg) / _SIDEBAR_CHARS_PER_LINE)) if seg else 1
+    return max(1, total)
+
+
+def _get_shape_xfrm_elems(sp):
+    """shape spPr > xfrm 의 off, ext 엘리먼트 반환"""
+    spPr = sp.find(f"{{{_NS_P}}}spPr")
+    if spPr is None: return None, None
+    xfrm = spPr.find(f"{{{_NS_A}}}xfrm")
+    if xfrm is None: return None, None
+    return xfrm.find(f"{{{_NS_A}}}off"), xfrm.find(f"{{{_NS_A}}}ext")
+
+
+def _resize_sidebar_and_reposition_desc(root, label_id: str, desc_id, label_text: str) -> None:
+    """
+    body_title: 텍스트 줄 수에 맞게 cy 동적 확장
+    body_desc:  body_title 하단 + 기준 gap(3p) 위치로 재배치
+    """
+    lbl = _find_shape_by_id(root, label_id)
+    if lbl is None: return
+    off_lbl, ext_lbl = _get_shape_xfrm_elems(lbl)
+    if off_lbl is None or ext_lbl is None: return
+
+    title_y = int(off_lbl.get('y', 0))
+    orig_cy = int(ext_lbl.get('cy', 0))
+    lines   = _count_sidebar_lines(label_text)
+    new_cy  = max(orig_cy, lines * _SIDEBAR_LINE_HEIGHT_EMU)
+    ext_lbl.set('cy', str(new_cy))
+
+    if desc_id:
+        desc = _find_shape_by_id(root, desc_id)
+        if desc:
+            off_desc, _ = _get_shape_xfrm_elems(desc)
+            if off_desc is not None:
+                off_desc.set('y', str(title_y + new_cy + _SIDEBAR_REF_GAP_EMU))
+
+
 def _apply_common_zones(root, slide_plan: dict, template_file: str) -> None:
     """
     모든 본문 슬라이드 공통 3-Zone 처리:
@@ -2196,9 +2243,8 @@ def _apply_common_zones(root, slide_plan: dict, template_file: str) -> None:
         # section_title: 'N. 소제목' 또는 'N.M 소제목' 형식. 미지정 시 title로 폴백
         label_text = sec_title or title
         _set_shape(label_id, label_text)
-        lbl = _find_shape_by_id(root, label_id)
-        if lbl is not None:
-            _enable_autofit(lbl)
+        # 텍스트 줄 수에 맞게 body_title 높이 동적 확장 + body_desc 위치 재조정
+        _resize_sidebar_and_reposition_desc(root, label_id, desc_id, label_text)
     if desc_id and sec_desc:
         _set_shape(desc_id, _truncate_to_lines(sec_desc, 2_200_000, 12, 5))
 
