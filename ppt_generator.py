@@ -2150,11 +2150,25 @@ _SIDEBAR_CHARS_PER_LINE  = 10        # 한국어 ~20pt, cx=2,200,409 EMU 기준
 
 
 def _count_sidebar_lines(text: str) -> int:
+    """
+    사이드바 body_title 텍스트의 실제 줄 수 추정.
+    한국어(CJK) = 1.0, ASCII/숫자 = 0.55, 공백·개행 = 0.35 가중치.
+    BOX_CAPACITY = 11 (3p 실측 기준: '1. 실시간 스트리밍 시장 동향' → 2줄).
+    \n은 단일 텍스트런에서 공백으로 처리 (PowerPoint 자동줄바꿈 방식).
+    """
     import math
-    total = 0
-    for seg in text.split('\n'):
-        total += max(1, math.ceil(len(seg) / _SIDEBAR_CHARS_PER_LINE)) if seg else 1
-    return max(1, total)
+
+    BOX_CAPACITY = 11.0
+
+    def _cw(c: str) -> float:
+        if '가' <= c <= '힣' or '一' <= c <= '鿿':
+            return 1.0
+        if c in (' ', '\t', '\n'):
+            return 0.35
+        return 0.55
+
+    w = sum(_cw(c) for c in (text or ""))
+    return max(1, math.ceil(w / BOX_CAPACITY))
 
 
 def _get_shape_xfrm_elems(sp):
