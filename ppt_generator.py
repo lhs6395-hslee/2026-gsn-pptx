@@ -2306,8 +2306,11 @@ def _apply_common_zones(root, slide_plan: dict, template_file: str) -> None:
 
 def _edit_slide29(xml_path: Path, slide_plan: dict) -> None:
     """slide29 (연도별/월별 타임라인):
-    Zone1: 헤더(ID=8,9) | Zone2: 사이드바(ID=18,19) | Zone3: 연도별 본문(ID=16/17/22/23 레이블 + ID=24/12 내용)
-    periods: [{"label":"2024","content":"..."}]"""
+    Zone1: 헤더(ID=8,9) | Zone2: 사이드바(ID=18,19)
+    Zone3: 연도별 레이블(16/17/22/23) + rich content 삽입
+    periods: [{"label":"2026","period":"Jan~Jun","items":[...],
+               "kpi":"...","team":"...","risk":"낮음"}]
+    """
     content = slide_plan.get("content", {})
     periods = content.get("periods", [])
     body    = content.get("body", {})
@@ -2318,10 +2321,7 @@ def _edit_slide29(xml_path: Path, slide_plan: dict) -> None:
         tree = ET.parse(xml_path); root = tree.getroot()
     except ET.ParseError: return
 
-    # Zone 1+2: 공통 처리
     _apply_common_zones(root, slide_plan, "slide29.xml")
-
-    # Zone 3: 연도별 레이블 + 본문 내용
     import copy as _copy
     ns_p, ns_a = _NS_P, _NS_A
 
@@ -2345,22 +2345,256 @@ def _edit_slide29(xml_path: Path, slide_plan: dict) -> None:
             ET.SubElement(r_new, f"{{{ns_a}}}t").text = text
             p.insert(idx, r_new); break
 
-    label_ids   = ["16","17","22","23"]   # 2026, 2025, 2024, 2023
-    content_ids = ["24","12", None, None] # 2026 내용, 2024 내용
+    # 연도 레이블 설정 (2026→2025→2024→2023 순)
+    label_ids = ["16","17","22","23"]
     for i, period in enumerate(periods[:4]):
-        if isinstance(period, dict):
-            if i < len(label_ids): _set(label_ids[i], period.get("label",""))
-            if i < len(content_ids) and content_ids[i]:
-                body_text = period.get("content", period.get("items",""))
-                if isinstance(body_text, list): body_text = "\n".join(body_text)
-                _set(content_ids[i], _truncate_to_lines(str(body_text), 2_700_000, 12, 8))
+        if isinstance(period, dict) and i < len(label_ids):
+            _set(label_ids[i], period.get("label",""))
+
+    # rich content: 대각선 레이아웃 — 각 연도 아래에 텍스트 박스 삽입
+    # slide29는 대각선 계단식 구조 (2026 최상단, 2023 최하단)
+    # 각 연도 콘텐츠는 해당 연도 바 아래 빈 영역에 삽입
+    # 근사 위치: 각 열의 x 오프셋과 연도별 y 오프셋 계산
+    DARK_COLS  = ["3C41E6","2D30B8","1E2490","1419AB"]
+    RISK_COLOR = {"낮음":"52C41A","중간":"F5A623","높음":"FF4B4B"}
+    # 대각선 구조 열 위치 (2026=좌, 2023=우)
+    # 각 연도 바의 너비 ≈ 슬라이드폭 / 4 × (4-i)
+    SLIDE_W   = 12_192_000
+    SIDEBAR_W = 2_700_000
+    CONTENT_W = SLIDE_W - SIDEBAR_W  # 9,492,000
+    COL_W     = CONTENT_W // 4       # 2,373,000
+    BAR_H     = 350_000
+    # 연도별 y 시작 위치 (2026=상단, 2025=좀 아래, ...)
+    YEAR_Y    = [750_000, 900_000 + BAR_H, 1_050_000 + BAR_H*2, 1_200_000 + BAR_H*3]
+    YEAR_X    = [SIDEBAR_W, SIDEBAR_W + COL_W, SIDEBAR_W + COL_W*2, SIDEBAR_W + COL_W*3]
+    YEAR_CX   = [CONTENT_W, CONTENT_W - COL_W, CONTENT_W - COL_W*2, CONTENT_W - COL_W*3]
+
+    spTree = root.find(f".//{{{ns_p}}}spTree")
+
+    def _mk_rPr(sz, bold=False, col=None):
+        at = {"lang":"ko-KR","dirty":"0","sz":str(sz)}
+        if bold: at["b"] = "1"
+        r = ET.Element(f"{{{ns_a}}}rPr", **at)
+        if col:
+            sf = ET.SubElement(r, f"{{{ns_a}}}solidFill")
+            ET.SubElement(sf, f"{{{ns_a}}}srgbClr", val=col)
+        for t in ("latin","ea","cs"):
+            ET.SubElement(r, f"{{{ns_a}}}{t}", typeface=_TEMPLATE_FONT)
+        return r
+
+    def _add_desc_box(sid, x, y, cx, cy, lines):
+        sp = ET.SubElement(spTree, f"{{{ns_p}}}sp")
+        nv = ET.SubElement(sp, f"{{{ns_p}}}nvSpPr")
+        ET.SubElement(nv, f"{{{ns_p}}}cNvPr", id=str(sid), name=f"PD{sid}")
+        cs = ET.SubElement(nv, f"{{{ns_p}}}cNvSpPr")
+        ET.SubElement(cs, f"{{{ns_a}}}spLocks", noGrp="1")
+        ET.SubElement(nv, f"{{{ns_p}}}nvPr")
+        s2 = ET.SubElement(sp, f"{{{ns_p}}}spPr")
+        xf = ET.SubElement(s2, f"{{{ns_a}}}xfrm")
+        ET.SubElement(xf, f"{{{ns_a}}}off", x=str(x), y=str(y))
+        ET.SubElement(xf, f"{{{ns_a}}}ext", cx=str(cx), cy=str(cy))
+        pg = ET.SubElement(s2, f"{{{ns_a}}}prstGeom", prst="rect")
+        ET.SubElement(pg, f"{{{ns_a}}}avLst")
+        ET.SubElement(s2, f"{{{ns_a}}}noFill")
+        tb = ET.SubElement(sp, f"{{{ns_p}}}txBody")
+        ET.SubElement(tb, f"{{{ns_a}}}bodyPr", wrap="square",
+                      lIns="152400", tIns="114300", rIns="152400", bIns="114300", anchor="t")
+        ET.SubElement(tb, f"{{{ns_a}}}lstStyle")
+        for txt, sz, bold, col in lines:
+            p = ET.SubElement(tb, f"{{{ns_a}}}p")
+            r2 = ET.SubElement(p, f"{{{ns_a}}}r")
+            r2.append(_mk_rPr(sz, bold, col))
+            ET.SubElement(r2, f"{{{ns_a}}}t").text = txt
+
+    sid = 400
+    for i, period in enumerate(periods[:4]):
+        if not isinstance(period, dict): continue
+        dk       = DARK_COLS[i]
+        items    = period.get("items", [])
+        kpi      = period.get("kpi", "")
+        team     = period.get("team", "")
+        risk     = period.get("risk", "낮음")
+        p_period = period.get("period", "")
+        # 콘텐츠 영역: 연도 바 바로 아래
+        cx   = min(YEAR_CX[i], YEAR_CX[0]) - 80_000
+        x    = YEAR_X[i] + 60_000
+        y    = YEAR_Y[i] + BAR_H + 80_000
+        lines = [(f"▷ {p_period}", 1100, True, dk), ("", 500, False, None)]
+        lines += [(item, 1100, False, "444444") for item in items[:3]]
+        if team: lines += [("", 400, False, None), (f"● {team}", 1000, False, "888888")]
+        if kpi:  lines += [("", 400, False, None), (f"✓ {kpi}", 1000, False, dk)]
+        if risk:
+            rc = RISK_COLOR.get(risk, "888888")
+            lines += [(f"리스크: {risk}", 900, False, rc)]
+        _add_desc_box(sid, x, y, cx, 3_500_000, lines); sid += 1
 
     _clear_residual_placeholders(root)
     _write_xml(root, xml_path)
 
 
+def _insert_rich_quarter_content(
+    root, spTree, quarters: list,
+    col_x_list: list, col_cx: int, content_top_y: int,
+    upper_top_pad: int = 400_000
+) -> None:
+    """
+    분기별(Q1~Q4) 슬라이드에 rich content 삽입 공통 헬퍼.
+    slide31 / slide33 에서 호출.
+
+    quarters 항목 형식 (dict):
+      label   : "Q1" (이미 기본 shape에 설정됨)
+      period  : "Jan~Mar" (기간)
+      items   : ["□ 항목1", "□ 항목2", "□ 항목3"] (체크리스트)
+      kpi     : "핵심 지표" (KPI)
+      team    : "담당팀"
+      risk    : "낮음/중간/높음"
+      effort  : "Small/Medium/Large"
+    """
+    import copy as _copy, math as _math
+    ns_p, ns_a = _NS_P, _NS_A
+
+    RISK_COLOR = {"낮음":"52C41A","중간":"F5A623","높음":"FF4B4B"}
+    DARK_COLS  = ["3C41E6","2D30B8","1E2490","1419AB"]
+    LIGHT_COLS = ["E8ECFC","D4DCFB","C0CCFA","AABBF9"]
+
+    LINE_H     = 190_500
+    LOGO_Y     = 6_200_000
+    PAD        = 60_000
+
+    def _mk_rPr(sz, bold=False, col=None):
+        at = {"lang":"ko-KR","dirty":"0","sz":str(sz)}
+        if bold: at["b"] = "1"
+        r = ET.Element(f"{{{ns_a}}}rPr", **at)
+        if col:
+            sf = ET.SubElement(r, f"{{{ns_a}}}solidFill")
+            ET.SubElement(sf, f"{{{ns_a}}}srgbClr", val=col)
+        for t in ("latin","ea","cs"):
+            ET.SubElement(r, f"{{{ns_a}}}{t}", typeface=_TEMPLATE_FONT)
+        return r
+
+    def _add_box(sid, x, y, cx, cy, fill, rows=None, border=None):
+        sp = ET.SubElement(spTree, f"{{{ns_p}}}sp")
+        nv = ET.SubElement(sp, f"{{{ns_p}}}nvSpPr")
+        ET.SubElement(nv, f"{{{ns_p}}}cNvPr", id=str(sid), name=f"RQ{sid}")
+        cs = ET.SubElement(nv, f"{{{ns_p}}}cNvSpPr")
+        ET.SubElement(cs, f"{{{ns_a}}}spLocks", noGrp="1")
+        ET.SubElement(nv, f"{{{ns_p}}}nvPr")
+        s2 = ET.SubElement(sp, f"{{{ns_p}}}spPr")
+        xf = ET.SubElement(s2, f"{{{ns_a}}}xfrm")
+        ET.SubElement(xf, f"{{{ns_a}}}off", x=str(x), y=str(y))
+        ET.SubElement(xf, f"{{{ns_a}}}ext", cx=str(cx), cy=str(cy))
+        pg = ET.SubElement(s2, f"{{{ns_a}}}prstGeom", prst="rect")
+        ET.SubElement(pg, f"{{{ns_a}}}avLst")
+        if fill == "none": ET.SubElement(s2, f"{{{ns_a}}}noFill")
+        else:
+            sf = ET.SubElement(s2, f"{{{ns_a}}}solidFill")
+            ET.SubElement(sf, f"{{{ns_a}}}srgbClr", val=fill)
+        if border:
+            ln = ET.SubElement(s2, f"{{{ns_a}}}ln", w="19050")
+            lsf = ET.SubElement(ln, f"{{{ns_a}}}solidFill")
+            ET.SubElement(lsf, f"{{{ns_a}}}srgbClr", val=border)
+        if rows:
+            tb = ET.SubElement(sp, f"{{{ns_p}}}txBody")
+            ET.SubElement(tb, f"{{{ns_a}}}bodyPr", wrap="square",
+                          lIns="91440", tIns="45720", rIns="91440", bIns="45720", anchor="ctr")
+            ET.SubElement(tb, f"{{{ns_a}}}lstStyle")
+            for txt, sz, bold, col, algn in rows:
+                p = ET.SubElement(tb, f"{{{ns_a}}}p")
+                ET.SubElement(p, f"{{{ns_a}}}pPr", algn=algn)
+                r2 = ET.SubElement(p, f"{{{ns_a}}}r")
+                r2.append(_mk_rPr(sz, bold, col))
+                ET.SubElement(r2, f"{{{ns_a}}}t").text = txt
+
+    def _add_desc(sid, x, y, cx, cy, lines):
+        sp = ET.SubElement(spTree, f"{{{ns_p}}}sp")
+        nv = ET.SubElement(sp, f"{{{ns_p}}}nvSpPr")
+        ET.SubElement(nv, f"{{{ns_p}}}cNvPr", id=str(sid), name=f"RD{sid}")
+        cs = ET.SubElement(nv, f"{{{ns_p}}}cNvSpPr")
+        ET.SubElement(cs, f"{{{ns_a}}}spLocks", noGrp="1")
+        ET.SubElement(nv, f"{{{ns_p}}}nvPr")
+        s2 = ET.SubElement(sp, f"{{{ns_p}}}spPr")
+        xf = ET.SubElement(s2, f"{{{ns_a}}}xfrm")
+        ET.SubElement(xf, f"{{{ns_a}}}off", x=str(x), y=str(y))
+        ET.SubElement(xf, f"{{{ns_a}}}ext", cx=str(cx), cy=str(cy))
+        pg = ET.SubElement(s2, f"{{{ns_a}}}prstGeom", prst="rect")
+        ET.SubElement(pg, f"{{{ns_a}}}avLst")
+        ET.SubElement(s2, f"{{{ns_a}}}noFill")
+        tb = ET.SubElement(sp, f"{{{ns_p}}}txBody")
+        ET.SubElement(tb, f"{{{ns_a}}}bodyPr", wrap="square",
+                      lIns="152400", tIns="114300", rIns="152400", bIns="114300", anchor="t")
+        ET.SubElement(tb, f"{{{ns_a}}}lstStyle")
+        for txt, sz, bold, col in lines:
+            p = ET.SubElement(tb, f"{{{ns_a}}}p")
+            r2 = ET.SubElement(p, f"{{{ns_a}}}r")
+            r2.append(_mk_rPr(sz, bold, col))
+            ET.SubElement(r2, f"{{{ns_a}}}t").text = txt
+
+    # 콘텐츠 블록 높이 계산
+    UPPER_LINES = 5   # period(1)+빈줄(1)+item×3(3)
+    UPPER_CONT_H = UPPER_LINES * LINE_H  # ≈ 952,500
+    # desc 시작 = 콘텐츠 상단 y + 패딩
+    DESC_START_Y = content_top_y + upper_top_pad
+
+    # 하단 섹션 계산
+    SEP_Y    = content_top_y + upper_top_pad + UPPER_CONT_H + upper_top_pad
+    SEP_H    = 6_000; SUMM_GAP = 30_000; SUMM_H = 120_000
+    SUMM_Y   = SEP_Y + SEP_H + SUMM_GAP
+    SUMM_BOT = SUMM_Y + SUMM_H + SUMM_GAP
+    KPI_H = 380_000; RISK_H = 260_000; GAP = 120_000
+    LOWER_CONT_H = KPI_H + GAP + RISK_H
+    lower_pad = (LOGO_Y - SUMM_BOT - LOWER_CONT_H) // 2
+    LOWER_START = SUMM_BOT + lower_pad
+
+    all_x = col_x_list[0] + PAD
+    all_w = col_x_list[-1] + col_cx - PAD - all_x
+
+    sid = 300
+    # 구분선
+    _add_box(sid, all_x, SEP_Y, all_w, SEP_H, "CCCCCC"); sid += 1
+    # 요약 레이블
+    _add_box(sid, all_x, SUMM_Y, all_w, SUMM_H, "none",
+             [("분기별 실행 계획", 1000, False, "999999", "ctr")]); sid += 1
+
+    for i, q in enumerate(quarters[:4]):
+        if i >= len(col_x_list): break
+        col_x = col_x_list[i]
+        dk = DARK_COLS[i]; lt = LIGHT_COLS[i]
+        bx = col_x + PAD; bw = col_cx - PAD * 2
+
+        if isinstance(q, dict):
+            period  = q.get("period", f"Q{i+1}")
+            items   = q.get("items", [])
+            kpi     = q.get("kpi", "")
+            team    = q.get("team", "")
+            risk    = q.get("risk", "낮음")
+            effort  = q.get("effort", "")
+        else:
+            period = str(q); items = []; kpi = ""; team = ""; risk = "낮음"; effort = ""
+
+        # desc (기간 + 체크리스트)
+        desc_lines = [(f"▷ {period}", 1100, True, dk), ("", 500, False, None)]
+        desc_lines += [(item, 1100, False, "444444") for item in items[:3]]
+        if team: desc_lines += [("", 500, False, None), (f"● {team}", 1000, False, "888888")]
+        _add_desc(sid, bx, DESC_START_Y, bw, 4_000_000, desc_lines); sid += 1
+
+        # 하단: KPI 박스
+        y = LOWER_START
+        _add_box(sid, bx, y, bw, KPI_H, "F4F6FE",
+                 [("핵심 목표", 900, True, dk, "ctr"), (kpi, 1100, False, "111111", "ctr")],
+                 border=dk); sid += 1
+        y += KPI_H + GAP
+
+        # 하단: 리스크 + 투입규모
+        hw = (bw - 40_000) // 2
+        rc = RISK_COLOR.get(risk, "888888")
+        _add_box(sid, bx, y, hw, RISK_H, lt,
+                 [("리스크", 900, True, dk, "ctr"), (risk, 1100, False, rc, "ctr")]); sid += 1
+        _add_box(sid, bx + hw + 40_000, y, hw, RISK_H, lt,
+                 [("규모", 900, True, dk, "ctr"), (effort, 1100, False, "333333", "ctr")]); sid += 1
+
+
 def _edit_slide31(xml_path: Path, slide_plan: dict) -> None:
-    """slide31 (분기별 Q1→Q4): Zone1+2 공통 + Zone3 Q레이블."""
+    """slide31 (분기별 Q1→Q4): Zone1+2 공통 + Zone3 Q레이블 + rich content."""
     content  = slide_plan.get("content", {})
     quarters = content.get("quarters", content.get("body", {}).get("quarters", []) if isinstance(content.get("body"), dict) else [])
     try:
@@ -2383,11 +2617,19 @@ def _edit_slide31(xml_path: Path, slide_plan: dict) -> None:
             ET.SubElement(r_new, f"{{{ns_a}}}t").text = text; p.insert(idx, r_new); break
     for i, (lid, q) in enumerate(zip(["23","24","27","28"], quarters)):
         _set(lid, q.get("label", f"Q{i+1}") if isinstance(q, dict) else str(q))
+    # rich content 삽입 (slide30과 동일 패턴)
+    if quarters:
+        spTree = root.find(f".//{{{ns_p}}}spTree")
+        # 4열 좌표 (slide31 레이아웃 기준 근사값)
+        col_x_list = [2_700_000, 5_076_750, 7_453_500, 9_830_250]
+        col_cx     = 2_376_750
+        content_top_y = 750_000   # Q 레이블 바 아래 시작
+        _insert_rich_quarter_content(root, spTree, quarters, col_x_list, col_cx, content_top_y)
     _clear_residual_placeholders(root); _write_xml(root, xml_path)
 
 
 def _edit_slide33(xml_path: Path, slide_plan: dict) -> None:
-    """slide33 (분기별 변형): Zone1+2 공통 + Zone3 Q레이블."""
+    """slide33 (분기별 변형): Zone1+2 공통 + Zone3 Q레이블 + rich content."""
     content  = slide_plan.get("content", {})
     quarters = content.get("quarters", content.get("body", {}).get("quarters", []) if isinstance(content.get("body"), dict) else [])
     try:
@@ -2410,6 +2652,13 @@ def _edit_slide33(xml_path: Path, slide_plan: dict) -> None:
             ET.SubElement(r_new, f"{{{ns_a}}}t").text = text; p.insert(idx, r_new); break
     for i, (lid, q) in enumerate(zip(["35","36","37","38"], quarters)):
         _set(lid, q.get("label", f"Q{i+1}") if isinstance(q, dict) else str(q))
+    # rich content 삽입 (slide31과 동일, 상단 바가 더 있어 content_top_y 증가)
+    if quarters:
+        spTree = root.find(f".//{{{ns_p}}}spTree")
+        col_x_list = [2_700_000, 5_076_750, 7_453_500, 9_830_250]
+        col_cx     = 2_376_750
+        content_top_y = 1_100_000   # 상단 제목+설명 바 아래 시작
+        _insert_rich_quarter_content(root, spTree, quarters, col_x_list, col_cx, content_top_y)
     _clear_residual_placeholders(root); _write_xml(root, xml_path)
 
 
