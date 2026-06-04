@@ -2191,9 +2191,8 @@ def _resize_sidebar_and_reposition_desc(root, label_id: str, desc_id, label_text
     if off_lbl is None or ext_lbl is None: return
 
     title_y = int(off_lbl.get('y', 0))
-    orig_cy = int(ext_lbl.get('cy', 0))
     lines   = _count_sidebar_lines(label_text)
-    new_cy  = max(orig_cy, lines * _SIDEBAR_LINE_HEIGHT_EMU)
+    new_cy  = lines * _SIDEBAR_LINE_HEIGHT_EMU
     ext_lbl.set('cy', str(new_cy))
 
     if desc_id:
