@@ -2143,6 +2143,9 @@ def _edit_slide8(xml_path: Path, slide_plan: dict) -> None:
     _write_xml(root, xml_path)
 
 
+# ── 템플릿 기본 폰트 (GS Neotek: Pretendard) ─────────────────────
+_TEMPLATE_FONT = "Pretendard"
+
 # ── 사이드바 동적 리사이징 상수 (3p slide13 기준) ────────────────
 _SIDEBAR_LINE_HEIGHT_EMU = 314_603   # 629206 cy / 2줄
 _SIDEBAR_REF_GAP_EMU     = 217_772   # body_desc.y - (body_title.y + body_title.cy)
@@ -2230,12 +2233,17 @@ def _apply_common_zones(root, slide_plan: dict, template_file: str) -> None:
             if rPr_e is not None:
                 orig_rPr = _copy.deepcopy(rPr_e)
                 orig_rPr.set("lang", "ko-KR"); orig_rPr.set("dirty", "0"); break
+        if orig_rPr is None:
+            # 기존 run 없음 → Pretendard 기본 rPr 생성
+            orig_rPr = ET.Element(f"{{{ns_a}}}rPr", lang="ko-KR", dirty="0")
+            for tag in ("latin", "ea", "cs"):
+                ET.SubElement(orig_rPr, f"{{{ns_a}}}{tag}", typeface=_TEMPLATE_FONT)
         for p in txBody.findall(f"{{{ns_a}}}p"):
             for r in p.findall(f"{{{ns_a}}}r"): p.remove(r)
             end = p.find(f"{{{ns_a}}}endParaRPr")
             idx = list(p).index(end) if end is not None else len(p)
             r_new = ET.Element(f"{{{ns_a}}}r")
-            if orig_rPr: r_new.append(_copy.deepcopy(orig_rPr))
+            r_new.append(_copy.deepcopy(orig_rPr))
             ET.SubElement(r_new, f"{{{ns_a}}}t").text = text
             p.insert(idx, r_new); break
 
