@@ -2482,7 +2482,10 @@ def _edit_slide35(xml_path: Path, slide_plan: dict) -> None:
 
 
 def _edit_slide36(xml_path: Path, slide_plan: dict) -> None:
-    """slide36 (As-is/To-be 벤다이어그램): Zone1+2 공통 + Zone3 벤다이어그램 키워드."""
+    """slide36 (As-is/To-be 벤다이어그램): Zone1+2 공통 + Zone3 벤다이어그램 키워드.
+    As-is 원형: 13,15,16 / As-is 우측 설명: 7
+    To-be 원형: 21,22,23 / To-be 우측 설명: 27
+    """
     content = slide_plan.get("content", {})
     body    = content.get("body", {})
     as_is   = (content.get("as_is")  or (body.get("as_is")  if isinstance(body,dict) else None) or content.get("before",[]))[:4]
@@ -2492,10 +2495,14 @@ def _edit_slide36(xml_path: Path, slide_plan: dict) -> None:
     except ET.ParseError: return
     _apply_common_zones(root, slide_plan, "slide36.xml")
     ns_p, ns_a = _NS_P, _NS_A
-    for i, sid in enumerate(["13","15","16","21"]):
+    # As-is: 원형 3개(13,15,16) + 우측 설명(7)
+    for i, sid in enumerate(["13","15","16"]):
         _slide_set_helper(root, ns_p, ns_a, sid, _truncate_to_lines(as_is[i] if i<len(as_is) else "",1_500_000,16,2))
-    for i, sid in enumerate(["22","23","7","27"]):
+    _slide_set_helper(root, ns_p, ns_a, "7",  _truncate_to_lines(as_is[3] if len(as_is)>3 else "",1_500_000,16,3))
+    # To-be: 원형 3개(21,22,23) + 우측 설명(27)
+    for i, sid in enumerate(["21","22","23"]):
         _slide_set_helper(root, ns_p, ns_a, sid, _truncate_to_lines(to_be[i] if i<len(to_be) else "",1_500_000,16,2))
+    _slide_set_helper(root, ns_p, ns_a, "27", _truncate_to_lines(to_be[3] if len(to_be)>3 else "",1_500_000,16,3))
     _clear_residual_placeholders(root); _write_xml(root, xml_path)
 
 
