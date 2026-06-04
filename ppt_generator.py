@@ -2271,10 +2271,12 @@ def _apply_common_zones(root, slide_plan: dict, template_file: str) -> None:
             rPr_e = r.find(f"{{{ns_a}}}rPr")
             if rPr_e is not None:
                 orig_rPr = _copy.deepcopy(rPr_e)
-                orig_rPr.set("lang", "ko-KR"); orig_rPr.set("dirty", "0"); break
+                # lang/altLang 원본 보존 (임의 변경 금지) — 폰트 렌더링 일관성
+                orig_rPr.set("dirty", "0")
+                break
         if orig_rPr is None:
-            # 기존 run 없음 → Pretendard 기본 rPr 생성
-            orig_rPr = ET.Element(f"{{{ns_a}}}rPr", lang="ko-KR", dirty="0")
+            # 기존 run 없음 → Pretendard 기본 rPr 생성 (lang 명시하지 않아 테마 상속)
+            orig_rPr = ET.Element(f"{{{ns_a}}}rPr", dirty="0")
             for tag in ("latin", "ea", "cs"):
                 ET.SubElement(orig_rPr, f"{{{ns_a}}}{tag}", typeface=_TEMPLATE_FONT)
         for p in txBody.findall(f"{{{ns_a}}}p"):
@@ -3749,9 +3751,10 @@ def _run_vision_fix_agent(
     "fixes": [
       {
         "shape_id": "ID",
-        "action": "set_text|set_paragraphs|clear",
+        "action": "set_text|set_paragraphs|clear|resize_textbox",
         "text": "단일 텍스트 (set_text용)",
-        "texts": ["항목1", "항목2"] // set_paragraphs용
+        "texts": ["항목1", "항목2"],  // set_paragraphs용
+        "new_cy": 600000  // resize_textbox용: 새 높이(EMU). 1줄=314603, 2줄=629206
       }
     ]
   }
@@ -3774,7 +3777,16 @@ def _run_vision_fix_agent(
 가시성 검증 (시각적으로 판단):
 - 텍스트가 배경색과 대비가 낮아 거의 안 보이는 경우: issue_summary에 "가시성 낮음: shape_id=X (다크 배경에 다크 텍스트)" 형태로 보고. fixes는 비워둘 것 (폰트 색 변경은 별도 처리)
 - 다크(네이비/다크블루) 배경 영역의 텍스트가 흰색/밝은색이 아니면 가시성 문제로 보고
-- 라이트(흰색/회색) 배경 영역의 텍스트가 흰색/밝은색이면 가시성 문제로 보고"""
+- 라이트(흰색/회색) 배경 영역의 텍스트가 흰색/밝은색이면 가시성 문제로 보고
+
+텍스트박스 크기 및 여백 검증 (시각적으로 판단):
+- 텍스트가 2줄 이상으로 넘어가는데 텍스트박스 높이가 1줄 크기로 보이면:
+  action="resize_textbox", new_cy=629206(2줄) 또는 943809(3줄)로 높이 조정 지시
+  단, sideebar(ID=14,16,17,18,25) shape은 resize 금지
+- 텍스트박스가 배경 도형(회색/컬러 사각형)을 벗어난 경우:
+  action="resize_textbox"로 배경 도형 안으로 제한 지시
+- 텍스트박스는 배경 도형 안쪽에서 최소 50,000 EMU(약 4mm) 여백이 있어야 함
+  배경 도형 경계를 넘거나 딱 붙은 경우 issue로 보고"""
 
     # 슬라이드별 정보 구성
     content_parts = []
@@ -3983,6 +3995,28 @@ def _apply_fix_instructions(work_dir: Path, fix_instructions: list[dict]) -> boo
                 for t in texts:
                     txBody.append(_make_para(t))
                 modified = True
+
+            elif action == "resize_textbox":
+                # 텍스트박스 cy 동적 조정 + 연관 shape 재배치
+                new_cy = fix.get("new_cy")
+                if new_cy and sp is not None:
+                    spPr = sp.find(f"{{{ns_p}}}spPr")
+                    if spPr is not None:
+                        xfrm = spPr.find(f"{{{ns_a}}}xfrm")
+                        if xfrm is not None:
+                            ext = xfrm.find(f"{{{ns_a}}}ext")
+                            if ext is not None:
+                                old_cy = int(ext.get("cy", 0))
+                                ext.set("cy", str(new_cy))
+                                # body_title이면 body_desc도 재배치
+                                if old_cy > 0 and new_cy != old_cy:
+                                    off = xfrm.find(f"{{{ns_a}}}off")
+                                    title_y = int(off.get("y", 0)) if off is not None else 0
+                                    _resize_sidebar_and_reposition_desc(
+                                        root, shape_id, None,
+                                        fix.get("text", "")
+                                    )
+                                modified = True
 
         if modified:
             _write_xml(root, xml_path)
