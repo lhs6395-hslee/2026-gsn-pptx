@@ -2,8 +2,6 @@
   "_comment": "slide15.xml (3-item 레이아웃) 전용 설정",
   "description": "3개 항목 레이아웃 — 각 항목은 제목 2줄 + 설명 2줄 + 이미지 슬롯 구조",
 
-  "image_slot_format": "[이미지: {description}]",
-  "_image_slot_comment": "이미지 슬롯 텍스트 포맷. {description}은 plan.json의 image_desc로 채워짐",
 
   "numbering": {
     "subtitle_prefix": "{n:02d}",

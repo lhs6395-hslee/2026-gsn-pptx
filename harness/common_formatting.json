@@ -1,0 +1,62 @@
+{
+  "_comment": "범용 포맷 설정 — 모든 슬라이드에서 공통 사용",
+  "description": "폰트, 색상, 정렬, 여백 등 공통 디자인 요소",
+
+  "image_slot_format": "[이미지: {description}]",
+  "_image_slot_format_comment": "이미지 슬롯 텍스트 포맷. {description}은 plan.json의 image_desc로 채워짐",
+
+  "fonts": {
+    "pretendard": {
+      "regular": "Pretendard",
+      "semibold": "Pretendard SemiBold",
+      "bold": "Pretendard"
+    },
+    "malgun_gothic": "맑은 고딕"
+  },
+
+  "font_sizes": {
+    "small": 1200,
+    "medium": 1400,
+    "large": 1600,
+    "_comment": "EMU 단위 (100 = 1pt), 1200 = 12pt, 1400 = 14pt, 1600 = 16pt"
+  },
+
+  "colors": {
+    "white": "FFFFFF",
+    "blue": "3C41E6",
+    "navy": "1419AB",
+    "black": "000000",
+    "scheme_tx1": {
+      "value": "tx1",
+      "lumMod": 75000,
+      "lumOff": 25000,
+      "_comment": "회색 텍스트용 scheme color"
+    },
+    "scheme_tx1_dark": {
+      "value": "tx1",
+      "lumMod": 85000,
+      "lumOff": 15000,
+      "_comment": "진한 회색 텍스트용"
+    }
+  },
+
+  "alignments": {
+    "horizontal": {
+      "left": "l",
+      "center": "ctr",
+      "right": "r"
+    },
+    "vertical": {
+      "top": "t",
+      "center": "ctr",
+      "bottom": "b"
+    }
+  },
+
+  "spacing": {
+    "line_spacing_150": 150000,
+    "_line_spacing_comment": "줄간격 150% (spcPct)",
+    "paragraph_before_500": 500,
+    "_paragraph_before_comment": "문단 위 여백 5pt (spcPts)"
+  }
+}

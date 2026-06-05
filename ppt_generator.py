@@ -453,6 +453,7 @@ _ZONE_FILL_CACHE: dict | None = None
 _TOC_CONFIG_CACHE: dict | None = None
 _SLIDE15_CONFIG_CACHE: dict | None = None
 _COLLISION_RULES_CACHE: dict | None = None
+_COMMON_FORMATTING_CACHE: dict | None = None
 
 
 def _load_zone_map() -> dict:
@@ -574,6 +575,23 @@ def _load_collision_rules() -> dict:
             pass
     _COLLISION_RULES_CACHE = {}
     return _COLLISION_RULES_CACHE
+
+
+def _load_common_formatting() -> dict:
+    """harness/common_formatting.json 로드 (캐시). 없으면 빈 dict."""
+    global _COMMON_FORMATTING_CACHE
+    if _COMMON_FORMATTING_CACHE is not None:
+        return _COMMON_FORMATTING_CACHE
+    for p in (SKILL_DIR / "harness" / "common_formatting.json",
+              Path(__file__).parent / "harness" / "common_formatting.json"):
+        try:
+            if p.exists():
+                _COMMON_FORMATTING_CACHE = json.loads(p.read_text())
+                return _COMMON_FORMATTING_CACHE
+        except Exception:
+            pass
+    _COMMON_FORMATTING_CACHE = {}
+    return _COMMON_FORMATTING_CACHE
 
 
 def _zone(template_file: str) -> dict:
@@ -1233,6 +1251,28 @@ def edit_toc_slide(xml_path: Path, prs_title: str, items: list[str],
     ET.parse(xml_path)  # 유효성 검증
 
 
+def _apply_formatting_safe(sp: ET.Element, zone_fmt: dict, common_fmt: dict) -> None:
+    """
+    하네스 기반 속성을 XML에 안전하게 적용.
+    기존 구조 보존, 속성 값만 변경.
+    """
+    ns_a = _NS_A
+    ns_p = _NS_P
+
+    txBody = sp.find(f"{{{ns_p}}}txBody")
+    if txBody is None:
+        return
+
+    # bodyPr 적용
+    if "bodyPr" in zone_fmt:
+        bodyPr = txBody.find(f"{{{ns_a}}}bodyPr")
+        if bodyPr is None:
+            bodyPr = ET.SubElement(txBody, f"{{{ns_a}}}bodyPr")
+            txBody.insert(0, bodyPr)  # 첫 번째 위치
+        for k, v in zone_fmt["bodyPr"].items():
+            bodyPr.set(k, str(v))
+
+
 def edit_slide15(xml_path: Path, content: dict) -> None:
     """
     slide15.xml (3-item 레이아웃) 전용 편집 함수.
@@ -1322,9 +1362,8 @@ def edit_slide15(xml_path: Path, content: dict) -> None:
                 for extra_run in runs[1:]:
                     para.remove(extra_run)
             else:
-                # lines 범위 밖 paragraph는 모든 run 제거 (빈 줄 유지)
-                for r in runs:
-                    para.remove(r)
+                # lines 범위 밖 paragraph는 완전히 제거 (빈 줄 없애기)
+                txBody.remove(para)
 
     # ── 0. title & subtitle ───────────────────────────────────────
     title_id = zone.get("title")
