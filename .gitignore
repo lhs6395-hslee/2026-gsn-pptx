@@ -1,5 +1,8 @@
-# 결과물
-result/
+# 결과물 (최종 pptx만 추적, 임시 파일 제외)
+result/tmp/
+result/*.pdf
+result/slide-*.jpg
+result/thumbs*.jpg
 
 # macOS
 .DS_Store

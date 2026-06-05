@@ -39,7 +39,8 @@ Claude 자신이 오케스트레이터로서 각 단계를 직접 수행한다.
 | 주제 | (필수) | |
 | 슬라이드 수 | 10 | |
 | 대상 청중 | 전문가 | |
-| 템플릿 경로 | `./template/default.pptx` | 프로젝트 디렉토리 내 |
+| 템플릿 경로 | `./template/2026_PPT Template.pptx` | 프로젝트 디렉토리 내 |
+| 작업 디렉토리 | `./result/tmp/` | 임시 파일 생성 위치 |
 | AHE 진화 여부 | OFF | 명시 요청 시에만 ON |
 
 ---
@@ -67,8 +68,8 @@ sys.path.insert(0, str(PROJECT_DIR))
 from ppt_generator import run_ppt_generation
 
 topic = "<주제>"
-work_dir = PROJECT_DIR / "runs" / f"{datetime.now().strftime('%Y%m%d_%H%M%S')}_{topic.replace(' ', '_')}"
-template_path = PROJECT_DIR / "template" / "default.pptx"
+work_dir = PROJECT_DIR / "result" / "tmp" / f"{datetime.now().strftime('%Y%m%d_%H%M%S')}_{topic.replace(' ', '_')}"
+template_path = PROJECT_DIR / "template" / "2026_PPT Template.pptx"
 
 out, vision_issues = run_ppt_generation(
     topic=topic,
@@ -102,14 +103,14 @@ ls harness/CLAUDE.md 2>/dev/null || {
 }
 
 # 템플릿 확인
-TEMPLATE="./template/default.pptx"
+TEMPLATE="./template/2026_PPT Template.pptx"
 ls "$TEMPLATE" || { echo "템플릿 없음: $TEMPLATE"; exit 1; }
 ```
 
 ### 1. 작업 디렉토리 생성
 
 ```bash
-WORK="./runs/$(date +%Y%m%d_%H%M%S)_${TOPIC// /_}"
+WORK="./result/tmp/$(date +%Y%m%d_%H%M%S)_${TOPIC// /_}"
 mkdir -p "$WORK"/{unpacked,traces}
 cp "$TEMPLATE" "$WORK/template.pptx"
 cd "$WORK"
