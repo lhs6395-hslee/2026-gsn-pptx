@@ -14,7 +14,8 @@ from concurrent.futures import ThreadPoolExecutor, as_completed
 from pathlib import Path
 
 
-SKILL_DIR = Path.home() / ".ppt-skill"
+# 프로젝트 디렉토리 자체를 스킬 디렉토리로 사용
+SKILL_DIR = Path(__file__).parent
 NS = {
     "a": "http://schemas.openxmlformats.org/drawingml/2006/main",
     "p": "http://schemas.openxmlformats.org/presentationml/2006/main",

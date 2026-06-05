@@ -1,38 +1,28 @@
 #!/usr/bin/env bash
-# PPT 생성 스킬 설치 스크립트
-# 한 번만 실행. 이후엔 Claude Code에서 바로 사용.
+# PPT 생성 스킬 설치/업데이트 스크립트
 set -e
 
-SKILL_DIR="$HOME/.ppt-skill"
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
+MODE="${1:-install}"
 
 echo "================================================"
-echo " PPT 생성 스킬 설치"
-echo " 설치 위치: $SKILL_DIR"
+echo " PPT 생성 스킬 ${MODE}"
+echo " 프로젝트 디렉토리: $SCRIPT_DIR"
 echo "================================================"
 
 # ── 1. 디렉토리 구조 생성 ─────────────────────────────────
 echo ""
-echo "[1/6] 디렉토리 생성..."
-mkdir -p "$SKILL_DIR"/{harness,scripts/office/helpers,scripts/office/validators,\
-scripts/office/schemas,ahe_tools,templates,traces,evolution,runs}
+echo "[1/4] 디렉토리 생성..."
+mkdir -p "$SCRIPT_DIR"/{runs,traces,evolution}
 echo "  ✓"
 
-# ── 2. 스킬 파일 복사 ─────────────────────────────────────
-echo "[2/6] 스킬 파일 복사..."
-cp -r "$SCRIPT_DIR/harness/"*     "$SKILL_DIR/harness/"
-cp -r "$SCRIPT_DIR/scripts/"*     "$SKILL_DIR/scripts/"
-cp -r "$SCRIPT_DIR/ahe_tools/"*   "$SKILL_DIR/ahe_tools/" 2>/dev/null || true
-cp    "$SCRIPT_DIR/SKILL.md"      "$SKILL_DIR/"
-echo "  ✓"
-
-# ── 3. Python 패키지 설치 ─────────────────────────────────
-echo "[3/6] Python 패키지 설치..."
+# ── 2. Python 패키지 설치 ─────────────────────────────────
+echo "[2/4] Python 패키지 설치..."
 pip install anthropic defusedxml Pillow python-pptx -q
 echo "  ✓ anthropic, defusedxml, Pillow, python-pptx"
 
-# ── 4. extract-text 설치 ──────────────────────────────────
-echo "[4/6] extract-text 설치..."
+# ── 3. extract-text 설치 ──────────────────────────────────
+echo "[3/4] extract-text 설치..."
 EXTRACT_TEXT_PATH="$(python3 -c 'import sys; print(sys.prefix)')/bin/extract-text"
 cat > "$EXTRACT_TEXT_PATH" << 'PYEOF'
 #!/usr/bin/env python3
@@ -57,8 +47,8 @@ PYEOF
 chmod +x "$EXTRACT_TEXT_PATH"
 echo "  ✓ extract-text → $EXTRACT_TEXT_PATH"
 
-# ── 5. 시스템 의존성 확인 ─────────────────────────────────
-echo "[5/6] 시스템 의존성 확인..."
+# ── 4. 시스템 의존성 확인 ─────────────────────────────────
+echo "[4/4] 시스템 의존성 확인..."
 
 check_install() {
     local cmd="$1" brew_pkg="$2" apt_pkg="$3"
@@ -75,41 +65,18 @@ check_install() {
 
 check_install pdftoppm poppler poppler-utils
 
-# ── 6. git 초기화 (harness 변경 추적용) ──────────────────
-echo "[6/6] git 초기화..."
-cd "$SKILL_DIR"
-if [ ! -d .git ]; then
-    git init -q
-    git config user.email "ppt-skill@local"
-    git config user.name "PPT Skill"
-fi
-
-cat > .gitignore << 'EOF'
-runs/
-traces/
-*.pdf
-slide-*.jpg
-thumbs*.jpg
-unpacked/
-__pycache__/
-*.pyc
-EOF
-
-git add harness/ SKILL.md 2>/dev/null || true
-git commit -m "seed harness v0.0" -q 2>/dev/null || \
-    git commit --allow-empty -m "seed harness v0.0" -q 2>/dev/null || true
-echo "  ✓"
-
 # ── 완료 메시지 ──────────────────────────────────────────
 echo ""
 echo "================================================"
-echo " 설치 완료!"
+echo " ${MODE} 완료!"
 echo "================================================"
+echo ""
+echo "프로젝트 디렉토리: $SCRIPT_DIR"
 echo ""
 echo "다음 단계:"
 echo ""
-echo "1. 템플릿 배치:"
-echo "   cp your_template.pptx ~/.ppt-skill/templates/default.pptx"
+echo "1. 템플릿 배치 (아직 없는 경우):"
+echo "   cp your_template.pptx $SCRIPT_DIR/template/default.pptx"
 echo ""
 echo "2. Claude API 백엔드 설정 (~/.zshrc 또는 ~/.bashrc에 추가):"
 echo ""
@@ -128,9 +95,10 @@ echo ""
 echo "   ※ ~/.claude/settings.json의 env 값이 있으면 자동으로 감지됩니다."
 echo ""
 echo "3. Claude Code에서 사용:"
+echo "   프로젝트 디렉토리에서:"
 echo "   > Kafka 아키텍처 PPT 10장 만들어줘"
 echo ""
-echo "4. 터미널에서 직접 사용 (선택):"
-echo "   alias ppt='~/.ppt-skill/bin/ppt'"
-echo "   ppt \"Kafka 아키텍처\""
+echo "4. 업데이트:"
+echo "   git pull 후:"
+echo "   ./setup.sh --update"
 echo ""
