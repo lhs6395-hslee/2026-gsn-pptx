@@ -2245,6 +2245,79 @@ def _resize_sidebar_and_reposition_desc(root, label_id: str, desc_id, label_text
                 off_desc.set('y', str(title_y + new_cy + _SIDEBAR_REF_GAP_EMU))
 
 
+def _resolve_shape_bounds(sp) -> dict | None:
+    """shape의 실제 좌표 반환 {x,y,cx,cy}. 레이아웃 상속(cx=0)이면 None."""
+    spPr = sp.find(f"{{{_NS_P}}}spPr")
+    if spPr is None: return None
+    xfrm = spPr.find(f"{{{_NS_A}}}xfrm")
+    if xfrm is None: return None
+    off = xfrm.find(f"{{{_NS_A}}}off")
+    ext = xfrm.find(f"{{{_NS_A}}}ext")
+    if off is None or ext is None: return None
+    x = int(off.get('x', 0)); y = int(off.get('y', 0))
+    cx = int(ext.get('cx', 0)); cy = int(ext.get('cy', 0))
+    if cx == 0: return None
+    return {'x': x, 'y': y, 'cx': cx, 'cy': cy}
+
+
+def _boxes_overlap(a: dict, b: dict, margin: int = 0) -> bool:
+    """두 박스가 겹치는지 확인 (margin: 최소 유지 간격)."""
+    return not (
+        a['x'] + a['cx'] + margin <= b['x'] or
+        b['x'] + b['cx'] + margin <= a['x'] or
+        a['y'] + a['cy'] + margin <= b['y'] or
+        b['y'] + b['cy'] + margin <= a['y']
+    )
+
+
+def _resolve_overlaps(root, changed_sid: str, gap: int = 50_000) -> None:
+    """
+    changed_sid shape의 크기 변동 후 같은 x 열에 있는 인접 shape들을 검사해
+    겹침이 발생하면 아래 shape를 밀어내어 겹침을 해소한다.
+    gap: 최소 유지 간격 (EMU, 기본 50,000 ≈ 4mm)
+    """
+    # 변경된 shape 좌표
+    changed_sp = _find_shape_by_id(root, changed_sid)
+    if changed_sp is None: return
+    cb = _resolve_shape_bounds(changed_sp)
+    if cb is None: return
+
+    # 모든 shape를 y 순서로 정렬하여 변경된 shape 아래에 있는 것 검사
+    ns_p = _NS_P; ns_a = _NS_A
+    all_shapes = []
+    for sp in root.iter(f'{{{ns_p}}}sp'):
+        cpr = sp.find(f'{{{ns_p}}}nvSpPr/{{{ns_p}}}cNvPr')
+        if cpr is None: continue
+        sid = cpr.get('id', '?')
+        if sid == changed_sid: continue
+        b = _resolve_shape_bounds(sp)
+        if b is None: continue
+        all_shapes.append((sid, sp, b))
+
+    # x 범위가 겹치고 y가 변경된 shape 아래에 있는 shape 검사
+    for sid, sp, b in all_shapes:
+        # x 범위 겹침 확인 (같은 컬럼)
+        x_overlap = (b['x'] < cb['x'] + cb['cx']) and (b['x'] + b['cx'] > cb['x'])
+        if not x_overlap: continue
+        # y가 변경 shape 아래에 있는 경우만
+        if b['y'] < cb['y']: continue
+        # 겹침 확인
+        if _boxes_overlap(cb, b, margin=gap):
+            # 아래 shape를 밀어냄
+            new_y = cb['y'] + cb['cy'] + gap
+            spPr = sp.find(f'{{{ns_p}}}spPr')
+            if spPr is None: continue
+            xfrm = spPr.find(f'{{{ns_a}}}xfrm')
+            if xfrm is None: continue
+            off = xfrm.find(f'{{{ns_a}}}off')
+            if off is not None:
+                off.set('y', str(new_y))
+                # 재귀적으로 이 shape도 아래 shape들에 영향 줄 수 있으므로 cb 갱신
+                b_new = _resolve_shape_bounds(sp)
+                if b_new:
+                    b.update(b_new)
+
+
 def _apply_common_zones(root, slide_plan: dict, template_file: str) -> None:
     """
     모든 본문 슬라이드 공통 3-Zone 처리:
@@ -2853,6 +2926,8 @@ def _auto_resize_textbox(root, sid: str, text: str, default_font_pt: float = 14.
     orig_cy = int(ext.get('cy', 0))
     if new_cy > orig_cy:
         ext.set('cy', str(new_cy))
+        # cy 확장 후 인접 shape 겹침 감지 및 자동 해소
+        _resolve_overlaps(root, sid)
 
 
 def _slide_set_helper(root, ns_p, ns_a, sid, text):

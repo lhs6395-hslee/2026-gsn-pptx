@@ -142,10 +142,52 @@
       "description": "슬라이드 6(As-Is/To-Be)에서 '아래 확장/최대 N줄' 등 템플릿 안내 문구 잔존 여부 및 텍스트 shape과 다이어그램 shape의 bounding box 겹침 여부를 검사한다. 안내 문구 발견 시 FAIL, bounding box 겹침 발견 시 FAIL.",
       "severity": "HIGH",
       "action": "FAIL"
+    },
+    "card_layout_overlap_check": {
+      "description": "슬라이드 3에서 단계 설명 텍스트박스 bottom(y+cy)이 카드 행 top(y)보다 커서 겹치는 경우 FAIL. 카드 행 bottom(y+cy)이 슬라이드 높이(6858000 EMU) - 300000 EMU를 초과하는 경우 FAIL. 카드 내 텍스트가 카드 컨테이너 height의 80%를 초과하면 WARN.",
+      "severity": "HIGH",
+      "action": "FAIL",
+      "source": "known_failure_fixes_v3.card_layout_text_overlap_slide3"
+    },
+    "blue_bg_text_color_check": {
+      "description": "파란 배경(fill color #1419AB 또는 #3C41E6 계열, 또는 테마 accent 색) shape 위에 올라간 텍스트 run의 color가 RGBColor(255,255,255) 흰색이 아닌 경우 FAIL. 배경 shape와 텍스트 shape의 bounding box가 겹치는 경우에 적용. 슬라이드 3·4에서 반복 발생한 패턴.",
+      "severity": "HIGH",
+      "action": "FAIL",
+      "source": "known_failure_fixes_v4.slide3_layout_collapse_overlap_overflow"
+    },
+    "step_column_completeness": {
+      "description": "4단계 컬럼 레이아웃(slide30 등)에서 각 단계 헤더 텍스트가 12자를 초과하면 FAIL. 4개 단계 중 본문(bullet)이 비어있는 컬럼이 1개라도 있으면 FAIL. 헤더가 '...' 또는 빈 문자열이면 즉시 FAIL.",
+      "severity": "HIGH",
+      "action": "FAIL",
+      "source": "known_failure_fixes_v5.step_column_header_truncation"
+    },
+    "slide5_grid_completeness": {
+      "description": "슬라이드 5처럼 격자(grid) 레이아웃을 사용하는 슬라이드에서 모든 셀 텍스트가 비어있지 않아야 함. 제목이 섹션 번호(예: '1.4', '1.3')만 있고 실제 제목 텍스트가 없으면 FAIL. shape.text.strip()이 빈 문자열인 그리드 셀이 1개라도 있으면 FAIL.",
+      "severity": "HIGH",
+      "action": "FAIL",
+      "source": "known_failure_fixes_v5.slide5_title_only_numbering_shown"
+    },
+    "flow_card_boundary_check": {
+      "description": "4열 플로우 카드 레이아웃에서 각 카드의 right_edge(left+width)가 슬라이드 너비(9144000 EMU) - 200000 EMU를 초과하면 FAIL. 카드 bottom(top+height)이 슬라이드 높이(6858000 EMU) - 200000 EMU를 초과하면 FAIL.",
+      "severity": "HIGH",
+      "action": "FAIL",
+      "source": "known_failure_fixes_v6.flow_card_right_cutoff_slide5"
+    },
+    "section_subtitle_length_check": {
+      "description": "section 슬라이드(slide8) 우측 서브타이틀 텍스트가 16자를 초과하면 FAIL. 섹션 번호 포함 전체 텍스트 기준. 16자 초과 시 텍스트박스 너비 초과 줄바꿈 발생.",
+      "severity": "HIGH",
+      "action": "FAIL",
+      "source": "known_failure_fixes_v6.section_slide_right_textbox_overflow"
+    },
+    "shape_overlap_after_resize": {
+      "description": "cy 확장(_auto_resize_textbox) 이후 인접 shape와 겹침이 발생하는지 검사. 같은 x 열에 있는 두 shape의 bounding box가 gap 50000 EMU 이내로 겹치면 WARN. 실제로 겹치면(gap=0) FAIL. _resolve_overlaps 로직이 정상 작동했는지 사후 검증용.",
+      "severity": "MEDIUM",
+      "action": "WARN",
+      "source": "ppt_generator._resolve_overlaps"
     }
   },
   "pass_threshold": "ALL_CRITICAL_PASS",
-  "evolution_notes": "v0.3: TOC 7-paragraph 불변 규칙 추가",
-  "last_evolved": "2026-06-02T06:04:23.755366",
-  "last_updated": "2026-06-02T00:05:08.221032"
+  "evolution_notes": "v0.4: known_failure_fixes v3~v6 반영 — card overlap, blue_bg text color, step column completeness, grid completeness, flow card boundary, section subtitle length, shape overlap after resize",
+  "last_evolved": "2026-06-05",
+  "last_updated": "2026-06-05"
 }
