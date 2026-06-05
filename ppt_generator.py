@@ -450,6 +450,7 @@ _NS_P = "http://schemas.openxmlformats.org/presentationml/2006/main"
 _ZONE_MAP_CACHE: dict | None = None
 _SLIDE_CATALOG_CACHE: dict | None = None
 _ZONE_FILL_CACHE: dict | None = None
+_TOC_CONFIG_CACHE: dict | None = None
 
 
 def _load_zone_map() -> dict:
@@ -520,6 +521,23 @@ def _load_placeholder_patterns() -> "re.Pattern | None":
         except Exception:
             pass
     return None
+
+
+def _load_toc_config() -> dict:
+    """harness/toc_layout_config.json 로드 (캐시). 없으면 빈 dict."""
+    global _TOC_CONFIG_CACHE
+    if _TOC_CONFIG_CACHE is not None:
+        return _TOC_CONFIG_CACHE
+    for p in (SKILL_DIR / "harness" / "toc_layout_config.json",
+              Path(__file__).parent / "harness" / "toc_layout_config.json"):
+        try:
+            if p.exists():
+                _TOC_CONFIG_CACHE = json.loads(p.read_text())
+                return _TOC_CONFIG_CACHE
+        except Exception:
+            pass
+    _TOC_CONFIG_CACHE = {}
+    return _TOC_CONFIG_CACHE
 
 
 def _zone(template_file: str) -> dict:
@@ -1123,10 +1141,18 @@ def edit_toc_slide(xml_path: Path, prs_title: str, items: list[str],
 
     # ── 5. 수평선 7개 (ID=12,13,37,38,39,40,41) ────────────────────
     # 가장 긴 항목 기준으로 모든 선의 x 시작점을 통일 (텍스트 겹침 방지)
-    TOC_FONT_PT = 30
-    LINE_GAP    = 200000   # 텍스트 끝 ~ 선 시작 여백 (≈0.22")
-    TOC_PAGE_X  = 11431475
-    SLIDE_RIGHT = 12192000  # 슬라이드 우측 끝 (16:9 표준 = 13.33")
+
+    # 하네스 로드 (없으면 하드코딩 폴백)
+    toc_cfg = _load_toc_config()
+    TOC_FONT_PT = toc_cfg.get("font_pt", 30)
+    LINE_GAP    = toc_cfg.get("line_gap_emu", 200000)
+    TOC_PAGE_X  = toc_cfg.get("page_number", {}).get("x_emu", 11431475)
+    SLIDE_RIGHT = toc_cfg.get("slide_right_emu", 12192000)
+
+    # 텍스트 폭 계수 (하네스 or 폴백)
+    width_factors = toc_cfg.get("text_width_factors", {})
+    KO_FACTOR = width_factors.get("korean", 0.9)
+    EN_FACTOR = width_factors.get("english", 0.5)
 
     def _est_width_emu(text, font_pt: int) -> int:
         """한글/영문 혼합 텍스트의 렌더 폭 추정 (EMU)."""
@@ -1134,7 +1160,7 @@ def edit_toc_slide(xml_path: Path, prs_title: str, items: list[str],
             text = str(text) if text else ""
         ko = sum(1 for c in text if ord(c) > 0x1000)
         en = len(text) - ko
-        return int((ko * font_pt * 0.9 + en * font_pt * 0.5) * _EMU_PER_PT)
+        return int((ko * font_pt * KO_FACTOR + en * font_pt * EN_FACTOR) * _EMU_PER_PT)
 
     max_text_emu = max(
         (_est_width_emu(it, TOC_FONT_PT) for it in items if it),

@@ -1,0 +1,21 @@
+{
+  "_comment": "목차(TOC) 레이아웃 설정 — edit_toc_slide 함수에서 사용",
+  "font_pt": 30,
+  "text_width_factors": {
+    "_comment": "텍스트 렌더링 폭 계산 계수 (font_pt 기준 배율)",
+    "korean": 1.1,
+    "english": 0.55
+  },
+  "line_gap_emu": 350000,
+  "_line_gap_comment": "텍스트 끝과 밑줄 시작 사이 여백 (EMU). 350000 = 약 0.38 inch. 텍스트와 밑줄 겹침 방지",
+  "text_box": {
+    "x_emu": 4541178,
+    "cx_emu": 6790297
+  },
+  "page_number": {
+    "x_emu": 11431475
+  },
+  "slide_right_emu": 12192000,
+  "max_rows": 7,
+  "line_shape_ids": ["12", "13", "37", "38", "39", "40", "41"]
+}
