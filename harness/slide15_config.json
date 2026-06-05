@@ -23,17 +23,132 @@
     "_item_desc_comment": "item_descs는 1줄 구조: 상세 설명 (2번째 para는 빈 줄)"
   },
 
-  "zone_map_override": {
-    "_comment": "layout_zone_map.json의 slide15 항목을 오버라이드하는 규칙",
+  "formatting": {
+    "_comment": "각 zone의 XML 속성 정의 (원본 기반)",
+
     "item_titles": {
-      "line1_bold": true,
-      "_line1_comment": "1번째 줄은 bold 유지"
+      "bodyPr": {
+        "rtlCol": "0",
+        "anchor": "ctr"
+      },
+      "line1": {
+        "pPr": {
+          "algn": "ctr",
+          "spcBef_pts": 500
+        },
+        "rPr": {
+          "sz": 1400,
+          "b": true,
+          "typeface": "Pretendard",
+          "color": "FFFFFF"
+        }
+      },
+      "line2": {
+        "pPr": {
+          "algn": "ctr"
+        },
+        "rPr": {
+          "sz": 1400,
+          "typeface": "Pretendard",
+          "color": "FFFFFF"
+        }
+      }
     },
+
+    "item_descs": {
+      "bodyPr": {
+        "wrap": "square",
+        "lIns": "0",
+        "tIns": "0",
+        "rIns": "0",
+        "bIns": "0",
+        "rtlCol": "0",
+        "anchor": "t"
+      },
+      "pPr": {
+        "algn": "ctr",
+        "lnSpc_pct": 150000
+      },
+      "rPr": {
+        "sz": 1200,
+        "typeface": "Pretendard",
+        "color_scheme": "tx1",
+        "lumMod": 75000,
+        "lumOff": 25000
+      }
+    },
+
     "image_slots": {
-      "font": "맑은 고딕",
-      "color": "3C41E6",
-      "size": 1200,
-      "align": "ctr"
+      "bodyPr": {
+        "rtlCol": "0",
+        "anchor": "ctr"
+      },
+      "pPr": {
+        "algn": "ctr"
+      },
+      "rPr": {
+        "sz": 1200,
+        "typeface": "맑은 고딕",
+        "color": "3C41E6"
+      }
+    },
+
+    "body_title": {
+      "bodyPr": {
+        "wrap": "square",
+        "lIns": "0",
+        "tIns": "0",
+        "rIns": "0",
+        "bIns": "0",
+        "rtlCol": "0",
+        "anchor": "t"
+      },
+      "rPr": {
+        "typeface": "Pretendard SemiBold",
+        "color_scheme": "tx1",
+        "lumMod": 85000,
+        "lumOff": 15000
+      }
+    },
+
+    "body_desc": {
+      "bodyPr": {
+        "wrap": "square",
+        "lIns": "0",
+        "tIns": "0",
+        "rIns": "0",
+        "bIns": "0",
+        "rtlCol": "0",
+        "anchor": "t"
+      },
+      "rPr": {
+        "sz": 1200,
+        "typeface": "Pretendard",
+        "color_scheme": "tx1",
+        "lumMod": 75000,
+        "lumOff": 25000
+      }
+    },
+
+    "sub_heading": {
+      "bodyPr": {
+        "wrap": "square",
+        "lIns": "0",
+        "tIns": "0",
+        "rIns": "0",
+        "bIns": "0",
+        "rtlCol": "0",
+        "anchor": "ctr"
+      },
+      "pPr": {
+        "algn": "l",
+        "lnSpc_pts": 2153
+      },
+      "rPr": {
+        "sz": 1600,
+        "typeface": "Pretendard SemiBold",
+        "color": "000000"
+      }
     }
   },
 

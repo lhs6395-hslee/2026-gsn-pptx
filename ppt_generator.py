@@ -452,6 +452,7 @@ _SLIDE_CATALOG_CACHE: dict | None = None
 _ZONE_FILL_CACHE: dict | None = None
 _TOC_CONFIG_CACHE: dict | None = None
 _SLIDE15_CONFIG_CACHE: dict | None = None
+_COLLISION_RULES_CACHE: dict | None = None
 
 
 def _load_zone_map() -> dict:
@@ -556,6 +557,23 @@ def _load_slide15_config() -> dict:
             pass
     _SLIDE15_CONFIG_CACHE = {}
     return _SLIDE15_CONFIG_CACHE
+
+
+def _load_collision_rules() -> dict:
+    """harness/collision_resolution.json 로드 (캐시). 없으면 빈 dict."""
+    global _COLLISION_RULES_CACHE
+    if _COLLISION_RULES_CACHE is not None:
+        return _COLLISION_RULES_CACHE
+    for p in (SKILL_DIR / "harness" / "collision_resolution.json",
+              Path(__file__).parent / "harness" / "collision_resolution.json"):
+        try:
+            if p.exists():
+                _COLLISION_RULES_CACHE = json.loads(p.read_text())
+                return _COLLISION_RULES_CACHE
+        except Exception:
+            pass
+    _COLLISION_RULES_CACHE = {}
+    return _COLLISION_RULES_CACHE
 
 
 def _zone(template_file: str) -> dict:

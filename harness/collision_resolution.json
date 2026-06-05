@@ -1,0 +1,69 @@
+{
+  "_comment": "선언적 충돌 해소 규칙 — shape 확장 시 자동 위치 조정",
+  "description": "텍스트박스 자동 확장 후 주변 요소와 겹침을 감지하고 해소",
+
+  "global_settings": {
+    "enabled": true,
+    "default_gap_emu": 50000,
+    "_gap_comment": "shape 간 최소 여백 (50000 EMU ≈ 0.055 inch)"
+  },
+
+  "rules": [
+    {
+      "name": "body_title_expansion",
+      "description": "body_title이 확장되면 아래 요소들을 밀어냄",
+      "trigger": {
+        "zone": "body_title",
+        "condition": "cy_expanded"
+      },
+      "action": {
+        "type": "push_down",
+        "affected_zones": ["body_desc", "item_titles", "item_descs", "image_slots", "sub_heading"],
+        "gap_emu": 50000,
+        "_comment": "body_title 하단 + gap_emu부터 affected_zones 시작"
+      }
+    },
+    {
+      "name": "item_titles_expansion",
+      "description": "item_titles(파란 박스) 확장 시 아래 item_descs를 밀어냄",
+      "trigger": {
+        "zone": "item_titles",
+        "condition": "any_cy_expanded"
+      },
+      "action": {
+        "type": "push_down",
+        "affected_zones": ["item_descs"],
+        "gap_emu": 50000,
+        "scope": "column_based",
+        "_scope_comment": "같은 X 위치(컬럼)의 item_desc만 조정"
+      }
+    },
+    {
+      "name": "general_overlap_resolution",
+      "description": "모든 shape 편집 후 일반 겹침 해소",
+      "trigger": {
+        "zone": "*",
+        "condition": "after_edit"
+      },
+      "action": {
+        "type": "resolve_all_overlaps",
+        "method": "push_down_cascade",
+        "gap_emu": 50000,
+        "_method_comment": "위에서 아래로 순회하며 겹치면 아래 shape를 연쇄적으로 밀어냄"
+      }
+    }
+  ],
+
+  "slide_specific_overrides": {
+    "slide15.xml": {
+      "_comment": "slide15는 item_titles 2줄 구조 → cy 자동 확장 필요",
+      "autofit": {
+        "item_titles": {
+          "enabled": true,
+          "preserve_height": false,
+          "_comment": "2줄 텍스트에 맞춰 cy 자동 조정"
+        }
+      }
+    }
+  }
+}
