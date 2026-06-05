@@ -85,6 +85,18 @@ LAYOUT_REGISTRY: dict[str, dict] = {
                     "editor": "edit_toc_slide"},
     "slide46.xml": {"label": "감사합니다",   "best_for": ["closing"],
                     "editor": "noop"},
+    "slide9.xml":  {"label": "3열 이미지+제목+설명", "best_for": ["three_col", "comparison", "services"],    "editor": "_edit_slide9"},
+    "slide10.xml": {"label": "3열+인사이트",          "best_for": ["insights", "metrics", "comparison"],      "editor": "_edit_slide10"},
+    "slide11.xml": {"label": "3열 이미지카드",         "best_for": ["features", "three_col", "highlights"],   "editor": "_edit_slide11"},
+    "slide12.xml": {"label": "3열+서브헤딩",           "best_for": ["three_col", "content"],                  "editor": "_edit_slide12"},
+    "slide14.xml": {"label": "4열 아이콘+인사이트",    "best_for": ["four_features", "pillars", "benefits"],  "editor": "_edit_slide14"},
+    "slide16.xml": {"label": "4열 아이콘+서브헤딩",    "best_for": ["four_col", "features", "services"],      "editor": "_edit_slide16"},
+    "slide17.xml": {"label": "4열 이미지+서브헤딩",    "best_for": ["four_col", "roadmap", "phases"],         "editor": "_edit_slide17"},
+    "slide25.xml": {"label": "이미지+우측3열",         "best_for": ["image_text", "overview", "content"],     "editor": "_edit_slide25"},
+    "slide26.xml": {"label": "이미지+3항목",           "best_for": ["image_text", "detail", "content"],       "editor": "_edit_slide26"},
+    "slide34.xml": {"label": "2이미지+키워드",         "best_for": ["keywords", "highlight", "comparison"],   "editor": "_edit_slide34"},
+    "slide37.xml": {"label": "3구역 텍스트",           "best_for": ["text_heavy", "explanation", "detail"],   "editor": "_edit_slide37"},
+    "slide42.xml": {"label": "대형 본문",              "best_for": ["body", "deep_dive", "content"],          "editor": "_edit_slide42"},
 }
 
 
@@ -183,6 +195,13 @@ def generate_plan_with_claude(
         "slide10.xml  → content  : 3가지 사례 + 하단 Insight 배너\n"
         "slide12.xml  → content  : 3가지 도구/기술 (이미지+우측 텍스트)\n"
         "slide30.xml  → steps    : 4단계 프로세스 (Step1→Step2→Step3→Step4)\n"
+        "slide11.xml  → content  : 3가지 이미지 카드 (이미지+제목+설명 3열, 기능 강조)\n"
+        "slide17.xml  → content  : 4가지 이미지+서브헤딩 (이미지+제목+설명 4열, 로드맵/단계)\n"
+        "slide25.xml  → content  : 이미지+우측3열 (좌측 이미지, 우측 overview+3항목)\n"
+        "slide26.xml  → content  : 이미지+3항목 상세 (좌측 이미지, 우측 overview+3항목+설명)\n"
+        "slide34.xml  → content  : 2이미지+키워드 (키워드 4개+설명+이미지 2개)\n"
+        "slide37.xml  → content  : 3구역 텍스트 (대형 설명+보조 설명 2개, 텍스트 중심)\n"
+        "slide42.xml  → content  : 대형 본문 (단일 대형 텍스트 박스, 심층 설명)\n"
         "slide32.xml  → content  : 상단 텍스트+하단 3열 콘텐츠 (본문설명글+3가지 핵심 포인트/이미지)\n"
         "slide36.xml  → content  : As-is/To-be 벤다이어그램 (현황→목표 비교)\n"
         "slide38.xml  → flow     : 3행 흐름도 keyword→solution→service (아키텍처/파이프라인)\n"
@@ -246,9 +265,15 @@ def generate_plan_with_claude(
         "content(slide14/16): section_title, section_desc(2줄 이내), "
         "items(4개, 16자 이내), descriptions(4개, 40자 이내), "
         "image_descriptions(이미지 영역 상세 설명 4개)\n"
-        "content(slide9/10/12): section_title, section_desc, items(3개), descriptions(3개), "
+        "content(slide9/11/12): section_title, section_desc, items(3개), descriptions(3개), "
         "image_descriptions(각 칸 이미지 상세 설명 3개)\n"
-        "content(slide10): section_title, section_desc, items/descriptions/image_descriptions(3개) + insight(배너 1개)\n"
+        "content(slide10): section_title, section_desc, items/descriptions/image_descriptions(3개) + insights(배너 1개)\n"
+        "content(slide11): section_title, section_desc, items(3개, 14자 이내), descriptions(3개, 45자 이내)\n"
+        "content(slide17): section_title, section_desc, items(4개), descriptions(4개)\n"
+        "content(slide25/26): section_title, section_desc, items(3개), descriptions(4개 — 첫째=overview, 나머지 3개=항목별 설명)\n"
+        "content(slide34): section_title, section_desc, keywords(4개, 10자 이내), descriptions(1개, 본문 설명)\n"
+        "content(slide37): section_title, section_desc, bullets(3개 — 첫째=대형 설명, 나머지 2개=보조 설명)\n"
+        "content(slide42): section_title, section_desc, bullets(본문 줄 목록, 최대 8줄)\n"
         "content(slide32): section_title, section_desc, "
         "body(상단 본문설명글 3줄 이내), bullets(하단 3열 핵심 포인트 3개 필수), "
         "image_descriptions(하단 3열 이미지 상세 설명 3개)\n"
@@ -310,7 +335,7 @@ def generate_plan_with_claude(
 
         response = client.messages.create(
             model=model,
-            max_tokens=4096,
+            max_tokens=8192,
             system=system,
             messages=messages,
         )
@@ -422,6 +447,8 @@ _NS_P = "http://schemas.openxmlformats.org/presentationml/2006/main"
 # 각 본문 슬라이드의 5개 존 + 본문구역 하위 존(shape ID 리스트)을 정의.
 # 단일 진실 공급원(single source of truth) — 편집기는 하드코딩 ID 대신 이걸 참조.
 _ZONE_MAP_CACHE: dict | None = None
+_SLIDE_CATALOG_CACHE: dict | None = None
+_ZONE_FILL_CACHE: dict | None = None
 
 
 def _load_zone_map() -> dict:
@@ -439,6 +466,40 @@ def _load_zone_map() -> dict:
             pass
     _ZONE_MAP_CACHE = {}
     return _ZONE_MAP_CACHE
+
+
+def _load_slide_catalog() -> dict:
+    """harness/slide_catalog.json 로드 (캐시). 없으면 빈 dict."""
+    global _SLIDE_CATALOG_CACHE
+    if _SLIDE_CATALOG_CACHE is not None:
+        return _SLIDE_CATALOG_CACHE
+    for p in (SKILL_DIR / "harness" / "slide_catalog.json",
+              Path(__file__).parent / "harness" / "slide_catalog.json"):
+        try:
+            if p.exists():
+                _SLIDE_CATALOG_CACHE = json.loads(p.read_text())
+                return _SLIDE_CATALOG_CACHE
+        except Exception:
+            pass
+    _SLIDE_CATALOG_CACHE = {}
+    return _SLIDE_CATALOG_CACHE
+
+
+def _load_zone_fill_rules() -> dict:
+    """harness/zone_fill_rules.json 로드 (캐시). 없으면 하드코딩 폴백."""
+    global _ZONE_FILL_CACHE
+    if _ZONE_FILL_CACHE is not None:
+        return _ZONE_FILL_CACHE
+    for p in (SKILL_DIR / "harness" / "zone_fill_rules.json",
+              Path(__file__).parent / "harness" / "zone_fill_rules.json"):
+        try:
+            if p.exists():
+                _ZONE_FILL_CACHE = json.loads(p.read_text())
+                return _ZONE_FILL_CACHE
+        except Exception:
+            pass
+    _ZONE_FILL_CACHE = None  # 로드 실패 시 _ZONE_FILL_RULES 하드코딩 폴백
+    return {}
 
 
 def _zone(template_file: str) -> dict:
@@ -1047,8 +1108,10 @@ def edit_toc_slide(xml_path: Path, prs_title: str, items: list[str],
     TOC_PAGE_X  = 11431475
     SLIDE_RIGHT = 12192000  # 슬라이드 우측 끝 (16:9 표준 = 13.33")
 
-    def _est_width_emu(text: str, font_pt: int) -> int:
+    def _est_width_emu(text, font_pt: int) -> int:
         """한글/영문 혼합 텍스트의 렌더 폭 추정 (EMU)."""
+        if not isinstance(text, str):
+            text = str(text) if text else ""
         ko = sum(1 for c in text if ord(c) > 0x1000)
         en = len(text) - ko
         return int((ko * font_pt * 0.9 + en * font_pt * 0.5) * _EMU_PER_PT)
@@ -1143,20 +1206,28 @@ def edit_slide(work_dir: Path, slide_plan: dict) -> bool:
             tmpl_name = slide_plan.get("template_file", "")
             _SLIDE_EDITORS = {
                 "slide8.xml":  _edit_slide8,
+                # slide9-12, 17: zone_map body 완비 → _edit_zonemap_slide 사용 (image_slots 올바른 서식)
                 "slide13.xml": _edit_slide13,
+                "slide14.xml": _edit_slide14,
                 "slide15.xml": _edit_slide13,
+                "slide16.xml": _edit_slide16,
                 "slide21.xml": _edit_slide21,
                 "slide22.xml": _edit_slide24,
                 "slide24.xml": _edit_slide24,
+                "slide25.xml": _edit_slide25,
+                "slide26.xml": _edit_slide26,
                 "slide29.xml": _edit_slide29,
                 "slide30.xml": _edit_slide30,
                 "slide31.xml": _edit_slide31,
                 "slide32.xml": _edit_slide32,
                 "slide33.xml": _edit_slide33,
+                "slide34.xml": _edit_slide34,
                 "slide35.xml": _edit_slide35,
                 "slide36.xml": _edit_slide36,
+                "slide37.xml": _edit_slide37,
                 "slide38.xml": _edit_slide38,
                 "slide39.xml": _edit_slide39,
+                "slide42.xml": _edit_slide42,
             }
             editor = _SLIDE_EDITORS.get(tmpl_name)
             if editor:
@@ -1535,10 +1606,14 @@ def visual_qa(work_dir: Path, output_path: Path) -> list[str]:
     slides_img_dir = work_dir / "qa_images"
     slides_img_dir.mkdir(exist_ok=True)
     prefix = str(slides_img_dir / "slide")
-    subprocess.run(
-        ["pdftoppm", "-jpeg", "-r", "120", str(pdf_path), prefix],
-        capture_output=True, text=True,
-    )
+    try:
+        subprocess.run(
+            ["pdftoppm", "-jpeg", "-r", "120", str(pdf_path), prefix],
+            capture_output=True, text=True,
+        )
+    except FileNotFoundError:
+        print("  ⚠ pdftoppm 없음 — QA 이미지 생성 건너뜀 (brew install poppler 권장)")
+        return []
     images = sorted(slides_img_dir.glob("*.jpg"))
     print(f"  ✓ QA 이미지 {len(images)}장 ({qa_source}): {slides_img_dir}")
 
@@ -1705,11 +1780,11 @@ _BANNED_SLIDES: set[str] = {
     "slide18.xml", "slide19.xml", "slide20.xml", "slide23.xml",
     "slide21.xml", "slide22.xml",
     # 버블 개념도 (복잡 — 전용 편집기 필요)
-    "slide34.xml", "slide35.xml",
+    "slide34.xml",
     # 3행 상세 흐름도 — service(4번째) 컬럼 미충전 이슈 → flow는 slide38로 통일
     "slide39.xml",
-    # 레이아웃에 영상(media) placeholder가 있어 ▶ 아이콘 노출 → 텍스트는 slide32 사용
-    "slide24.xml", "slide25.xml", "slide26.xml", "slide27.xml", "slide28.xml",
+    # 영상(media) placeholder 미처리 슬라이드 (▶ 아이콘 노출 위험)
+    "slide27.xml", "slide28.xml",
     # 차트 고정 (Excel 데이터 임베딩 미완성 — 추후 과제)
     "slide40.xml", "slide41.xml", "slide42.xml", "slide43.xml",
 }
@@ -1739,7 +1814,11 @@ _ALLOWED_CONTENT_SLIDES: list[str] = [
     "slide11.xml",  # 3행 이미지(좌)+설명
     "slide12.xml",  # 3열 이미지+우측 텍스트
     "slide17.xml",  # 2x2 이미지+설명
-    # slide24~28(영상 placeholder), slide34/35(버블), slide39(4컬럼), slide40~43(차트)
+    "slide24.xml",  # ✅ 2블록 텍스트 (bullets + body)
+    "slide25.xml",  # ✅ 이미지+우측3열
+    "slide26.xml",  # ✅ 이미지+3항목
+    "slide35.xml",  # ✅ Before→After 비교
+    # slide27~28(영상 placeholder), slide34(버블), slide39(4컬럼), slide40~43(차트)
     # 는 _BANNED — 추후 전용 처리 후 활성화
 ]
 
@@ -1755,13 +1834,8 @@ _LAYOUT_CONTENT_REQ: dict[str, list[str]] = {
     "slide36.xml": ["as_is", "to_be"],
     "slide13.xml": ["items"],
     "slide15.xml": ["items"],
-    "slide14.xml": ["items"],
-    "slide16.xml": ["items"],
-    "slide9.xml":  ["items"],
-    "slide10.xml": ["items"],
-    "slide11.xml": ["items"],
-    "slide12.xml": ["items"],
-    "slide17.xml": ["items"],
+    # slide9-12, slide14, slide16-17, slide25-26, slide34, slide37, slide42 는
+    # 에디터 내부에서 items/bullets/descriptions 폴백 처리를 하므로 가드 불필요.
 }
 
 
@@ -1784,11 +1858,17 @@ def enforce_plan_constraints(plan: dict, slide_info: list[dict]) -> tuple[dict, 
     planning_constraints를 Claude에게만 맡기지 않고 코드 레벨에서 강제.
     반환: (수정된 plan, 변경 로그)
     """
+    # slide_catalog.json 우선, 없으면 하드코딩 폴백
+    _cat = _load_slide_catalog()
+    _banned    = set(_cat["banned_slides"].keys())    if _cat.get("banned_slides")         else _BANNED_SLIDES
+    _allowed   = _cat["allowed_content_slides"]       if _cat.get("allowed_content_slides") else _ALLOWED_CONTENT_SLIDES
+    _cont_req  = _cat.get("layout_content_req", {})   or _LAYOUT_CONTENT_REQ
+
     available_files = {s["file"] for s in slide_info}
-    allowed = [f for f in _ALLOWED_CONTENT_SLIDES if f in available_files]
+    allowed = [f for f in _allowed if f in available_files]
     if not allowed:
         allowed = [f for f in available_files
-                   if f not in _BANNED_SLIDES
+                   if f not in _banned
                    and f not in {"slide6.xml", "slide7.xml", "slide9.xml"}]
 
     used_files: set[str] = set()
@@ -1824,19 +1904,19 @@ def enforce_plan_constraints(plan: dict, slide_info: list[dict]) -> tuple[dict, 
             role = "content"
             slide["role"] = "content"
 
-        needs_replace = (tmpl in _BANNED_SLIDES) or (
-            tmpl not in _ALLOWED_CONTENT_SLIDES
+        needs_replace = (tmpl in _banned) or (
+            tmpl not in _allowed
             and role not in ("cover", "toc", "closing"))
 
         if needs_replace:
             replacement = None
-            for candidate in _ALLOWED_CONTENT_SLIDES:
+            for candidate in _allowed:
                 if candidate in available_files and candidate not in used_files:
                     replacement = candidate
                     break
             if replacement is None:
                 # 중복 허용 (pool이 부족한 경우)
-                for candidate in _ALLOWED_CONTENT_SLIDES:
+                for candidate in _allowed:
                     if candidate in available_files:
                         replacement = candidate
                         break
@@ -1851,7 +1931,7 @@ def enforce_plan_constraints(plan: dict, slide_info: list[dict]) -> tuple[dict, 
         # ── 레이아웃-콘텐츠 적합성 가드 ──
         # 선택된 레이아웃의 필수 콘텐츠가 없으면 텍스트 배너(slide32)로 리맵.
         # 예) 서술형 내용에 연도 타임라인(slide29) 배정 → 빈 막대 방지.
-        req = _LAYOUT_CONTENT_REQ.get(tmpl)
+        req = _cont_req.get(tmpl)
         if req and not _has_content_field(slide.get("content", {}), req):
             fallback = "slide32.xml" if "slide32.xml" in available_files else (
                 "slide24.xml" if "slide24.xml" in available_files else None)
@@ -3239,6 +3319,340 @@ def _edit_slide38(xml_path: Path, slide_plan: dict) -> None:
     _clear_residual_placeholders(root); _write_xml(root, xml_path)
 
 
+def _edit_slide9(xml_path: Path, slide_plan: dict) -> None:
+    """slide9 (3열 이미지+제목+설명): Zone1+2 공통 + 3열 제목/설명/이미지슬롯."""
+    content = slide_plan.get("content", {})
+    body    = content.get("body", {})
+    items   = _coerce_list(content.get("items") or content.get("item_titles") or
+              (body.get("items") if isinstance(body, dict) else None) or [])
+    descs   = _coerce_list(content.get("descriptions") or content.get("bullets") or
+              (body.get("descriptions") if isinstance(body, dict) else None) or [])
+    try:
+        tree = ET.parse(xml_path); root = tree.getroot()
+    except ET.ParseError: return
+    _apply_common_zones(root, slide_plan, "slide9.xml")
+    import copy as _copy; ns_p, ns_a = _NS_P, _NS_A
+    title_ids = ["33","44","47"]; desc_ids = ["27","42","46"]; img_ids = ["24","31","25"]
+    for i, sid in enumerate(title_ids):
+        _slide_set_helper(root, ns_p, ns_a, sid,
+                          _truncate_to_lines(items[i] if i < len(items) else "", 2_400_000, 14, 2))
+    for i, sid in enumerate(desc_ids):
+        _slide_set_helper(root, ns_p, ns_a, sid,
+                          _truncate_to_lines(descs[i] if i < len(descs) else "", 2_400_000, 12, 4))
+    for sid in img_ids:
+        _slide_set_helper(root, ns_p, ns_a, sid, "")
+    _clear_residual_placeholders(root); _write_xml(root, xml_path)
+
+
+def _edit_slide10(xml_path: Path, slide_plan: dict) -> None:
+    """slide10 (3열+인사이트): Zone1+2 공통 + 3열 제목/설명/이미지슬롯 + insights."""
+    content = slide_plan.get("content", {})
+    body    = content.get("body", {})
+    items   = _coerce_list(content.get("items") or content.get("item_titles") or
+              (body.get("items") if isinstance(body, dict) else None) or [])
+    descs   = _coerce_list(content.get("descriptions") or content.get("bullets") or
+              (body.get("descriptions") if isinstance(body, dict) else None) or [])
+    insights = _coerce_list(content.get("insights") or
+               (body.get("insights") if isinstance(body, dict) else None) or [])
+    try:
+        tree = ET.parse(xml_path); root = tree.getroot()
+    except ET.ParseError: return
+    _apply_common_zones(root, slide_plan, "slide10.xml")
+    import copy as _copy; ns_p, ns_a = _NS_P, _NS_A
+    title_ids = ["44","33","47"]; desc_ids = ["42","27","46"]; img_ids = ["20","26","23"]; insight_id = "24"
+    for i, sid in enumerate(title_ids):
+        _slide_set_helper(root, ns_p, ns_a, sid,
+                          _truncate_to_lines(items[i] if i < len(items) else "", 2_400_000, 14, 2))
+    for i, sid in enumerate(desc_ids):
+        _slide_set_helper(root, ns_p, ns_a, sid,
+                          _truncate_to_lines(descs[i] if i < len(descs) else "", 2_400_000, 12, 4))
+    for sid in img_ids:
+        _slide_set_helper(root, ns_p, ns_a, sid, "")
+    _slide_set_helper(root, ns_p, ns_a, insight_id,
+                      _truncate_to_lines(insights[0] if insights else "", 7_000_000, 11, 2))
+    _clear_residual_placeholders(root); _write_xml(root, xml_path)
+
+
+def _edit_slide11(xml_path: Path, slide_plan: dict) -> None:
+    """slide11 (3열 이미지카드): Zone1+2 공통 + 3열 제목/설명/이미지슬롯."""
+    content = slide_plan.get("content", {})
+    body    = content.get("body", {})
+    items   = _coerce_list(content.get("items") or content.get("item_titles") or
+              (body.get("items") if isinstance(body, dict) else None) or [])
+    descs   = _coerce_list(content.get("descriptions") or content.get("bullets") or
+              (body.get("descriptions") if isinstance(body, dict) else None) or [])
+    try:
+        tree = ET.parse(xml_path); root = tree.getroot()
+    except ET.ParseError: return
+    _apply_common_zones(root, slide_plan, "slide11.xml")
+    import copy as _copy; ns_p, ns_a = _NS_P, _NS_A
+    title_ids = ["33","37","40"]; desc_ids = ["27","36","39"]; img_ids = ["21","22","23"]
+    for i, sid in enumerate(title_ids):
+        _slide_set_helper(root, ns_p, ns_a, sid,
+                          _truncate_to_lines(items[i] if i < len(items) else "", 2_400_000, 14, 2))
+    for i, sid in enumerate(desc_ids):
+        _slide_set_helper(root, ns_p, ns_a, sid,
+                          _truncate_to_lines(descs[i] if i < len(descs) else "", 2_400_000, 12, 4))
+    for sid in img_ids:
+        _slide_set_helper(root, ns_p, ns_a, sid, "")
+    _clear_residual_placeholders(root); _write_xml(root, xml_path)
+
+
+def _edit_slide12(xml_path: Path, slide_plan: dict) -> None:
+    """slide12 (3열+서브헤딩): Zone1+2 공통 + 3열 제목/설명/이미지슬롯 + sub_heading."""
+    content = slide_plan.get("content", {})
+    body    = content.get("body", {})
+    items   = _coerce_list(content.get("items") or content.get("item_titles") or
+              (body.get("items") if isinstance(body, dict) else None) or [])
+    descs   = _coerce_list(content.get("descriptions") or content.get("bullets") or
+              (body.get("descriptions") if isinstance(body, dict) else None) or [])
+    try:
+        tree = ET.parse(xml_path); root = tree.getroot()
+    except ET.ParseError: return
+    _apply_common_zones(root, slide_plan, "slide12.xml")
+    import copy as _copy; ns_p, ns_a = _NS_P, _NS_A
+    title_ids = ["33","54","57"]; desc_ids = ["27","53","56"]; img_ids = ["21","47","48"]; sub_id = "28"
+    for i, sid in enumerate(title_ids):
+        _slide_set_helper(root, ns_p, ns_a, sid,
+                          _truncate_to_lines(items[i] if i < len(items) else "", 2_400_000, 14, 2))
+    for i, sid in enumerate(desc_ids):
+        _slide_set_helper(root, ns_p, ns_a, sid,
+                          _truncate_to_lines(descs[i] if i < len(descs) else "", 2_400_000, 12, 4))
+    for sid in img_ids:
+        _slide_set_helper(root, ns_p, ns_a, sid, "")
+    sub_text = content.get("sub_heading") or _make_sub_heading(content)
+    _slide_set_helper(root, ns_p, ns_a, sub_id,
+                      _truncate_to_lines(sub_text, 9_000_000, 16, 2) if sub_text else "")
+    _clear_residual_placeholders(root); _write_xml(root, xml_path)
+
+
+def _edit_slide14(xml_path: Path, slide_plan: dict) -> None:
+    """slide14 (4열 아이콘+인사이트): Zone1+2 공통 + 4열 아이콘/제목/설명 + insights."""
+    content = slide_plan.get("content", {})
+    body    = content.get("body", {})
+    items   = _coerce_list(content.get("items") or content.get("item_titles") or
+              (body.get("items") if isinstance(body, dict) else None) or [])
+    descs   = _coerce_list(content.get("descriptions") or content.get("bullets") or
+              (body.get("descriptions") if isinstance(body, dict) else None) or [])
+    insights = _coerce_list(content.get("insights") or
+               (body.get("insights") if isinstance(body, dict) else None) or [])
+    try:
+        tree = ET.parse(xml_path); root = tree.getroot()
+    except ET.ParseError: return
+    _apply_common_zones(root, slide_plan, "slide14.xml")
+    import copy as _copy; ns_p, ns_a = _NS_P, _NS_A
+    title_ids = ["58","22","26","28"]; desc_ids = ["30","62","25","29"]
+    icon_ids = ["20","21","23","27"]; insight_ids = ["33","35","37","39"]
+    for i, sid in enumerate(title_ids):
+        _slide_set_helper(root, ns_p, ns_a, sid,
+                          _truncate_to_lines(items[i] if i < len(items) else "", 2_000_000, 14, 2))
+    for i, sid in enumerate(desc_ids):
+        _slide_set_helper(root, ns_p, ns_a, sid,
+                          _truncate_to_lines(descs[i] if i < len(descs) else "", 2_000_000, 11, 3))
+    for sid in icon_ids:
+        _slide_set_helper(root, ns_p, ns_a, sid, "")
+    for i, sid in enumerate(insight_ids):
+        _slide_set_helper(root, ns_p, ns_a, sid,
+                          _truncate_to_lines(insights[i] if i < len(insights) else "", 2_000_000, 10, 2))
+    _clear_residual_placeholders(root); _write_xml(root, xml_path)
+
+
+def _edit_slide16(xml_path: Path, slide_plan: dict) -> None:
+    """slide16 (4열 아이콘+서브헤딩): Zone1+2 공통 + 4열 아이콘/제목/설명 + sub_heading."""
+    content = slide_plan.get("content", {})
+    body    = content.get("body", {})
+    items   = _coerce_list(content.get("items") or content.get("item_titles") or
+              (body.get("items") if isinstance(body, dict) else None) or [])
+    descs   = _coerce_list(content.get("descriptions") or content.get("bullets") or
+              (body.get("descriptions") if isinstance(body, dict) else None) or [])
+    try:
+        tree = ET.parse(xml_path); root = tree.getroot()
+    except ET.ParseError: return
+    _apply_common_zones(root, slide_plan, "slide16.xml")
+    import copy as _copy; ns_p, ns_a = _NS_P, _NS_A
+    title_ids = ["58","22","26","28"]; desc_ids = ["30","62","25","29"]
+    icon_ids = ["20","21","23","27"]; sub_id = "48"
+    for i, sid in enumerate(title_ids):
+        _slide_set_helper(root, ns_p, ns_a, sid,
+                          _truncate_to_lines(items[i] if i < len(items) else "", 2_000_000, 14, 2))
+    for i, sid in enumerate(desc_ids):
+        _slide_set_helper(root, ns_p, ns_a, sid,
+                          _truncate_to_lines(descs[i] if i < len(descs) else "", 2_000_000, 11, 3))
+    for sid in icon_ids:
+        _slide_set_helper(root, ns_p, ns_a, sid, "")
+    sub_text = content.get("sub_heading") or _make_sub_heading(content)
+    _slide_set_helper(root, ns_p, ns_a, sub_id,
+                      _truncate_to_lines(sub_text, 9_000_000, 16, 2) if sub_text else "")
+    _clear_residual_placeholders(root); _write_xml(root, xml_path)
+
+
+def _edit_slide17(xml_path: Path, slide_plan: dict) -> None:
+    """slide17 (4열 이미지+서브헤딩): Zone1+2 공통 + 4열 이미지슬롯/제목/설명 + sub_heading."""
+    content = slide_plan.get("content", {})
+    body    = content.get("body", {})
+    items   = _coerce_list(content.get("items") or content.get("item_titles") or
+              (body.get("items") if isinstance(body, dict) else None) or [])
+    descs   = _coerce_list(content.get("descriptions") or content.get("bullets") or
+              (body.get("descriptions") if isinstance(body, dict) else None) or [])
+    try:
+        tree = ET.parse(xml_path); root = tree.getroot()
+    except ET.ParseError: return
+    _apply_common_zones(root, slide_plan, "slide17.xml")
+    import copy as _copy; ns_p, ns_a = _NS_P, _NS_A
+    title_ids = ["30","41","16","22"]; desc_ids = ["48","21","13","20"]
+    img_ids = ["24","19","18","23"]; sub_id = "15"
+    for i, sid in enumerate(title_ids):
+        _slide_set_helper(root, ns_p, ns_a, sid,
+                          _truncate_to_lines(items[i] if i < len(items) else "", 2_000_000, 14, 2))
+    for i, sid in enumerate(desc_ids):
+        _slide_set_helper(root, ns_p, ns_a, sid,
+                          _truncate_to_lines(descs[i] if i < len(descs) else "", 2_000_000, 11, 3))
+    for sid in img_ids:
+        _slide_set_helper(root, ns_p, ns_a, sid, "")
+    sub_text = content.get("sub_heading") or _make_sub_heading(content)
+    _slide_set_helper(root, ns_p, ns_a, sub_id,
+                      _truncate_to_lines(sub_text, 9_000_000, 16, 2) if sub_text else "")
+    _clear_residual_placeholders(root); _write_xml(root, xml_path)
+
+
+def _edit_slide25(xml_path: Path, slide_plan: dict) -> None:
+    """slide25 (이미지+우측3열): Zone1+2 공통 + 이미지슬롯 + 좌측overview + 우측3항목."""
+    content = slide_plan.get("content", {})
+    body    = content.get("body", {})
+    items   = _coerce_list(content.get("items") or content.get("item_titles") or
+              (body.get("items") if isinstance(body, dict) else None) or [])
+    descs   = _coerce_list(content.get("descriptions") or content.get("bullets") or
+              (body.get("descriptions") if isinstance(body, dict) else None) or [])
+    img_descs = _coerce_list(content.get("image_descriptions") or
+                (body.get("image_descriptions") if isinstance(body, dict) else None) or [])
+    try:
+        tree = ET.parse(xml_path); root = tree.getroot()
+    except ET.ParseError: return
+    _apply_common_zones(root, slide_plan, "slide25.xml")
+    import copy as _copy; ns_p, ns_a = _NS_P, _NS_A
+    title_ids = ["66","71","74"]; img_id = "35"
+    overview_id = "29"; sub_desc_ids = ["65","70","73"]
+    for i, sid in enumerate(title_ids):
+        _slide_set_helper(root, ns_p, ns_a, sid,
+                          _truncate_to_lines(items[i] if i < len(items) else "", 2_500_000, 14, 2))
+    _slide_set_helper(root, ns_p, ns_a, overview_id,
+                      _truncate_to_lines(descs[0] if descs else "", 7_000_000, 12, 3))
+    for i, sid in enumerate(sub_desc_ids):
+        _slide_set_helper(root, ns_p, ns_a, sid,
+                          _truncate_to_lines(descs[i+1] if i+1 < len(descs) else "", 2_500_000, 12, 3))
+    img_txt = img_descs[0] if img_descs else ""
+    if img_txt:
+        _set_image_slot_text(root, img_id, "🖼 " + _truncate_to_lines(img_txt, 2_800_000, 11, 4))
+    else:
+        _slide_set_helper(root, ns_p, ns_a, img_id, "")
+    _clear_residual_placeholders(root); _write_xml(root, xml_path)
+
+
+def _edit_slide26(xml_path: Path, slide_plan: dict) -> None:
+    """slide26 (이미지+3항목): Zone1+2 공통 + 이미지슬롯 + overview + 3항목 제목/설명."""
+    content = slide_plan.get("content", {})
+    body    = content.get("body", {})
+    items   = _coerce_list(content.get("items") or content.get("item_titles") or
+              (body.get("items") if isinstance(body, dict) else None) or [])
+    descs   = _coerce_list(content.get("descriptions") or content.get("bullets") or
+              (body.get("descriptions") if isinstance(body, dict) else None) or [])
+    img_descs = _coerce_list(content.get("image_descriptions") or
+                (body.get("image_descriptions") if isinstance(body, dict) else None) or [])
+    try:
+        tree = ET.parse(xml_path); root = tree.getroot()
+    except ET.ParseError: return
+    _apply_common_zones(root, slide_plan, "slide26.xml")
+    import copy as _copy; ns_p, ns_a = _NS_P, _NS_A
+    title_ids = ["28","33","36"]; main_desc_id = "12"; sub_desc_ids = ["27","32","35"]; img_id = "24"
+    for i, sid in enumerate(title_ids):
+        _slide_set_helper(root, ns_p, ns_a, sid,
+                          _truncate_to_lines(items[i] if i < len(items) else "", 2_500_000, 14, 2))
+    _slide_set_helper(root, ns_p, ns_a, main_desc_id,
+                      _truncate_to_lines(descs[0] if descs else "", 7_000_000, 12, 3))
+    for i, sid in enumerate(sub_desc_ids):
+        _slide_set_helper(root, ns_p, ns_a, sid,
+                          _truncate_to_lines(descs[i+1] if i+1 < len(descs) else "", 2_500_000, 12, 3))
+    img_txt = img_descs[0] if img_descs else ""
+    if img_txt:
+        _set_image_slot_text(root, img_id, "🖼 " + _truncate_to_lines(img_txt, 2_800_000, 11, 4))
+    else:
+        _slide_set_helper(root, ns_p, ns_a, img_id, "")
+    _clear_residual_placeholders(root); _write_xml(root, xml_path)
+
+
+def _edit_slide34(xml_path: Path, slide_plan: dict) -> None:
+    """slide34 (2이미지+키워드): Zone1+2 공통 + 이미지슬롯×2 + 키워드×4 + 설명."""
+    content  = slide_plan.get("content", {})
+    body     = content.get("body", {})
+    keywords = _coerce_list(content.get("keywords") or content.get("items") or
+               (body.get("keywords") if isinstance(body, dict) else None) or [])
+    descs    = _coerce_list(content.get("descriptions") or content.get("bullets") or
+               (body.get("descriptions") if isinstance(body, dict) else None) or [])
+    img_descs = _coerce_list(content.get("image_descriptions") or
+                (body.get("image_descriptions") if isinstance(body, dict) else None) or [])
+    try:
+        tree = ET.parse(xml_path); root = tree.getroot()
+    except ET.ParseError: return
+    _apply_common_zones(root, slide_plan, "slide34.xml")
+    import copy as _copy; ns_p, ns_a = _NS_P, _NS_A
+    pics_ids = ["26","27"]; main_desc_id = "12"; kw_ids = ["19","14","13","18"]
+    for i, sid in enumerate(kw_ids):
+        _slide_set_helper(root, ns_p, ns_a, sid,
+                          _truncate_to_lines(keywords[i] if i < len(keywords) else "", 1_800_000, 12, 2))
+    _slide_set_helper(root, ns_p, ns_a, main_desc_id,
+                      _truncate_to_lines(descs[0] if descs else "", 7_000_000, 12, 4))
+    for i, sid in enumerate(pics_ids):
+        img_txt = img_descs[i] if i < len(img_descs) else ""
+        if img_txt:
+            _set_image_slot_text(root, sid, "🖼 " + _truncate_to_lines(img_txt, 2_800_000, 11, 4))
+        else:
+            _slide_set_helper(root, ns_p, ns_a, sid, "")
+    _clear_residual_placeholders(root); _write_xml(root, xml_path)
+
+
+def _edit_slide37(xml_path: Path, slide_plan: dict) -> None:
+    """slide37 (3구역 텍스트): Zone1+2 공통 + 3개 텍스트 구역."""
+    content = slide_plan.get("content", {})
+    body    = content.get("body", {})
+    bullets = _coerce_list(content.get("bullets") or content.get("items") or
+              (body.get("bullets") if isinstance(body, dict) else None) or [])
+    descs   = _coerce_list(content.get("descriptions") or
+              (body.get("descriptions") if isinstance(body, dict) else None) or [])
+    texts   = bullets if bullets else descs
+    try:
+        tree = ET.parse(xml_path); root = tree.getroot()
+    except ET.ParseError: return
+    _apply_common_zones(root, slide_plan, "slide37.xml")
+    import copy as _copy; ns_p, ns_a = _NS_P, _NS_A
+    desc_ids = ["12","48","49"]
+    _slide_set_helper(root, ns_p, ns_a, desc_ids[0],
+                      _truncate_to_lines(texts[0] if texts else "", 7_000_000, 14, 3))
+    _slide_set_helper(root, ns_p, ns_a, desc_ids[1],
+                      _truncate_to_lines(texts[1] if len(texts) > 1 else "", 4_000_000, 12, 4))
+    _slide_set_helper(root, ns_p, ns_a, desc_ids[2],
+                      _truncate_to_lines(texts[2] if len(texts) > 2 else "", 4_000_000, 12, 4))
+    _clear_residual_placeholders(root); _write_xml(root, xml_path)
+
+
+def _edit_slide42(xml_path: Path, slide_plan: dict) -> None:
+    """slide42 (대형 본문): Zone1+2 공통 + 대형 텍스트 박스."""
+    content   = slide_plan.get("content", {})
+    body      = content.get("body", {})
+    bullets   = _coerce_list(content.get("bullets") or content.get("items") or
+                (body.get("bullets") if isinstance(body, dict) else None) or [])
+    descs     = _coerce_list(content.get("descriptions") or
+                (body.get("descriptions") if isinstance(body, dict) else None) or [])
+    body_text = "\n".join(bullets) if bullets else (descs[0] if descs else "")
+    try:
+        tree = ET.parse(xml_path); root = tree.getroot()
+    except ET.ParseError: return
+    _apply_common_zones(root, slide_plan, "slide42.xml")
+    import copy as _copy; ns_p, ns_a = _NS_P, _NS_A
+    _slide_set_helper(root, ns_p, ns_a, "28",
+                      _truncate_to_lines(body_text, 8_000_000, 12, 8))
+    _clear_residual_placeholders(root); _write_xml(root, xml_path)
+
+
 # ── 존 맵 기반 제너릭 편집기 ──────────────────────────────────────
 
 # 본문구역 하위 존 role → plan content 필드 + 채움 규칙
@@ -3361,11 +3775,12 @@ def _edit_zonemap_slide(xml_path: Path, slide_plan: dict) -> None:
                 return _coerce_list(v)
         return []
 
+    zone_rules = _load_zone_fill_rules() or _ZONE_FILL_RULES
     body_zones = z.get("body", {})
     for role, ids in body_zones.items():
         if not ids:
             continue
-        rule = _ZONE_FILL_RULES.get(role)
+        rule = zone_rules.get(role)
         if rule is None:
             continue
         if rule.get("empty"):

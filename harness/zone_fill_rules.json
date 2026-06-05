@@ -1,0 +1,96 @@
+{
+  "item_titles": {
+    "keys": ["items", "item_titles", "keywords"],
+    "cx": 2400000,
+    "pt": 14,
+    "lines": 2
+  },
+  "item_descs": {
+    "keys": ["descriptions", "descs", "bullets", "details"],
+    "cx": 2400000,
+    "pt": 12,
+    "lines": 4
+  },
+  "image_slots": {
+    "keys": ["image_descriptions", "images"],
+    "cx": 2800000,
+    "pt": 11,
+    "lines": 4,
+    "prefix": "🖼 ",
+    "inject_style": {
+      "sz": 1100,
+      "typeface": "맑은 고딕",
+      "color_hex": "3C41E6",
+      "align": "ctr"
+    }
+  },
+  "icon_slots": {
+    "empty": true
+  },
+  "insights": {
+    "keys": ["insights", "insight"],
+    "cx": 2400000,
+    "pt": 11,
+    "lines": 3
+  },
+  "keywords": {
+    "keys": ["keywords", "items"],
+    "cx": 1800000,
+    "pt": 12,
+    "lines": 2
+  },
+  "flow_keyword": {
+    "keys": ["keywords"],
+    "cx": 2400000,
+    "pt": 12,
+    "lines": 2
+  },
+  "flow_solution": {
+    "keys": ["solutions"],
+    "cx": 2700000,
+    "pt": 12,
+    "lines": 3
+  },
+  "flow_service": {
+    "keys": ["services", "details"],
+    "cx": 3500000,
+    "pt": 12,
+    "lines": 2
+  },
+  "detail_items": {
+    "keys": ["details", "sub_items"],
+    "cx": 1600000,
+    "pt": 11,
+    "lines": 5
+  },
+  "steps": {
+    "keys": ["steps"],
+    "cx": 2200000,
+    "pt": 12,
+    "lines": 2
+  },
+  "sub_titles": {
+    "keys": ["sub_titles", "callouts", "labels"],
+    "cx": 2500000,
+    "pt": 12,
+    "lines": 2
+  },
+  "explains": {
+    "keys": ["explains", "descriptions"],
+    "cx": 2500000,
+    "pt": 11,
+    "lines": 3
+  },
+  "banner": {
+    "keys": ["banner", "insight", "body"],
+    "cx": 9500000,
+    "pt": 14,
+    "lines": 2
+  },
+  "sub_heading": {
+    "keys": ["sub_heading", "subtitle"],
+    "cx": 9000000,
+    "pt": 16,
+    "lines": 2
+  }
+}

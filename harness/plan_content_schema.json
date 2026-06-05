@@ -1,0 +1,11 @@
+{
+  "cover":      {"required": ["subtitle"], "optional": ["date"]},
+  "toc":        {"required": ["items"]},
+  "closing":    {"required": [], "optional": []},
+  "content":    {"required": ["section_title"], "optional": ["section_desc", "body"]},
+  "timeline":   {"required": ["section_title"], "recommended": ["periods"]},
+  "quarterly":  {"required": ["section_title"], "recommended": ["quarters"]},
+  "steps":      {"required": ["section_title"], "recommended": ["steps"]},
+  "flow":       {"required": ["section_title"], "recommended": ["keywords", "solutions"]},
+  "comparison": {"required": ["section_title"], "recommended": ["before", "after"]}
+}
