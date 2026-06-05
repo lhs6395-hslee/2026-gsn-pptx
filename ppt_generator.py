@@ -55,7 +55,7 @@ _SIDEBAR_DESC_ID: dict[str, str] = {
     "slide29.xml": "19",
     "slide30.xml": "18",  "slide31.xml": "18",
     "slide33.xml": "26",
-    "slide35.xml": "12",  "slide36.xml": "18",
+    "slide36.xml": "18",
     "slide38.xml": "12",  "slide39.xml": "12",
     "slide21.xml": "14",  "slide22.xml": "16",
 }
@@ -2191,26 +2191,25 @@ _SIDEBAR_REF_GAP_EMU     = 217_772   # body_desc.y - (body_title.y + body_title.
 _SIDEBAR_CHARS_PER_LINE  = 10        # 한국어 ~20pt, cx=2,200,409 EMU 기준
 
 
-def _count_sidebar_lines(text: str) -> int:
+def _count_sidebar_lines(text: str, cx_emu: int = 2_200_409, font_pt: float = _BODY_TITLE_FONT_PT) -> int:
     """
-    사이드바 body_title 텍스트의 실제 줄 수 추정.
-    한국어(CJK) = 1.0, ASCII/숫자 = 0.55, 공백·개행 = 0.35 가중치.
-    BOX_CAPACITY = 11 (3p 실측 기준: '1. 실시간 스트리밍 시장 동향' → 2줄).
-    \n은 단일 텍스트런에서 공백으로 처리 (PowerPoint 자동줄바꿈 방식).
+    body_title 텍스트 줄 수 추정 (cx 기반 실제 폭 계산).
+    한글/CJK = font_pt pt, ASCII = font_pt*0.6 pt, 공백 = font_pt*0.35 pt.
+    cx_emu: 텍스트박스 폭 (기본값 = 사이드바 실측 2,200,409 EMU = 173.3pt).
     """
     import math
 
-    BOX_CAPACITY = 11.0
+    cx_pt = cx_emu / 12700.0
 
     def _cw(c: str) -> float:
         if '가' <= c <= '힣' or '一' <= c <= '鿿':
-            return 1.0
+            return font_pt
         if c in (' ', '\t', '\n'):
-            return 0.35
-        return 0.55
+            return font_pt * 0.35
+        return font_pt * 0.6
 
     w = sum(_cw(c) for c in (text or ""))
-    return max(1, math.ceil(w / BOX_CAPACITY))
+    return max(1, math.ceil(w / cx_pt))
 
 
 def _get_shape_xfrm_elems(sp):
@@ -2224,25 +2223,54 @@ def _get_shape_xfrm_elems(sp):
 
 def _resize_sidebar_and_reposition_desc(root, label_id: str, desc_id, label_text: str) -> None:
     """
-    body_title: 텍스트 줄 수에 맞게 cy 동적 확장
-    body_desc:  body_title 하단 + 기준 gap(3p) 위치로 재배치
+    body_title: 텍스트 줄 수에 맞게 cy 동적 확장 (템플릿값 이상으로만).
+    body_desc:
+      - cy / y: 템플릿 원본값 유지 (변경하지 않음)
+      - 빈 단락 = max(0, 3 - desc_text_lines) 추가 — 글자 높이 정렬
     """
+    import copy as _copy
+    ns_a = _NS_A
     lbl = _find_shape_by_id(root, label_id)
     if lbl is None: return
     off_lbl, ext_lbl = _get_shape_xfrm_elems(lbl)
     if off_lbl is None or ext_lbl is None: return
 
-    title_y = int(off_lbl.get('y', 0))
-    lines   = _count_sidebar_lines(label_text)
-    new_cy  = lines * _SIDEBAR_LINE_HEIGHT_EMU
-    ext_lbl.set('cy', str(new_cy))
+    title_cx    = int(ext_lbl.get('cx', 2_200_409))
+    title_lines = _count_sidebar_lines(label_text, cx_emu=title_cx)
+    title_cy    = title_lines * _SIDEBAR_LINE_HEIGHT_EMU
+    cur_cy      = int(ext_lbl.get('cy', 0))
+    if title_cy > cur_cy:                  # 넘칠 때만 확장, 템플릿값 이하로 축소 금지
+        ext_lbl.set('cy', str(title_cy))
 
-    if desc_id:
-        desc = _find_shape_by_id(root, desc_id)
-        if desc:
-            off_desc, _ = _get_shape_xfrm_elems(desc)
-            if off_desc is not None:
-                off_desc.set('y', str(title_y + new_cy + _SIDEBAR_REF_GAP_EMU))
+    if not desc_id: return
+    desc = _find_shape_by_id(root, desc_id)
+    if desc is None: return
+
+    # desc: cy/y는 건드리지 않음 — 빈 단락만 추가
+    desc_text = ''.join(el.text or '' for el in desc.iter(f'{{{ns_a}}}t')).strip()
+    _, ext_desc = _get_shape_xfrm_elems(desc)
+    desc_cx    = int(ext_desc.get('cx', title_cx)) if ext_desc is not None else title_cx
+    desc_lines = _count_sidebar_lines(desc_text, cx_emu=desc_cx, font_pt=12.0) if desc_text else 0
+
+    txBody = desc.find(f'{{{_NS_P}}}txBody')
+    if txBody is None: return
+
+    for p in list(txBody.findall(f'{{{ns_a}}}p')):
+        if p.find(f'{{{ns_a}}}r') is None:
+            txBody.remove(p)
+
+    padding = max(0, 3 - desc_lines)
+    if padding > 0:
+        end_rpr = None
+        for p in txBody.findall(f'{{{ns_a}}}p'):
+            e = p.find(f'{{{ns_a}}}endParaRPr')
+            if e is not None:
+                end_rpr = _copy.deepcopy(e); break
+        for _ in range(padding):
+            p_new = ET.Element(f'{{{ns_a}}}p')
+            if end_rpr is not None:
+                p_new.append(_copy.deepcopy(end_rpr))
+            txBody.append(p_new)
 
 
 def _resolve_shape_bounds(sp) -> dict | None:
@@ -2318,6 +2346,32 @@ def _resolve_overlaps(root, changed_sid: str, gap: int = 50_000) -> None:
                     b.update(b_new)
 
 
+_CHAPTER_TITLE_MAP = {
+    '1': 'ML 기술 기반',
+    '2': 'ML 파이프라인 & 방법론',
+    '3': '엔터프라이즈 도입',
+    '4': 'GS Neotek ML 서비스',
+}
+
+
+def _infer_chapter_title(slide_plan: dict) -> str:
+    """
+    section_title의 앞자리 번호(1.x→1, 2.x→2...)로 목차 챕터 대제목을 추론.
+    추론 불가 시 plan.title 반환.
+    챕터 맵은 plan.json의 toc slide items에서 자동 구성이 이상적이나,
+    현재는 _CHAPTER_TITLE_MAP 상수 사용.
+    """
+    content = slide_plan.get("content", {})
+    sec_title = content.get("section_title", "")
+    if sec_title:
+        parts = sec_title.split(".")
+        if parts and parts[0].strip().isdigit():
+            ch = _CHAPTER_TITLE_MAP.get(parts[0].strip())
+            if ch:
+                return ch
+    return slide_plan.get("title", "")
+
+
 def _apply_common_zones(root, slide_plan: dict, template_file: str) -> None:
     """
     모든 본문 슬라이드 공통 3-Zone 처리:
@@ -2328,13 +2382,16 @@ def _apply_common_zones(root, slide_plan: dict, template_file: str) -> None:
     import copy as _copy
     ns_p, ns_a = _NS_P, _NS_A
 
-    title    = slide_plan.get("title", "")       # 대제목: 목차 챕터 제목
+    # ID=8 대제목: section_title 번호로 챕터 추론. 추론 불가 시 plan.title 사용
+    chapter_title = _infer_chapter_title(slide_plan)
     subtitle = slide_plan.get("subtitle", "")    # 중제목: 챕터 번호 ('01','02'...)
     content  = slide_plan.get("content", {})
     sec_title = content.get("section_title", "") # 본문제목: 'N. 소제목' 또는 'N.M 소제목'
     sec_desc  = content.get("section_desc", "")  # 본문설명글
 
-    def _set_shape(sid: str, text: str) -> None:
+    _BODY_TITLE_SEMIBOLD = "Pretendard SemiBold"
+
+    def _set_shape(sid: str, text: str, force_semibold: bool = False) -> None:
         sp = _find_shape_by_id(root, sid)
         if sp is None: return
         txBody = sp.find(f"{{{ns_p}}}txBody")
@@ -2344,14 +2401,23 @@ def _apply_common_zones(root, slide_plan: dict, template_file: str) -> None:
             rPr_e = r.find(f"{{{ns_a}}}rPr")
             if rPr_e is not None:
                 orig_rPr = _copy.deepcopy(rPr_e)
-                # lang/altLang 원본 보존 (임의 변경 금지) — 폰트 렌더링 일관성
                 orig_rPr.set("dirty", "0")
+                # sz 제거 — 레이아웃 기본값 유지
+                if "sz" in orig_rPr.attrib: del orig_rPr.attrib["sz"]
+                if force_semibold:
+                    # body_title은 항상 Pretendard SemiBold 강제
+                    for tag in ("latin", "ea", "cs"):
+                        el = orig_rPr.find(f"{{{ns_a}}}{tag}")
+                        if el is not None:
+                            el.set("typeface", _BODY_TITLE_SEMIBOLD)
+                        else:
+                            ET.SubElement(orig_rPr, f"{{{ns_a}}}{tag}", typeface=_BODY_TITLE_SEMIBOLD)
                 break
         if orig_rPr is None:
-            # 기존 run 없음 → Pretendard 기본 rPr 생성 (lang 명시하지 않아 테마 상속)
+            tf = _BODY_TITLE_SEMIBOLD if force_semibold else _TEMPLATE_FONT
             orig_rPr = ET.Element(f"{{{ns_a}}}rPr", dirty="0")
             for tag in ("latin", "ea", "cs"):
-                ET.SubElement(orig_rPr, f"{{{ns_a}}}{tag}", typeface=_TEMPLATE_FONT)
+                ET.SubElement(orig_rPr, f"{{{ns_a}}}{tag}", typeface=tf)
         for p in txBody.findall(f"{{{ns_a}}}p"):
             for r in p.findall(f"{{{ns_a}}}r"): p.remove(r)
             end = p.find(f"{{{ns_a}}}endParaRPr")
@@ -2361,23 +2427,27 @@ def _apply_common_zones(root, slide_plan: dict, template_file: str) -> None:
             ET.SubElement(r_new, f"{{{ns_a}}}t").text = text
             p.insert(idx, r_new); break
 
-    # Zone 1: 헤더 바 — 긴 제목은 autofit으로 축소(오버플로우/잘림 방지)
-    _set_shape("8", title)
+    # Zone 1: 헤더 바 — 챕터 대제목(추론값) 사용
+    _set_shape("8", chapter_title)
     hdr = _find_shape_by_id(root, "8")
     if hdr is not None:
         _enable_autofit(hdr)
 
     if subtitle:
-        _set_shape("9", _truncate_to_lines(subtitle, 8_000_000, 14, 1))
+        # 중제목 앞에 슬라이드 순번 prefix 추가: "01 ML 패러다임" 형식
+        plan_idx = slide_plan.get("index", 0)
+        content_idx = max(0, plan_idx - 2)  # cover(idx=1)+toc(idx=2) 이후 컨텐츠 순번
+        subtitle_labeled = f"{content_idx:02d} {subtitle}" if content_idx > 0 else subtitle
+        _set_shape("9", _truncate_to_lines(subtitle_labeled, 8_000_000, 14, 1))
 
     # Zone 2: 사이드바 — 존 맵(body_title/body_desc) 우선, 없으면 레거시 dict
     z = _zone(template_file)
     label_id = z.get("body_title") or _SIDEBAR_LABEL_ID.get(template_file)
     desc_id  = z.get("body_desc")  or _SIDEBAR_DESC_ID.get(template_file)
     if label_id:
-        # section_title: 'N. 소제목' 또는 'N.M 소제목' 형식. 미지정 시 title로 폴백
-        label_text = sec_title or title
-        _set_shape(label_id, label_text)
+        label_text = sec_title or chapter_title
+        # body_title은 Pretendard SemiBold 강제 (템플릿마다 typeface 상태가 달라도 통일)
+        _set_shape(label_id, label_text, force_semibold=True)
         # 1) 텍스트박스 cy 동적 확장 (줄바꿈 발생 시)
         _auto_resize_textbox(root, label_id, label_text)
         # 2) 확장된 body_title 기준으로 body_desc 위치 재조정 (겹침 방지)
@@ -2517,7 +2587,9 @@ def _edit_slide29(xml_path: Path, slide_plan: dict) -> None:
 def _insert_rich_quarter_content(
     root, spTree, quarters: list,
     col_x_list: list, col_cx: int, content_top_y: int,
-    upper_top_pad: int = 400_000
+    upper_top_pad: int = 400_000,
+    sep_lower_pad: int = 1_648_141,
+    lower_start_gap: int = 261_149,
 ) -> None:
     """
     분기별(Q1~Q4) 슬라이드에 rich content 삽입 공통 헬퍼.
@@ -2618,17 +2690,18 @@ def _insert_rich_quarter_content(
     DESC_START_Y = content_top_y + upper_top_pad
 
     # 하단 섹션 계산
-    SEP_Y    = content_top_y + upper_top_pad + UPPER_CONT_H + upper_top_pad
+    SEP_Y    = DESC_START_Y + UPPER_CONT_H + sep_lower_pad
     SEP_H    = 6_000; SUMM_GAP = 30_000; SUMM_H = 120_000
     SUMM_Y   = SEP_Y + SEP_H + SUMM_GAP
     SUMM_BOT = SUMM_Y + SUMM_H + SUMM_GAP
-    KPI_H = 380_000; RISK_H = 260_000; GAP = 120_000
-    LOWER_CONT_H = KPI_H + GAP + RISK_H
-    lower_pad = (LOGO_Y - SUMM_BOT - LOWER_CONT_H) // 2
-    LOWER_START = SUMM_BOT + lower_pad
+    KPI_H = 520_000; RISK_H = 380_000; GAP = 120_000
+    LOWER_START = SUMM_BOT + lower_start_gap
+
+    # col_cx는 int(균등) 또는 list(컬럼별 개별 폭) 모두 허용
+    _col_cx = col_cx if isinstance(col_cx, list) else [col_cx] * len(col_x_list)
 
     all_x = col_x_list[0] + PAD
-    all_w = col_x_list[-1] + col_cx - PAD - all_x
+    all_w = col_x_list[-1] + _col_cx[-1] - PAD - all_x
 
     sid = 300
     # 구분선
@@ -2641,7 +2714,7 @@ def _insert_rich_quarter_content(
         if i >= len(col_x_list): break
         col_x = col_x_list[i]
         dk = DARK_COLS[i]; lt = LIGHT_COLS[i]
-        bx = col_x + PAD; bw = col_cx - PAD * 2
+        bx = col_x + PAD; bw = _col_cx[i] - PAD * 2
 
         if isinstance(q, dict):
             period  = q.get("period", f"Q{i+1}")
@@ -2702,10 +2775,10 @@ def _edit_slide31(xml_path: Path, slide_plan: dict) -> None:
     # rich content 삽입 (slide30과 동일 패턴)
     if quarters:
         spTree = root.find(f".//{{{ns_p}}}spTree")
-        # 4열 좌표 (slide31 레이아웃 기준 근사값)
-        col_x_list = [2_700_000, 5_076_750, 7_453_500, 9_830_250]
-        col_cx     = 2_376_750
-        content_top_y = 750_000   # Q 레이블 바 아래 시작
+        # 실제 템플릿 컬럼 경계 (template slide31.xml 측정값)
+        col_x_list = [2_657_592, 4_897_938, 7_393_720, 9_696_217]
+        col_cx     = [2_240_346, 2_495_782, 2_302_497, 2_495_782]  # 컬럼별 개별 폭
+        content_top_y = 1_099_874  # Q 레이블 하단(≈1,233,900) - upper_top_pad(400k) + 여유
         _insert_rich_quarter_content(root, spTree, quarters, col_x_list, col_cx, content_top_y)
     _clear_residual_placeholders(root); _write_xml(root, xml_path)
 
@@ -2737,9 +2810,12 @@ def _edit_slide33(xml_path: Path, slide_plan: dict) -> None:
     # rich content 삽입 (slide31과 동일, 상단 바가 더 있어 content_top_y 증가)
     if quarters:
         spTree = root.find(f".//{{{ns_p}}}spTree")
-        col_x_list = [2_700_000, 5_076_750, 7_453_500, 9_830_250]
-        col_cx     = 2_376_750
-        content_top_y = 1_100_000   # 상단 제목+설명 바 아래 시작
+        # slide33은 하단 Q열이 슬라이드 전체 폭을 사용 (상단 sidebar와 별개)
+        # 컬럼 경계: 템플릿 배경 shape(ID=33,34) 기준
+        col_x_list = [0, 3_077_029, 6_084_461, 9_184_568]
+        col_cx     = [3_077_029, 3_007_432, 3_100_107, 3_007_432]
+        # Q 레이블 하단(≈2,121,225) 보다 아래 시작: content_top_y=1_850_000 → DESC_START_Y=2_250_000
+        content_top_y = 1_850_000
         _insert_rich_quarter_content(root, spTree, quarters, col_x_list, col_cx, content_top_y)
     _clear_residual_placeholders(root); _write_xml(root, xml_path)
 
@@ -2876,14 +2952,17 @@ def _materialize_layout_shape(root, sid: str, xml_path: Path) -> bool:
     return True
 
 
-def _auto_resize_textbox(root, sid: str, text: str, default_font_pt: float = 14.0,
+_BODY_TITLE_FONT_PT = 20.0   # 사이드바 body_title 실측 폰트 크기 (Pretendard SemiBold 20pt)
+
+
+def _auto_resize_textbox(root, sid: str, text: str, default_font_pt: float = _BODY_TITLE_FONT_PT,
                          xml_path: Path | None = None) -> None:
     """
     텍스트가 텍스트박스를 초과해 자동 줄바꿈될 경우 cy를 동적으로 확장.
-    - font_pt: shape의 rPr.sz에서 읽음 (없으면 default_font_pt 사용)
-    - box_capacity: cx_pt / (font_pt * 0.8) — 경험적 Korean/ASCII 혼용 기준
-    - line_height_emu: font_pt × 12700 × 1.25
-    - cx=0인 layout 상속 shape: xml_path 제공 시 레이아웃에서 좌표를 읽어 명시화 후 진행
+    - font_pt: shape의 rPr.sz에서 읽음. sz 미설정(레이아웃 상속)이면 _BODY_TITLE_FONT_PT 사용
+    - box_capacity: cx_pt / (font_pt * 0.6) — 한국어 CJK 실측 보정값
+    - line_height_emu: _SIDEBAR_LINE_HEIGHT_EMU (실측 1줄=314,603 EMU) 사용
+    - cy는 절대 줄이지 않음 — 확장만 허용
     """
     import math as _math
     sp = _find_shape_by_id(root, sid)
@@ -2895,7 +2974,6 @@ def _auto_resize_textbox(root, sid: str, text: str, default_font_pt: float = 14.
     if ext is None: return
     cx = int(ext.get('cx', 0))
     if cx == 0:
-        # layout 상속 shape → xml_path 있으면 실제 좌표로 명시화 후 재시도
         if xml_path is not None and _materialize_layout_shape(root, sid, xml_path):
             xfrm = spPr.find(f"{{{_NS_A}}}xfrm")
             ext = xfrm.find(f"{{{_NS_A}}}ext") if xfrm else None
@@ -2903,15 +2981,15 @@ def _auto_resize_textbox(root, sid: str, text: str, default_font_pt: float = 14.
             cx = int(ext.get('cx', 0))
         if cx == 0: return
 
-    # 폰트 크기 읽기
+    # 폰트 크기: rPr.sz 우선, 없으면 _BODY_TITLE_FONT_PT (레이아웃 상속 = body_title 기본값)
     rPr = next((r.find(f"{{{_NS_A}}}rPr") for r in sp.findall(f".//{{{_NS_A}}}r")
                 if r.find(f"{{{_NS_A}}}rPr") is not None), None)
-    sz_h = int(rPr.get('sz', str(int(default_font_pt * 100)))) if rPr is not None else int(default_font_pt * 100)
-    font_pt = sz_h / 100.0
+    sz_h = (int(rPr.get('sz')) if rPr is not None and rPr.get('sz') else None)
+    font_pt = (sz_h / 100.0) if sz_h else default_font_pt
 
-    # 줄 수 계산
+    # 줄 수 계산: CJK 한글 실측 기준 0.6 보정 (기존 0.8은 과대 추정)
     cx_pt = cx / 12700.0
-    box_cap = cx_pt / (font_pt * 0.8)
+    box_cap = cx_pt / (font_pt * 0.6)
 
     def _cw(c: str) -> float:
         if '가' <= c <= '힣' or '一' <= c <= '鿿': return 1.0
@@ -2921,8 +2999,8 @@ def _auto_resize_textbox(root, sid: str, text: str, default_font_pt: float = 14.
     w = sum(_cw(c) for c in (text or ""))
     lines = max(1, _math.ceil(w / box_cap))
 
-    line_h_emu = int(font_pt * 12700 * 1.25)
-    new_cy = lines * line_h_emu
+    # cy 계산: 실측 1줄=314,603 EMU 기준 사용 (font_pt 기반 계산보다 안정적)
+    new_cy = lines * _SIDEBAR_LINE_HEIGHT_EMU
     orig_cy = int(ext.get('cy', 0))
     if new_cy > orig_cy:
         ext.set('cy', str(new_cy))
@@ -2965,9 +3043,11 @@ def _edit_slide35(xml_path: Path, slide_plan: dict) -> None:
     ns_p, ns_a = _NS_P, _NS_A
     _slide_set_helper(root, ns_p, ns_a, "39", content.get("before_label","Before"))
     _slide_set_helper(root, ns_p, ns_a, "38", content.get("after_label","After"))
-    for i, sid in enumerate(["13","16","17"]):
+    # Before 원형: ID 17(좌), 16(중), 35(우) — 템플릿 x좌표 기준 Before 영역(x < 5,943,887)
+    for i, sid in enumerate(["17","16","35"]):
         _slide_set_helper(root, ns_p, ns_a, sid, _truncate_to_lines(before[i] if i<len(before) else "",1_500_000,16,2))
-    for i, sid in enumerate(["18","19","21","35"]):
+    # After 원형: ID 18(상), 21(중), 13(하좌), 19(하우) — 템플릿 x좌표 기준 After 영역(x ≥ 5,943,887)
+    for i, sid in enumerate(["18","21","13","19"]):
         _slide_set_helper(root, ns_p, ns_a, sid, _truncate_to_lines(after[i] if i<len(after) else "",1_500_000,16,2))
     _clear_residual_placeholders(root); _write_xml(root, xml_path)
 
@@ -3192,6 +3272,38 @@ def _coerce_list(val) -> list[str]:
     return [str(val)]
 
 
+def _set_image_slot_text(root, sid: str, text: str) -> None:
+    """
+    image_slots shape에 텍스트 + 올바른 서식을 직접 주입.
+    원본 rPr이 없는 shape(템플릿 style 상속만 있는 경우)도 정상 처리.
+    서식: sz=1100, 맑은 고딕, #3C41E6(파란색), 가운데 정렬
+    """
+    import copy as _copy
+    ns_p, ns_a = _NS_P, _NS_A
+    sp = _find_shape_by_id(root, sid)
+    if sp is None: return
+    txBody = sp.find(f"{{{ns_p}}}txBody")
+    if txBody is None: return
+    for p in txBody.findall(f"{{{ns_a}}}p"):
+        pPr = p.find(f"{{{ns_a}}}pPr")
+        if pPr is None:
+            pPr = ET.Element(f"{{{ns_a}}}pPr"); p.insert(0, pPr)
+        pPr.set("algn", "ctr")
+        for r in p.findall(f"{{{ns_a}}}r"): p.remove(r)
+        r_new = ET.Element(f"{{{ns_a}}}r")
+        rPr = ET.SubElement(r_new, f"{{{ns_a}}}rPr",
+                            lang="ko-KR", altLang="en-US", sz="1100", dirty="0")
+        fill = ET.SubElement(rPr, f"{{{ns_a}}}solidFill")
+        ET.SubElement(fill, f"{{{ns_a}}}srgbClr", val="3C41E6")
+        ET.SubElement(rPr, f"{{{ns_a}}}latin", typeface="맑은 고딕")
+        ET.SubElement(rPr, f"{{{ns_a}}}ea", typeface="맑은 고딕")
+        ET.SubElement(r_new, f"{{{ns_a}}}t").text = text
+        end = p.find(f"{{{ns_a}}}endParaRPr")
+        idx = list(p).index(end) if end is not None else len(p)
+        p.insert(idx, r_new)
+        break
+
+
 def _edit_zonemap_slide(xml_path: Path, slide_plan: dict) -> None:
     """존 맵(layout_zone_map.json)을 읽어 본문구역 하위 존을 채우는 제너릭 편집기.
     전용 편집기가 없는 모든 본문 슬라이드(이미지 그리드 등)에 사용."""
@@ -3234,12 +3346,17 @@ def _edit_zonemap_slide(xml_path: Path, slide_plan: dict) -> None:
             continue  # 차트는 별도 처리(Excel)
         values = fetch(rule["keys"])
         prefix = rule.get("prefix", "")
+        is_image_slot = (role == "image_slots")
         for i, sid in enumerate(ids):
             txt = values[i] if i < len(values) else ""
             if txt:
                 txt = prefix + str(txt)
                 txt = _truncate_to_lines(txt, rule["cx"], rule["pt"], rule["lines"])
-            _slide_set_helper(root, ns_p, ns_a, sid, txt)
+            if is_image_slot and txt:
+                # image_slots: 원본 rPr이 없는 경우가 많아 서식을 직접 주입
+                _set_image_slot_text(root, sid, txt)
+            else:
+                _slide_set_helper(root, ns_p, ns_a, sid, txt)
 
     _clear_residual_placeholders(root)
     _write_xml(root, xml_path)
@@ -3911,6 +4028,8 @@ def _run_vision_fix_agent(
 - 실제 콘텐츠(plan에 있는 내용)로만 교체
 - 이미 올바른 슬라이드는 has_issues=false, fixes=[]
 - shape_id는 반드시 제공된 shape 목록의 실제 ID 사용
+- ⛔ 폰트 크기(sz) 절대 변경 금지 — set_text/set_paragraphs에 sz 속성 포함 불가. 텍스트가 넘치면 resize_textbox(cy 확장)만 허용
+- ⛔ 텍스트 내용 임의 단축 금지 — plan에 있는 실제 텍스트를 줄이거나 생략하지 말 것
 - shape ID=14(사이드바 레이블, 173pt 폭): 텍스트 overflow가 보여도 수정 금지 — 이미 너비에 맞게 요약됨
 - shape ID=16(사이드바 설명, 173pt 폭): 동일하게 수정 금지
 - 사이드바는 의도적으로 짧은 요약 텍스트를 담는 좁은 영역임
@@ -4260,6 +4379,27 @@ def run_ppt_generation(
         for i, s in enumerate(plan["slides"], 1):
             s["index"] = i
         print(f"  ✓ 마무리 슬라이드 자동 추가 (총 {len(plan['slides'])}장, 본문 {n_slides-3}장)")
+
+    # ── 챕터 대제목 후처리: section_title 번호 기준으로 title 자동 보정 ──
+    # LLM이 title에 슬라이드 제목을 쓰는 경우를 방지
+    toc_slide = next((s for s in plan["slides"] if s.get("role") == "toc"), None)
+    if toc_slide:
+        toc_items = toc_slide.get("content", {}).get("items", [])
+        _dynamic_chapter_map = {}
+        for idx, item in enumerate(toc_items, 1):
+            _dynamic_chapter_map[str(idx)] = item if isinstance(item, str) else str(item)
+    else:
+        _dynamic_chapter_map = _CHAPTER_TITLE_MAP.copy()
+
+    for s in plan["slides"]:
+        if s.get("role") in ("cover", "toc", "closing"): continue
+        sec_title = s.get("content", {}).get("section_title", "")
+        if not sec_title: continue
+        parts = sec_title.split(".")
+        if parts and parts[0].strip().isdigit():
+            ch = _dynamic_chapter_map.get(parts[0].strip())
+            if ch and s.get("title") != ch:
+                s["title"] = ch
 
     # ── Plan 제약 강제 (banned slides 자동 교체) ──
     plan, constraint_changes = enforce_plan_constraints(plan, slide_info)
