@@ -73,7 +73,6 @@ check_install() {
     fi
 }
 
-check_install soffice libreoffice libreoffice
 check_install pdftoppm poppler poppler-utils
 
 # ── 6. git 초기화 (harness 변경 추적용) ──────────────────

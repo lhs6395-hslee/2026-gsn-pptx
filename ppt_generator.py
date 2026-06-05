@@ -502,6 +502,25 @@ def _load_zone_fill_rules() -> dict:
     return {}
 
 
+def _load_placeholder_patterns() -> "re.Pattern | None":
+    """harness/placeholder_patterns.json에서 placeholder 패턴 로드.
+    JSON 존재 시 컴파일된 re.Pattern 반환, 없으면 None → 하드코딩 폴백 사용."""
+    for p in (SKILL_DIR / "harness" / "placeholder_patterns.json",
+              Path(__file__).parent / "harness" / "placeholder_patterns.json"):
+        try:
+            if p.exists():
+                data = json.loads(p.read_text())
+                patterns = data.get("patterns", [])
+                if patterns:
+                    return re.compile(
+                        "(" + "|".join(patterns) + ")",
+                        re.IGNORECASE,
+                    )
+        except Exception:
+            pass
+    return None
+
+
 def _zone(template_file: str) -> dict:
     """주어진 slideN.xml의 존 정의 반환 (base 이름으로도 조회)."""
     zm = _load_zone_map()
@@ -1206,11 +1225,9 @@ def edit_slide(work_dir: Path, slide_plan: dict) -> bool:
             tmpl_name = slide_plan.get("template_file", "")
             _SLIDE_EDITORS = {
                 "slide8.xml":  _edit_slide8,
-                # slide9-12, 17: zone_map body 완비 → _edit_zonemap_slide 사용 (image_slots 올바른 서식)
-                "slide13.xml": _edit_slide13,
+                # slide9-17: zone_map body 완비 → _edit_zonemap_slide 사용 (image_slots 올바른 서식)
                 "slide14.xml": _edit_slide14,
-                "slide15.xml": _edit_slide13,
-                "slide16.xml": _edit_slide16,
+                # slide16.xml: zone_map image_slots 완비 → _edit_zonemap_slide 사용
                 "slide21.xml": _edit_slide21,
                 "slide22.xml": _edit_slide24,
                 "slide24.xml": _edit_slide24,
@@ -3967,22 +3984,25 @@ def _edit_layout_slide(xml_path: Path, slide_plan: dict) -> None:
 
 # ── 범용 본문 슬라이드 편집기 ─────────────────────────────────
 
-_PLACEHOLDER_TEXTS = re.compile(
-    r"(lorem|작성해주세요|중제목을|대제목을|제목을|설명을|설명 타이틀|"
-    r"상세 설명|이미지를|01 제목|insight / definition|image|"
-    r"\[insert|\bTODO\b|ipsum dolor|"
-    r"이미지/\s*영상|이미지/영상|image placeholder|"
-    r"nibh euismod|tincidunt ut|elit,\s*sed diam|nonummy|"
-    r"짧은 텍스트에 사용|텍스트에 사용|1\.1\s|1\.2\s|1\.3\s|"
-    r"insight /|conclusion /|definition|\bicon\b|image\b|"
-    r"핵심 설명을 작성|부분 설명|설명 타이틀|01 핵심|02 핵심|03 핵심|"
-    r"ppt 대제목|01 중제목|01 컨텐츠|중제목 작성|대제목 작성|컨텐츠 작성|"
-    r"solution 0[123]|sevice 0[123]|keyword\b|step[1-4]|"
-    r"1\.4\s|텍스트 작성해주세요|텍스트 길어질|작성하여 사용|"
-    r"\[아이콘|\[이미지|관련 도식|아이콘 이미지|"
-    r"아래 확장|최대 [0-9]+\s*줄|여기에 입력|내용을 입력|"
-    r"항목 0[1-9]|항목0[1-9]|세부 항목|detail 0[1-9])",
-    re.IGNORECASE,
+_PLACEHOLDER_TEXTS = (
+    _load_placeholder_patterns() or
+    re.compile(
+        r"(lorem|작성해주세요|중제목을|대제목을|제목을|설명을|설명 타이틀|"
+        r"상세 설명|이미지를|01 제목|insight / definition|image|"
+        r"\[insert|\bTODO\b|ipsum dolor|"
+        r"이미지/\s*영상|이미지/영상|image placeholder|"
+        r"nibh euismod|tincidunt ut|elit,\s*sed diam|nonummy|"
+        r"짧은 텍스트에 사용|텍스트에 사용|1\.1\s|1\.2\s|1\.3\s|"
+        r"insight /|conclusion /|definition|\bicon\b|image\b|"
+        r"핵심 설명을 작성|부분 설명|설명 타이틀|01 핵심|02 핵심|03 핵심|"
+        r"ppt 대제목|01 중제목|01 컨텐츠|중제목 작성|대제목 작성|컨텐츠 작성|"
+        r"solution 0[123]|sevice 0[123]|keyword\b|step[1-4]|"
+        r"1\.4\s|텍스트 작성해주세요|텍스트 길어질|작성하여 사용|"
+        r"\[아이콘|\[이미지|관련 도식|아이콘 이미지|"
+        r"아래 확장|최대 [0-9]+\s*줄|여기에 입력|내용을 입력|"
+        r"항목 0[1-9]|항목0[1-9]|세부 항목|detail 0[1-9])",
+        re.IGNORECASE,
+    )
 )
 
 

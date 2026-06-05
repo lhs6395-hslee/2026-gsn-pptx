@@ -196,10 +196,10 @@ python3 ~/.ppt-skill/scripts/office/pack.py \
 
 ### 8. 시각 QA
 
-**soffice를 직접 호출 금지.** PowerPoint 우선 → LibreOffice 폴백 순서를 반드시 지킨다.
+**PowerPoint만 사용. LibreOffice(soffice) 호출 완전 금지.**
 
 ```bash
-# ppt_generator.py의 visual_qa() 함수 사용 (PowerPoint AppleScript 우선)
+# ppt_generator.py의 visual_qa() 함수 사용 (PowerPoint AppleScript)
 python3 -c "
 import sys, pathlib
 sys.path.insert(0, '$HOME/.ppt-skill')
@@ -223,8 +223,8 @@ end tell
 pdftoppm -jpeg -r 120 "$WORK/output.pdf" "$WORK/qa_images/slide"
 ```
 
-> **왜 PowerPoint 우선인가**: 최종 파일(.pptx)은 PowerPoint에서 열어보는 것이 기준.
-> LibreOffice는 Pretendard·한국어 폰트를 다르게 렌더링해 QA 결과가 실제와 다름.
+> **PowerPoint만 사용하는 이유**: 최종 파일(.pptx)은 PowerPoint 렌더링이 기준.
+> LibreOffice는 Pretendard·한국어 폰트를 다르게 렌더링해 QA 결과가 실제와 다름 — 사용 금지.
 
 슬라이드 이미지를 보고 확인:
 - 텍스트 오버플로우

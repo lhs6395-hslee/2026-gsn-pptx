@@ -23,7 +23,6 @@ import zipfile
 from pathlib import Path
 
 import defusedxml.minidom
-from office.soffice import get_soffice_env
 from PIL import Image, ImageDraw, ImageFont
 
 THUMBNAIL_WIDTH = 300
@@ -158,22 +157,29 @@ def create_hidden_placeholder(size: tuple[int, int]) -> Image.Image:
 def convert_to_images(pptx_path: Path, temp_dir: Path) -> list[Path]:
     pdf_path = temp_dir / f"{pptx_path.stem}.pdf"
 
+    # PowerPoint AppleScript (macOS, LibreOffice 사용 금지)
+    import shutil as _shutil
+    if not _shutil.which("osascript"):
+        raise RuntimeError("osascript 없음 — macOS PowerPoint 필요")
+    script = f"""
+tell application "Microsoft PowerPoint"
+    open (POSIX file "{pptx_path}")
+    set maxWait to 30
+    set waited to 0
+    repeat while (count of presentations) = 0 and waited < maxWait
+        delay 1
+        set waited to waited + 1
+    end repeat
+    save active presentation in (POSIX file "{pdf_path}") as save as PDF
+    close active presentation saving no
+end tell
+"""
     result = subprocess.run(
-        [
-            "soffice",
-            "--headless",
-            "--convert-to",
-            "pdf",
-            "--outdir",
-            str(temp_dir),
-            str(pptx_path),
-        ],
-        capture_output=True,
-        text=True,
-        env=get_soffice_env(),
+        ["osascript", "-e", script],
+        capture_output=True, text=True, timeout=120,
     )
     if result.returncode != 0 or not pdf_path.exists():
-        raise RuntimeError("PDF conversion failed")
+        raise RuntimeError(f"PowerPoint PDF 변환 실패: {result.stderr[:200]}")
 
     result = subprocess.run(
         [
