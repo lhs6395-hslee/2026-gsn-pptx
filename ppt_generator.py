@@ -451,6 +451,7 @@ _ZONE_MAP_CACHE: dict | None = None
 _SLIDE_CATALOG_CACHE: dict | None = None
 _ZONE_FILL_CACHE: dict | None = None
 _TOC_CONFIG_CACHE: dict | None = None
+_SLIDE15_CONFIG_CACHE: dict | None = None
 
 
 def _load_zone_map() -> dict:
@@ -538,6 +539,23 @@ def _load_toc_config() -> dict:
             pass
     _TOC_CONFIG_CACHE = {}
     return _TOC_CONFIG_CACHE
+
+
+def _load_slide15_config() -> dict:
+    """harness/slide15_config.json 로드 (캐시). 없으면 빈 dict."""
+    global _SLIDE15_CONFIG_CACHE
+    if _SLIDE15_CONFIG_CACHE is not None:
+        return _SLIDE15_CONFIG_CACHE
+    for p in (SKILL_DIR / "harness" / "slide15_config.json",
+              Path(__file__).parent / "harness" / "slide15_config.json"):
+        try:
+            if p.exists():
+                _SLIDE15_CONFIG_CACHE = json.loads(p.read_text())
+                return _SLIDE15_CONFIG_CACHE
+        except Exception:
+            pass
+    _SLIDE15_CONFIG_CACHE = {}
+    return _SLIDE15_CONFIG_CACHE
 
 
 def _zone(template_file: str) -> dict:
@@ -1197,6 +1215,184 @@ def edit_toc_slide(xml_path: Path, prs_title: str, items: list[str],
     ET.parse(xml_path)  # 유효성 검증
 
 
+def edit_slide15(xml_path: Path, content: dict) -> None:
+    """
+    slide15.xml (3-item 레이아웃) 전용 편집 함수.
+    하네스 기반: harness/slide15_config.json + layout_zone_map.json
+
+    Args:
+        xml_path: slide15.xml 경로
+        content: plan.json의 content 필드 (slide15_config.json 스키마 참조)
+    """
+    ns_a = _NS_A
+    ns_p = _NS_P
+
+    # 하네스 로드
+    cfg = _load_slide15_config()
+    zone = _zone("slide15.xml")
+
+    # 번호 체계
+    chapter = int(content.get("chapter", "1"))
+    section = int(content.get("section", "1"))
+    subsection = int(content.get("subsection", "1"))
+
+    numbering = cfg.get("numbering", {})
+    subtitle_prefix_template = numbering.get("subtitle_prefix", "{n:02d}")
+    item_prefix_template = numbering.get("item_title_prefix", "{n:02d}")
+    body_prefix_template = numbering.get("body_title_prefix", "{major}.{minor}.")
+    sub_prefix_template = numbering.get("sub_heading_prefix", "| {major}.{minor}.{sub}")
+
+    # 이미지 슬롯 포맷
+    img_format = cfg.get("image_slot_format", "[이미지: {description}]")
+
+    try:
+        tree = ET.parse(xml_path)
+        root = tree.getroot()
+    except ET.ParseError:
+        return
+
+    def _find_shape_by_id(shape_id: str) -> "ET.Element | None":
+        """ID로 shape 찾기"""
+        for sp in root.findall(f".//{{{ns_p}}}sp"):
+            cpr = sp.find(f"{{{ns_p}}}nvSpPr/{{{ns_p}}}cNvPr")
+            if cpr is not None and cpr.get("id") == shape_id:
+                return sp
+        return None
+
+    def _set_shape_text(sp: "ET.Element | None", lines: "list[str]", bold_line1: bool = False) -> None:
+        """shape의 텍스트를 여러 줄로 설정 (기존 rPr 및 빈 paragraph 보존)"""
+        if sp is None:
+            return
+        txBody = sp.find(f"{{{ns_p}}}txBody")
+        if txBody is None:
+            return
+
+        # 기존 paragraph 수집
+        paras = txBody.findall(f"{{{ns_a}}}p")
+
+        for i, line_text in enumerate(lines):
+            if i < len(paras):
+                para = paras[i]
+            else:
+                # paragraph 부족 시 추가
+                para = ET.SubElement(txBody, f"{{{ns_a}}}p")
+                paras.append(para)
+
+            # 기존 rPr 복사
+            first_r = para.find(f"{{{ns_a}}}r")
+            orig_rPr = None
+            if first_r is not None:
+                rPr_e = first_r.find(f"{{{ns_a}}}rPr")
+                if rPr_e is not None:
+                    import copy
+                    orig_rPr = copy.deepcopy(rPr_e)
+                    orig_rPr.set("lang", "ko-KR")
+                    orig_rPr.set("dirty", "0")
+
+                    # 1번째 줄 bold 설정
+                    if i == 0 and bold_line1:
+                        orig_rPr.set("b", "1")
+                    elif i > 0 and bold_line1:
+                        # 2번째 줄부터는 bold 제거
+                        if "b" in orig_rPr.attrib:
+                            del orig_rPr.attrib["b"]
+
+            # 기존 run 제거
+            for r in para.findall(f"{{{ns_a}}}r"):
+                para.remove(r)
+
+            # endParaRPr 위치 확인
+            end_rpr = para.find(f"{{{ns_a}}}endParaRPr")
+            idx = list(para).index(end_rpr) if end_rpr is not None else len(para)
+
+            # 새 run 삽입
+            r_new = ET.Element(f"{{{ns_a}}}r")
+            if orig_rPr is not None:
+                r_new.append(orig_rPr)
+            else:
+                ET.SubElement(r_new, f"{{{ns_a}}}rPr", lang="ko-KR", dirty="0")
+            t_new = ET.SubElement(r_new, f"{{{ns_a}}}t")
+            t_new.text = line_text
+            para.insert(idx, r_new)
+
+        # 나머지 paragraph들은 그대로 유지 (빈 줄 보존)
+
+    # ── 0. title & subtitle ───────────────────────────────────────
+    title_id = zone.get("title")
+    title_text = content.get("title", "")
+    if title_id and title_text:
+        sp = _find_shape_by_id(title_id)
+        _set_shape_text(sp, [title_text])
+
+    subtitle_id = zone.get("subtitle")
+    subtitle_text = content.get("subtitle", "")
+    if subtitle_id and subtitle_text:
+        prefix = subtitle_prefix_template.format(n=chapter)
+        full_text = f"{prefix} {subtitle_text}"
+        sp = _find_shape_by_id(subtitle_id)
+        _set_shape_text(sp, [full_text])
+
+    # ── 1. 이미지 슬롯 (image_slots) ──────────────────────────────
+    img_slot_ids = zone.get("body", {}).get("image_slots", [])
+    for i, slot_id in enumerate(img_slot_ids, 1):
+        img_desc = content.get(f"item{i}_image_desc", "")
+        if img_desc:
+            text = img_format.format(description=img_desc)
+            sp = _find_shape_by_id(slot_id)
+            _set_shape_text(sp, [text])
+
+    # ── 2. 항목 제목 (item_titles) — 2줄 구조 ────────────────────
+    title_ids = zone.get("body", {}).get("item_titles", [])
+    for i, title_id in enumerate(title_ids, 1):
+        item_title = content.get(f"item{i}_title", "")
+        item_subtitle = content.get(f"item{i}_subtitle", "")
+
+        if item_title or item_subtitle:
+            prefix = item_prefix_template.format(n=i)
+            line1 = f"{prefix} {item_title}" if item_title else ""
+            line2 = item_subtitle
+
+            sp = _find_shape_by_id(title_id)
+            _set_shape_text(sp, [line1, line2], bold_line1=True)
+
+    # ── 3. 항목 설명 (item_descs) — 1줄 구조 ─────────────────────
+    desc_ids = zone.get("body", {}).get("item_descs", [])
+    for i, desc_id in enumerate(desc_ids, 1):
+        item_desc = content.get(f"item{i}_desc", "")
+
+        if item_desc:
+            sp = _find_shape_by_id(desc_id)
+            _set_shape_text(sp, [item_desc])
+
+    # ── 4. body_title ─────────────────────────────────────────────
+    body_title_id = zone.get("body_title")
+    body_title_text = content.get("body_title", "")
+    if body_title_id and body_title_text:
+        prefix = body_prefix_template.format(major=chapter, minor=section)
+        full_text = f"{prefix} {body_title_text}"
+        sp = _find_shape_by_id(body_title_id)
+        _set_shape_text(sp, [full_text])
+
+    # ── 5. body_desc ──────────────────────────────────────────────
+    body_desc_id = zone.get("body_desc")
+    body_desc_text = content.get("body_desc", "")
+    if body_desc_id and body_desc_text:
+        sp = _find_shape_by_id(body_desc_id)
+        _set_shape_text(sp, [body_desc_text])
+
+    # ── 6. sub_heading ────────────────────────────────────────────
+    sub_heading_ids = zone.get("body", {}).get("sub_heading", [])
+    sub_heading_text = content.get("sub_heading", "")
+    if sub_heading_ids and sub_heading_text:
+        prefix = sub_prefix_template.format(major=chapter, minor=section, sub=subsection)
+        full_text = f"{prefix} {sub_heading_text}"
+        sp = _find_shape_by_id(sub_heading_ids[0])
+        _set_shape_text(sp, [full_text])
+
+    _write_xml(root, xml_path)
+    ET.parse(xml_path)  # 유효성 검증
+
+
 def edit_slide(work_dir: Path, slide_plan: dict) -> bool:
     """
     단일 슬라이드를 계획에 따라 편집한다.
@@ -1254,6 +1450,7 @@ def edit_slide(work_dir: Path, slide_plan: dict) -> bool:
                 "slide8.xml":  _edit_slide8,
                 # slide9-17: zone_map body 완비 → _edit_zonemap_slide 사용 (image_slots 올바른 서식)
                 "slide14.xml": _edit_slide14,
+                "slide15.xml": lambda p, c: edit_slide15(p, c),  # 하네스 기반 3-item 레이아웃
                 # slide16.xml: zone_map image_slots 완비 → _edit_zonemap_slide 사용
                 "slide21.xml": _edit_slide21,
                 "slide22.xml": _edit_slide24,
