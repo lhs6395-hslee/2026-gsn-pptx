@@ -1260,62 +1260,53 @@ def edit_slide15(xml_path: Path, content: dict) -> None:
         return None
 
     def _set_shape_text(sp: "ET.Element | None", lines: "list[str]", bold_line1: bool = False) -> None:
-        """shape의 텍스트를 여러 줄로 설정 (기존 rPr 및 빈 paragraph 보존)"""
+        """
+        shape의 텍스트를 교체 (원본 XML 구조 완전 보존).
+        bodyPr, pPr, rPr 모두 유지 — <a:t> 텍스트만 교체.
+        lines 배열의 각 요소는 paragraph 단위로 매핑.
+        나머지 paragraph는 빈 줄로 유지 (run 제거).
+        """
         if sp is None:
             return
         txBody = sp.find(f"{{{ns_p}}}txBody")
         if txBody is None:
             return
 
-        # 기존 paragraph 수집
         paras = txBody.findall(f"{{{ns_a}}}p")
 
-        for i, line_text in enumerate(lines):
-            if i < len(paras):
-                para = paras[i]
+        for i in range(len(paras)):
+            para = paras[i]
+            runs = para.findall(f"{{{ns_a}}}r")
+
+            if i < len(lines):
+                # 텍스트 설정
+                line_text = lines[i]
+
+                if not runs:
+                    continue
+
+                # 첫 번째 run의 <a:t>만 수정
+                first_run = runs[0]
+                t_elem = first_run.find(f"{{{ns_a}}}t")
+                if t_elem is not None:
+                    t_elem.text = line_text
+
+                    # bold 설정 (필요 시 rPr 수정)
+                    if bold_line1:
+                        rPr = first_run.find(f"{{{ns_a}}}rPr")
+                        if rPr is not None:
+                            if i == 0:
+                                rPr.set("b", "1")
+                            elif "b" in rPr.attrib:
+                                del rPr.attrib["b"]
+
+                # 나머지 run들은 제거 (중복 텍스트 방지)
+                for extra_run in runs[1:]:
+                    para.remove(extra_run)
             else:
-                # paragraph 부족 시 추가
-                para = ET.SubElement(txBody, f"{{{ns_a}}}p")
-                paras.append(para)
-
-            # 기존 rPr 복사
-            first_r = para.find(f"{{{ns_a}}}r")
-            orig_rPr = None
-            if first_r is not None:
-                rPr_e = first_r.find(f"{{{ns_a}}}rPr")
-                if rPr_e is not None:
-                    import copy
-                    orig_rPr = copy.deepcopy(rPr_e)
-                    orig_rPr.set("lang", "ko-KR")
-                    orig_rPr.set("dirty", "0")
-
-                    # 1번째 줄 bold 설정
-                    if i == 0 and bold_line1:
-                        orig_rPr.set("b", "1")
-                    elif i > 0 and bold_line1:
-                        # 2번째 줄부터는 bold 제거
-                        if "b" in orig_rPr.attrib:
-                            del orig_rPr.attrib["b"]
-
-            # 기존 run 제거
-            for r in para.findall(f"{{{ns_a}}}r"):
-                para.remove(r)
-
-            # endParaRPr 위치 확인
-            end_rpr = para.find(f"{{{ns_a}}}endParaRPr")
-            idx = list(para).index(end_rpr) if end_rpr is not None else len(para)
-
-            # 새 run 삽입
-            r_new = ET.Element(f"{{{ns_a}}}r")
-            if orig_rPr is not None:
-                r_new.append(orig_rPr)
-            else:
-                ET.SubElement(r_new, f"{{{ns_a}}}rPr", lang="ko-KR", dirty="0")
-            t_new = ET.SubElement(r_new, f"{{{ns_a}}}t")
-            t_new.text = line_text
-            para.insert(idx, r_new)
-
-        # 나머지 paragraph들은 그대로 유지 (빈 줄 보존)
+                # lines 범위 밖 paragraph는 모든 run 제거 (빈 줄 유지)
+                for r in runs:
+                    para.remove(r)
 
     # ── 0. title & subtitle ───────────────────────────────────────
     title_id = zone.get("title")
