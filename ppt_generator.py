@@ -2191,13 +2191,16 @@ _SIDEBAR_REF_GAP_EMU     = 217_772   # body_desc.y - (body_title.y + body_title.
 _SIDEBAR_CHARS_PER_LINE  = 10        # 한국어 ~20pt, cx=2,200,409 EMU 기준
 
 
-def _count_sidebar_lines(text: str, cx_emu: int = 2_200_409, font_pt: float = _BODY_TITLE_FONT_PT) -> int:
+def _count_sidebar_lines(text: str, cx_emu: int = 2_200_409, font_pt=None) -> int:
     """
     body_title 텍스트 줄 수 추정 (cx 기반 실제 폭 계산).
     한글/CJK = font_pt pt, ASCII = font_pt*0.6 pt, 공백 = font_pt*0.35 pt.
     cx_emu: 텍스트박스 폭 (기본값 = 사이드바 실측 2,200,409 EMU = 173.3pt).
+    font_pt: None이면 _BODY_TITLE_FONT_PT(20pt) 사용.
     """
     import math
+    if font_pt is None:
+        font_pt = _BODY_TITLE_FONT_PT
 
     cx_pt = cx_emu / 12700.0
 
@@ -2821,7 +2824,8 @@ def _edit_slide33(xml_path: Path, slide_plan: dict) -> None:
 
 
 def _edit_slide13(xml_path: Path, slide_plan: dict) -> None:
-    """slide13 (3열 아이콘카드): Zone1+2 공통 + Zone3 3열(제목/설명/아이콘안내)."""
+    """slide13/15 (3열 아이콘카드): Zone1+2 공통 + Zone3 3열(제목/설명/아이콘안내) + sub_heading."""
+    tmpl    = slide_plan.get("template_file", "slide13.xml")
     content = slide_plan.get("content", {})
     body    = content.get("body", {})
     items   = (content.get("items") or content.get("bullets")
@@ -2830,7 +2834,7 @@ def _edit_slide13(xml_path: Path, slide_plan: dict) -> None:
     try:
         tree = ET.parse(xml_path); root = tree.getroot()
     except ET.ParseError: return
-    _apply_common_zones(root, slide_plan, "slide13.xml")
+    _apply_common_zones(root, slide_plan, tmpl)
     import copy as _copy; ns_p, ns_a = _NS_P, _NS_A
     def _set(sid, text):
         sp = _find_shape_by_id(root, sid)
@@ -2845,14 +2849,16 @@ def _edit_slide13(xml_path: Path, slide_plan: dict) -> None:
             r_new = ET.Element(f"{{{ns_a}}}r")
             if orig_rPr: r_new.append(_copy.deepcopy(orig_rPr))
             ET.SubElement(r_new, f"{{{ns_a}}}t").text = text; p.insert(idx, r_new); break
+    # sub_heading (slide15=ID=41 등): items+desc로 자동 생성
+    z = _zone(tmpl)
+    for sid in (z.get("body", {}).get("sub_heading") or []):
+        sub_text = _make_sub_heading(content)
+        _set(sid, _truncate_to_lines(sub_text, 9_000_000, 16, 2) if sub_text else "")
     # 설명 shape ID는 x좌표 기준 컬럼 순서로 매핑: 62=col1, 38=col2, 69=col3
-    # (기존 ["38","62","69"]는 col2/col1이 뒤바뀌어 설명이 한 칸씩 밀렸음)
     for i, (t_id, d_id, ic_id) in enumerate(zip(["18","19","21"],["62","38","69"],["20","24","25"])):
         label = items[i] if i < len(items) else ""
         _set(t_id, _truncate_to_lines(label, 2_000_000, 14, 2))
         _set(d_id, _truncate_to_lines(descs[i] if i < len(descs) else "", 2_000_000, 12, 4))
-        # 아이콘 칸: placeholder 텍스트를 쓰지 않고 비워둠 (템플릿 아이콘 영역 유지)
-        # — 과거 "[아이콘: ...]" 텍스트가 슬라이드에 그대로 노출되는 버그 수정
         _set(ic_id, "")
     _clear_residual_placeholders(root); _write_xml(root, xml_path)
 
@@ -3099,12 +3105,13 @@ def _edit_slide39(xml_path: Path, slide_plan: dict) -> None:
 
 
 def _edit_slide24(xml_path: Path, slide_plan: dict) -> None:
-    """slide24 (2블록 텍스트, 이미지 없음):
-    ID=8(제목), ID=7(본문1/bullets), ID=10(본문2/body).
-    이미지 없는 순수 텍스트 슬라이드 — 가장 범용적."""
+    """slide24/22 (2블록 텍스트): Zone1+2 공통 + Zone3 본문(bullets/body).
+    Zone1: ID=8(대제목), ID=9(중제목 인덱스 prefix 포함)
+    Zone2: body_title (slide24=ID=16, slide22=ID=14)
+    Zone3: ID=7(bullets 또는 body), ID=10(body2)"""
     import copy as _copy
     ns_p, ns_a = _NS_P, _NS_A
-    title   = slide_plan.get("title", "")
+    tmpl    = slide_plan.get("template_file", "slide24.xml")
     content = slide_plan.get("content", {})
     bullets = content.get("bullets") or content.get("items") or []
     body    = content.get("body", "")
@@ -3114,6 +3121,9 @@ def _edit_slide24(xml_path: Path, slide_plan: dict) -> None:
         root = tree.getroot()
     except ET.ParseError:
         return
+
+    # Zone1 + Zone2: ID=8(대제목), ID=9(중제목), body_title, body_desc 공통 처리
+    _apply_common_zones(root, slide_plan, tmpl)
 
     def _set_text(sp, text):
         txBody = sp.find(f"{{{ns_p}}}txBody") if sp is not None else None
@@ -3156,14 +3166,13 @@ def _edit_slide24(xml_path: Path, slide_plan: dict) -> None:
             ET.SubElement(r_new, f"{{{ns_a}}}t").text = text
             para.insert(idx, r_new)
 
-    sp8  = _find_shape_by_id(root, "8")
+    # Zone3: 본문 내용 (_apply_common_zones의 body_desc 이후 override)
     sp7  = _find_shape_by_id(root, "7")
     sp10 = _find_shape_by_id(root, "10")
 
-    _set_text(sp8, title)
-    if bullets:
+    if bullets and sp7:
         _set_bullets(sp7, bullets)
-    elif body:
+    elif body and sp7:
         _set_text(sp7, body)
     if body and sp10:
         _set_text(sp10, body)
@@ -3252,8 +3261,29 @@ _ZONE_FILL_RULES: dict[str, dict] = {
     "sub_titles":    {"keys": ["sub_titles", "callouts", "labels"], "cx": 2_500_000, "pt": 12, "lines": 2},
     "explains":      {"keys": ["explains", "descriptions"], "cx": 2_500_000, "pt": 11, "lines": 3},
     "banner":        {"keys": ["banner", "insight", "body"], "cx": 9_500_000, "pt": 14, "lines": 2},
-    "sub_heading":   {"keys": ["sub_heading", "subtitle"], "cx": 9_000_000, "pt": 14, "lines": 1},
+    "sub_heading":   {"keys": ["sub_heading", "subtitle"], "cx": 9_000_000, "pt": 16, "lines": 2},
 }
+
+
+def _make_sub_heading(content: dict) -> str:
+    """plan content에서 sub_heading 자동 생성 (plan에 sub_heading 필드 없을 때).
+    형식: | {section_ref} {item1·item2·item3} — {section_desc}
+    section_ref: section_title 앞 번호 + '.1' (예: '4.2.' → '4.2.1')
+    """
+    import re
+    sec_title = content.get("section_title", "")
+    items = _coerce_list(content.get("items") or content.get("item_titles") or [])
+    desc  = content.get("section_desc", "")
+
+    if not items:
+        return ""
+
+    m = re.match(r'^(\d+(?:\.\d+)*)\.?\s', sec_title)
+    section_ref = f"{m.group(1)}.1" if m else ""
+    items_str = "·".join(str(x) for x in items[:3])
+
+    head = f"| {section_ref} {items_str}".strip() if section_ref else f"| {items_str}"
+    return f"{head} — {desc}" if desc else head
 
 
 def _coerce_list(val) -> list[str]:
@@ -3345,6 +3375,11 @@ def _edit_zonemap_slide(xml_path: Path, slide_plan: dict) -> None:
         if role == "charts":
             continue  # 차트는 별도 처리(Excel)
         values = fetch(rule["keys"])
+        # sub_heading: plan에 필드 없으면 items + section_desc로 자동 생성
+        if role == "sub_heading" and not values:
+            auto = _make_sub_heading(content)
+            if auto:
+                values = [auto]
         prefix = rule.get("prefix", "")
         is_image_slot = (role == "image_slots")
         for i, sid in enumerate(ids):
