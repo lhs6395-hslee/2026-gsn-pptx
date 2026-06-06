@@ -97,7 +97,7 @@ def extract_shapes(pptx_path: Path, slide_name: str) -> dict[str, dict]:
         else:
             continue
 
-        txBody = sp.find(f".//{{{NS_A}}}txBody")
+        txBody = sp.find(f".//{{{NS_P}}}txBody")
         if txBody is None:
             continue
 

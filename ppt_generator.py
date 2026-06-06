@@ -2862,8 +2862,7 @@ def _apply_common_zones(root, slide_plan: dict, template_file: str) -> None:
             if rPr_e is not None:
                 orig_rPr = _copy.deepcopy(rPr_e)
                 orig_rPr.set("dirty", "0")
-                # sz 제거 — 레이아웃 기본값 유지
-                if "sz" in orig_rPr.attrib: del orig_rPr.attrib["sz"]
+                # sz 보존 — 원본 명시 크기 유지 (삭제 금지)
                 if force_semibold:
                     # body_title은 항상 Pretendard SemiBold 강제
                     for tag in ("latin", "ea", "cs"):
@@ -2873,17 +2872,18 @@ def _apply_common_zones(root, slide_plan: dict, template_file: str) -> None:
                         else:
                             ET.SubElement(orig_rPr, f"{{{ns_a}}}{tag}", typeface=_BODY_TITLE_SEMIBOLD)
                 break
-        if orig_rPr is None:
-            tf = _BODY_TITLE_SEMIBOLD if force_semibold else _TEMPLATE_FONT
+        if orig_rPr is None and force_semibold:
+            # body_title만 폰트 강제 생성 — 일반 shape는 rPr 없으면 테마 상속 유지
             orig_rPr = ET.Element(f"{{{ns_a}}}rPr", dirty="0")
             for tag in ("latin", "ea", "cs"):
-                ET.SubElement(orig_rPr, f"{{{ns_a}}}{tag}", typeface=tf)
+                ET.SubElement(orig_rPr, f"{{{ns_a}}}{tag}", typeface=_BODY_TITLE_SEMIBOLD)
         for p in txBody.findall(f"{{{ns_a}}}p"):
             for r in p.findall(f"{{{ns_a}}}r"): p.remove(r)
             end = p.find(f"{{{ns_a}}}endParaRPr")
             idx = list(p).index(end) if end is not None else len(p)
             r_new = ET.Element(f"{{{ns_a}}}r")
-            r_new.append(_copy.deepcopy(orig_rPr))
+            if orig_rPr is not None:
+                r_new.append(_copy.deepcopy(orig_rPr))
             ET.SubElement(r_new, f"{{{ns_a}}}t").text = text
             p.insert(idx, r_new); break
 
