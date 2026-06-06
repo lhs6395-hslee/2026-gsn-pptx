@@ -1067,7 +1067,20 @@ def edit_toc_slide(xml_path: Path, prs_title: str, items: list[str],
     tree = ET.parse(xml_path)
     root = tree.getroot()
 
-    MAX_ROWS = 7
+    # 하네스 설정 로드 (모든 상수를 여기서 결정)
+    toc_cfg = _load_toc_config()
+    TOC_TEXT_X  = toc_cfg.get("text_box", {}).get("x_emu", 4541178)
+    TOC_TEXT_CX = toc_cfg.get("text_box", {}).get("cx_emu", 6790297)
+    TOC_PAGE_X  = toc_cfg.get("page_number", {}).get("x_emu", 11431475)
+    SLIDE_RIGHT = toc_cfg.get("slide_right_emu", 12192000)
+    TOC_FONT_PT = toc_cfg.get("font_pt", 30)
+    LINE_GAP    = toc_cfg.get("line_gap_emu", 350000)
+    width_factors = toc_cfg.get("text_width_factors", {})
+    KO_FACTOR   = width_factors.get("korean", 1.1)
+    EN_FACTOR   = width_factors.get("english", 0.55)
+    LINE_IDS    = set(toc_cfg.get("line_shape_ids", ["12","13","37","38","39","40","41"]))
+
+    MAX_ROWS = toc_cfg.get("max_rows", 7)
     items_padded   = list(items)    + [""] * (MAX_ROWS - len(items))
     pages_padded   = list(page_nums) + [""] * (MAX_ROWS - len(page_nums))
 
@@ -1142,13 +1155,6 @@ def edit_toc_slide(xml_path: Path, prs_title: str, items: list[str],
         break
 
     # ── 2. 항목 텍스트 (ID=10) ─────────────────────────────────────
-    # cx를 선(x=8924925) 직전까지 확장해 1줄로 충분히 수용
-    # bodyPr는 원본 그대로 유지 — paragraph 높이가 바뀌면 layout placeholder 노출됨
-    TOC_TEXT_X  = 4541178
-    TOC_PAGE_X  = 11431475        # 페이지번호 박스 시작 x
-    GAP         = 100000          # 페이지번호 앞 여백
-    TOC_TEXT_CX = TOC_PAGE_X - TOC_TEXT_X - GAP  # ≈ 6790297 EMU ≈ 7.43"
-
     for sp in root.findall(f".//{{{ns_p}}}sp"):
         cpr = sp.find(f"{{{ns_p}}}nvSpPr/{{{ns_p}}}cNvPr")
         if cpr is None or cpr.get("id") != "10":
@@ -1193,20 +1199,8 @@ def edit_toc_slide(xml_path: Path, prs_title: str, items: list[str],
             set_para_text(para, pages_padded[i] if i < MAX_ROWS else "")
         break
 
-    # ── 5. 수평선 7개 (ID=12,13,37,38,39,40,41) ────────────────────
+    # ── 5. 수평선 7개 ────────────────────────────────────────────────
     # 가장 긴 항목 기준으로 모든 선의 x 시작점을 통일 (텍스트 겹침 방지)
-
-    # 하네스 로드 (없으면 하드코딩 폴백)
-    toc_cfg = _load_toc_config()
-    TOC_FONT_PT = toc_cfg.get("font_pt", 30)
-    LINE_GAP    = toc_cfg.get("line_gap_emu", 200000)
-    TOC_PAGE_X  = toc_cfg.get("page_number", {}).get("x_emu", 11431475)
-    SLIDE_RIGHT = toc_cfg.get("slide_right_emu", 12192000)
-
-    # 텍스트 폭 계수 (하네스 or 폴백)
-    width_factors = toc_cfg.get("text_width_factors", {})
-    KO_FACTOR = width_factors.get("korean", 0.9)
-    EN_FACTOR = width_factors.get("english", 0.5)
 
     def _est_width_emu(text, font_pt: int) -> int:
         """한글/영문 혼합 텍스트의 렌더 폭 추정 (EMU)."""
@@ -1225,7 +1219,6 @@ def edit_toc_slide(xml_path: Path, prs_title: str, items: list[str],
     line_x_start = TOC_TEXT_X + max_text_emu + LINE_GAP
     line_cx_len  = SLIDE_RIGHT - line_x_start  # 슬라이드 끝까지
 
-    LINE_IDS = {"12", "13", "37", "38", "39", "40", "41"}
     line_cxns = []
     for cxn in root.findall(f".//{{{ns_p}}}cxnSp"):
         cpr = cxn.find(f"{{{ns_p}}}nvCxnSpPr/{{{ns_p}}}cNvPr")
@@ -1255,7 +1248,12 @@ def _apply_formatting_safe(sp: ET.Element, zone_fmt: dict, common_fmt: dict) -> 
     """
     하네스 기반 속성을 XML에 안전하게 적용.
     기존 구조 보존, 속성 값만 변경.
+
+    zone_fmt 구조 (두 가지):
+    1. 단일 zone: {"bodyPr": {...}, "pPr": {...}, "rPr": {...}}
+    2. 라인별: {"bodyPr": {...}, "line1": {"pPr":{...}, "rPr":{...}}, "line2": {...}}
     """
+    import copy as _copy
     ns_a = _NS_A
     ns_p = _NS_P
 
@@ -1267,10 +1265,83 @@ def _apply_formatting_safe(sp: ET.Element, zone_fmt: dict, common_fmt: dict) -> 
     if "bodyPr" in zone_fmt:
         bodyPr = txBody.find(f"{{{ns_a}}}bodyPr")
         if bodyPr is None:
-            bodyPr = ET.SubElement(txBody, f"{{{ns_a}}}bodyPr")
-            txBody.insert(0, bodyPr)  # 첫 번째 위치
+            bodyPr = ET.Element(f"{{{ns_a}}}bodyPr")
+            txBody.insert(0, bodyPr)
         for k, v in zone_fmt["bodyPr"].items():
             bodyPr.set(k, str(v))
+
+    # 라인별 or 단일 pPr/rPr 적용
+    has_line_fmt = "line1" in zone_fmt or "line2" in zone_fmt
+    paras = txBody.findall(f"{{{ns_a}}}p")
+
+    for i, para in enumerate(paras):
+        line_fmt = zone_fmt.get(f"line{i+1}", {}) if has_line_fmt else zone_fmt
+
+        # pPr 적용 (기존 요소 수정, 없으면 추가)
+        if "pPr" in line_fmt:
+            pPr_cfg = line_fmt["pPr"]
+            pPr = para.find(f"{{{ns_a}}}pPr")
+            if pPr is None:
+                pPr = ET.Element(f"{{{ns_a}}}pPr")
+                para.insert(0, pPr)
+            if "algn" in pPr_cfg:
+                pPr.set("algn", pPr_cfg["algn"])
+            if "lnSpc_pct" in pPr_cfg:
+                lnSpc = pPr.find(f"{{{ns_a}}}lnSpc")
+                if lnSpc is None:
+                    lnSpc = ET.SubElement(pPr, f"{{{ns_a}}}lnSpc")
+                for ch in list(lnSpc): lnSpc.remove(ch)
+                ET.SubElement(lnSpc, f"{{{ns_a}}}spcPct", val=str(pPr_cfg["lnSpc_pct"]))
+            if "lnSpc_pts" in pPr_cfg:
+                lnSpc = pPr.find(f"{{{ns_a}}}lnSpc")
+                if lnSpc is None:
+                    lnSpc = ET.SubElement(pPr, f"{{{ns_a}}}lnSpc")
+                for ch in list(lnSpc): lnSpc.remove(ch)
+                ET.SubElement(lnSpc, f"{{{ns_a}}}spcPts", val=str(pPr_cfg["lnSpc_pts"]))
+            if "spcBef_pts" in pPr_cfg:
+                spcBef = pPr.find(f"{{{ns_a}}}spcBef")
+                if spcBef is None:
+                    spcBef = ET.SubElement(pPr, f"{{{ns_a}}}spcBef")
+                for ch in list(spcBef): spcBef.remove(ch)
+                ET.SubElement(spcBef, f"{{{ns_a}}}spcPts", val=str(pPr_cfg["spcBef_pts"]))
+
+        # rPr 적용 (기존 rPr 보존 + 속성만 수정, 새로 생성 금지)
+        if "rPr" in line_fmt:
+            rPr_cfg = line_fmt["rPr"]
+            for run in para.findall(f"{{{ns_a}}}r"):
+                rPr = run.find(f"{{{ns_a}}}rPr")
+                if rPr is None:
+                    continue  # rPr 없으면 건드리지 않음 (새로 생성 금지)
+                if "sz" in rPr_cfg:
+                    rPr.set("sz", str(rPr_cfg["sz"]))
+                if "b" in rPr_cfg:
+                    if rPr_cfg["b"]:
+                        rPr.set("b", "1")
+                    elif "b" in rPr.attrib:
+                        del rPr.attrib["b"]
+                if "typeface" in rPr_cfg:
+                    tf = rPr_cfg["typeface"]
+                    for tag in ("latin", "ea", "cs"):
+                        elem = rPr.find(f"{{{ns_a}}}{tag}")
+                        if elem is not None:
+                            elem.set("typeface", tf)
+                if "color" in rPr_cfg:
+                    sf = rPr.find(f"{{{ns_a}}}solidFill")
+                    if sf is None:
+                        sf = ET.SubElement(rPr, f"{{{ns_a}}}solidFill")
+                    for ch in list(sf): sf.remove(ch)
+                    ET.SubElement(sf, f"{{{ns_a}}}srgbClr", val=rPr_cfg["color"])
+                elif "color_scheme" in rPr_cfg:
+                    sf = rPr.find(f"{{{ns_a}}}solidFill")
+                    if sf is None:
+                        sf = ET.SubElement(rPr, f"{{{ns_a}}}solidFill")
+                    for ch in list(sf): sf.remove(ch)
+                    sc = ET.SubElement(sf, f"{{{ns_a}}}schemeClr",
+                                       val=rPr_cfg["color_scheme"])
+                    if "lumMod" in rPr_cfg:
+                        ET.SubElement(sc, f"{{{ns_a}}}lumMod", val=str(rPr_cfg["lumMod"]))
+                    if "lumOff" in rPr_cfg:
+                        ET.SubElement(sc, f"{{{ns_a}}}lumOff", val=str(rPr_cfg["lumOff"]))
 
 
 def edit_slide15(xml_path: Path, content: dict) -> None:
@@ -1300,8 +1371,10 @@ def edit_slide15(xml_path: Path, content: dict) -> None:
     body_prefix_template = numbering.get("body_title_prefix", "{major}.{minor}.")
     sub_prefix_template = numbering.get("sub_heading_prefix", "| {major}.{minor}.{sub}")
 
-    # 이미지 슬롯 포맷
-    img_format = cfg.get("image_slot_format", "[이미지: {description}]")
+    # 이미지 슬롯 포맷 (common_formatting.json 우선, 없으면 폴백)
+    common_fmt = _load_common_formatting()
+    img_format = common_fmt.get("image_slot_format",
+                 cfg.get("image_slot_format", "[이미지: {description}]"))
 
     try:
         tree = ET.parse(xml_path)
@@ -1380,6 +1453,9 @@ def edit_slide15(xml_path: Path, content: dict) -> None:
         sp = _find_shape_by_id(subtitle_id)
         _set_shape_text(sp, [full_text])
 
+    # 포맷 설정 로드
+    fmt_cfg = cfg.get("formatting", {})
+
     # ── 1. 이미지 슬롯 (image_slots) ──────────────────────────────
     img_slot_ids = zone.get("body", {}).get("image_slots", [])
     for i, slot_id in enumerate(img_slot_ids, 1):
@@ -1388,6 +1464,8 @@ def edit_slide15(xml_path: Path, content: dict) -> None:
             text = img_format.format(description=img_desc)
             sp = _find_shape_by_id(slot_id)
             _set_shape_text(sp, [text])
+            if sp is not None and "image_slots" in fmt_cfg:
+                _apply_formatting_safe(sp, fmt_cfg["image_slots"], common_fmt)
 
     # ── 2. 항목 제목 (item_titles) — 2줄 구조 ────────────────────
     title_ids = zone.get("body", {}).get("item_titles", [])
@@ -1402,6 +1480,8 @@ def edit_slide15(xml_path: Path, content: dict) -> None:
 
             sp = _find_shape_by_id(title_id)
             _set_shape_text(sp, [line1, line2], bold_line1=True)
+            if sp is not None and "item_titles" in fmt_cfg:
+                _apply_formatting_safe(sp, fmt_cfg["item_titles"], common_fmt)
 
     # ── 3. 항목 설명 (item_descs) — 1줄 구조 ─────────────────────
     desc_ids = zone.get("body", {}).get("item_descs", [])
@@ -1411,6 +1491,8 @@ def edit_slide15(xml_path: Path, content: dict) -> None:
         if item_desc:
             sp = _find_shape_by_id(desc_id)
             _set_shape_text(sp, [item_desc])
+            if sp is not None and "item_descs" in fmt_cfg:
+                _apply_formatting_safe(sp, fmt_cfg["item_descs"], common_fmt)
 
     # ── 4. body_title ─────────────────────────────────────────────
     body_title_id = zone.get("body_title")
@@ -1420,6 +1502,8 @@ def edit_slide15(xml_path: Path, content: dict) -> None:
         full_text = f"{prefix} {body_title_text}"
         sp = _find_shape_by_id(body_title_id)
         _set_shape_text(sp, [full_text])
+        if sp is not None and "body_title" in fmt_cfg:
+            _apply_formatting_safe(sp, fmt_cfg["body_title"], common_fmt)
 
     # ── 5. body_desc ──────────────────────────────────────────────
     body_desc_id = zone.get("body_desc")
@@ -1427,6 +1511,8 @@ def edit_slide15(xml_path: Path, content: dict) -> None:
     if body_desc_id and body_desc_text:
         sp = _find_shape_by_id(body_desc_id)
         _set_shape_text(sp, [body_desc_text])
+        if sp is not None and "body_desc" in fmt_cfg:
+            _apply_formatting_safe(sp, fmt_cfg["body_desc"], common_fmt)
 
     # ── 6. sub_heading ────────────────────────────────────────────
     sub_heading_ids = zone.get("body", {}).get("sub_heading", [])
@@ -1436,6 +1522,8 @@ def edit_slide15(xml_path: Path, content: dict) -> None:
         full_text = f"{prefix} {sub_heading_text}"
         sp = _find_shape_by_id(sub_heading_ids[0])
         _set_shape_text(sp, [full_text])
+        if sp is not None and "sub_heading" in fmt_cfg:
+            _apply_formatting_safe(sp, fmt_cfg["sub_heading"], common_fmt)
 
     _write_xml(root, xml_path)
     ET.parse(xml_path)  # 유효성 검증
@@ -2950,7 +3038,9 @@ def _edit_slide29(xml_path: Path, slide_plan: dict) -> None:
         if risk:
             rc = RISK_COLOR.get(risk, "888888")
             lines += [(f"리스크: {risk}", 900, False, rc)]
-        _add_desc_box(sid, x, y, cx, 3_500_000, lines); sid += 1
+        if items or kpi or team or p_period:
+            _add_desc_box(sid, x, y, cx, 3_500_000, lines)
+        sid += 1
 
     _clear_residual_placeholders(root)
     _write_xml(root, xml_path)
@@ -3144,8 +3234,9 @@ def _edit_slide31(xml_path: Path, slide_plan: dict) -> None:
             ET.SubElement(r_new, f"{{{ns_a}}}t").text = text; p.insert(idx, r_new); break
     for i, (lid, q) in enumerate(zip(["23","24","27","28"], quarters)):
         _set(lid, q.get("label", f"Q{i+1}") if isinstance(q, dict) else str(q))
-    # rich content 삽입 (slide30과 동일 패턴)
-    if quarters:
+    # rich content 삽입 (slide30과 동일 패턴) — items가 있을 때만
+    has_items = any(q.get("items") for q in quarters if isinstance(q, dict))
+    if quarters and has_items:
         spTree = root.find(f".//{{{ns_p}}}spTree")
         # 실제 템플릿 컬럼 경계 (template slide31.xml 측정값)
         col_x_list = [2_657_592, 4_897_938, 7_393_720, 9_696_217]
@@ -3179,8 +3270,9 @@ def _edit_slide33(xml_path: Path, slide_plan: dict) -> None:
             ET.SubElement(r_new, f"{{{ns_a}}}t").text = text; p.insert(idx, r_new); break
     for i, (lid, q) in enumerate(zip(["35","36","37","38"], quarters)):
         _set(lid, q.get("label", f"Q{i+1}") if isinstance(q, dict) else str(q))
-    # rich content 삽입 (slide31과 동일, 상단 바가 더 있어 content_top_y 증가)
-    if quarters:
+    # rich content 삽입 (slide31과 동일, 상단 바가 더 있어 content_top_y 증가) — items가 있을 때만
+    has_items33 = any(q.get("items") for q in quarters if isinstance(q, dict))
+    if quarters and has_items33:
         spTree = root.find(f".//{{{ns_p}}}spTree")
         # slide33은 하단 Q열이 슬라이드 전체 폭을 사용 (상단 sidebar와 별개)
         # 컬럼 경계: 템플릿 배경 shape(ID=33,34) 기준
@@ -3831,7 +3923,8 @@ def _edit_slide25(xml_path: Path, slide_plan: dict) -> None:
                           _truncate_to_lines(descs[i+1] if i+1 < len(descs) else "", 2_500_000, 12, 3))
     img_txt = img_descs[0] if img_descs else ""
     if img_txt:
-        _set_image_slot_text(root, img_id, "🖼 " + _truncate_to_lines(img_txt, 2_800_000, 11, 4))
+        _img_fmt25 = _load_common_formatting().get("image_slot_format", "[이미지: {description}]")
+        _set_image_slot_text(root, img_id, _truncate_to_lines(_img_fmt25.format(description=img_txt), 2_800_000, 11, 4))
     else:
         _slide_set_helper(root, ns_p, ns_a, img_id, "")
     _clear_residual_placeholders(root); _write_xml(root, xml_path)
@@ -3863,7 +3956,8 @@ def _edit_slide26(xml_path: Path, slide_plan: dict) -> None:
                           _truncate_to_lines(descs[i+1] if i+1 < len(descs) else "", 2_500_000, 12, 3))
     img_txt = img_descs[0] if img_descs else ""
     if img_txt:
-        _set_image_slot_text(root, img_id, "🖼 " + _truncate_to_lines(img_txt, 2_800_000, 11, 4))
+        _img_fmt26 = _load_common_formatting().get("image_slot_format", "[이미지: {description}]")
+        _set_image_slot_text(root, img_id, _truncate_to_lines(_img_fmt26.format(description=img_txt), 2_800_000, 11, 4))
     else:
         _slide_set_helper(root, ns_p, ns_a, img_id, "")
     _clear_residual_placeholders(root); _write_xml(root, xml_path)
@@ -3890,10 +3984,11 @@ def _edit_slide34(xml_path: Path, slide_plan: dict) -> None:
                           _truncate_to_lines(keywords[i] if i < len(keywords) else "", 1_800_000, 12, 2))
     _slide_set_helper(root, ns_p, ns_a, main_desc_id,
                       _truncate_to_lines(descs[0] if descs else "", 7_000_000, 12, 4))
+    _img_fmt34 = _load_common_formatting().get("image_slot_format", "[이미지: {description}]")
     for i, sid in enumerate(pics_ids):
         img_txt = img_descs[i] if i < len(img_descs) else ""
         if img_txt:
-            _set_image_slot_text(root, sid, "🖼 " + _truncate_to_lines(img_txt, 2_800_000, 11, 4))
+            _set_image_slot_text(root, sid, _truncate_to_lines(_img_fmt34.format(description=img_txt), 2_800_000, 11, 4))
         else:
             _slide_set_helper(root, ns_p, ns_a, sid, "")
     _clear_residual_placeholders(root); _write_xml(root, xml_path)
@@ -4086,10 +4181,16 @@ def _edit_zonemap_slide(xml_path: Path, slide_plan: dict) -> None:
                 values = [auto]
         prefix = rule.get("prefix", "")
         is_image_slot = (role == "image_slots")
+        if is_image_slot:
+            _img_fmt = _load_common_formatting().get("image_slot_format", "[이미지: {description}]")
         for i, sid in enumerate(ids):
-            txt = values[i] if i < len(values) else ""
+            raw_val = values[i] if i < len(values) else ""
+            txt = raw_val
             if txt:
-                txt = prefix + str(txt)
+                if is_image_slot:
+                    txt = _img_fmt.format(description=str(raw_val))
+                else:
+                    txt = prefix + str(txt)
                 txt = _truncate_to_lines(txt, rule["cx"], rule["pt"], rule["lines"])
             if is_image_slot and txt:
                 # image_slots: 원본 rPr이 없는 경우가 많아 서식을 직접 주입
@@ -4270,7 +4371,7 @@ _PLACEHOLDER_TEXTS = (
         r"ppt 대제목|01 중제목|01 컨텐츠|중제목 작성|대제목 작성|컨텐츠 작성|"
         r"solution 0[123]|sevice 0[123]|keyword\b|step[1-4]|"
         r"1\.4\s|텍스트 작성해주세요|텍스트 길어질|작성하여 사용|"
-        r"\[아이콘|\[이미지|관련 도식|아이콘 이미지|"
+        r"\[아이콘|\[이미지(?!:)|관련 도식|아이콘 이미지|"
         r"아래 확장|최대 [0-9]+\s*줄|여기에 입력|내용을 입력|"
         r"항목 0[1-9]|항목0[1-9]|세부 항목|detail 0[1-9])",
         re.IGNORECASE,
