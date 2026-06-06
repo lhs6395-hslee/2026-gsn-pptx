@@ -169,14 +169,27 @@ def main():
     regen_order = slide_order(REGEN_PPTX)
 
     total_shape_diffs = 0
+    total_shapes_compared = 0
     slide_diffs = 0
+    sanity_errors = []
 
     for sn, (on, rn) in enumerate(zip(orig_order, regen_order), 1):
         orig_shapes  = extract_shapes(ORIG_PPTX,  on)
         regen_shapes = extract_shapes(REGEN_PPTX, rn)
 
-        slide_issues = []
+        n_orig  = len(orig_shapes)
+        n_regen = len(regen_shapes)
+        n_compared = sum(1 for sid in orig_shapes if sid in regen_shapes)
+        total_shapes_compared += n_compared
 
+        # Sanity: 원본에 텍스트 있는 shape가 있는데 하나도 비교 못 하면 리뷰 자체가 무효
+        if n_orig > 0 and n_compared == 0:
+            sanity_errors.append(
+                f"슬라이드 {sn} ({on}): 원본 {n_orig}개 shape 중 비교된 shape 0개 — 리뷰 실패"
+            )
+
+        slide_issues = []
+        # 커버리지: 재생성에 없는 shape 보고
         for sid, orig_s in orig_shapes.items():
             if sid not in regen_shapes:
                 slide_issues.append(f"  [ID={sid} '{orig_s['name']}'] 재생성에 없음")
@@ -189,13 +202,23 @@ def main():
                 for iss in issues:
                     slide_issues.append(f"    {iss}")
 
+        slide_label = f"슬라이드 {sn} ({on}) [{n_compared}/{n_orig} shape 비교]"
         if slide_issues:
             slide_diffs += 1
-            print(f"\n슬라이드 {sn} ({on}):")
+            print(f"\n{slide_label}:")
             for line in slide_issues:
                 print(line)
 
     print()
+    # Sanity 오류가 있으면 결과 전체를 신뢰할 수 없으므로 FAIL
+    if sanity_errors:
+        print("🚨 리뷰어 오류 — 아래 슬라이드를 전혀 비교하지 못했습니다:")
+        for e in sanity_errors:
+            print(f"  {e}")
+        print("   → 결과를 신뢰할 수 없습니다. 코드를 먼저 수정하세요.")
+        return
+
+    print(f"총 비교: {total_shapes_compared}개 shape across {len(orig_order)}개 슬라이드")
     if slide_diffs == 0:
         print("✅ 모든 슬라이드 텍스트+서식 일치!")
     else:
