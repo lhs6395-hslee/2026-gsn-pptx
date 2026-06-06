@@ -53,6 +53,14 @@
     }
   },
 
+  "timeline_colors": {
+    "_comment": "타임라인/분기별 슬라이드(slide29/31/33) 색상. 4개 컬럼 순서.",
+    "dark_cols":   ["3C41E6", "2D30B8", "1E2490", "1419AB"],
+    "light_cols":  ["E8ECFC", "D4DCFB", "C0CCFA", "AABBF9"],
+    "risk_color":  { "낮음": "52C41A", "중간": "F5A623", "높음": "FF4B4B" },
+    "risk_default": "888888"
+  },
+
   "spacing": {
     "line_spacing_150": 150000,
     "_line_spacing_comment": "줄간격 150% (spcPct)",

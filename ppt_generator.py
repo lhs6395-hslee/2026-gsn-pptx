@@ -41,25 +41,6 @@ PLAN_CONTENT_SCHEMA: dict[str, dict] = {
     "comparison":{"required": ["section_title"], "recommended": ["before","after"]},
 }
 
-# 슬라이드별 사이드바 shape ID 매핑
-_SIDEBAR_LABEL_ID: dict[str, str] = {
-    "slide13.xml": "14",  "slide15.xml": "14",
-    "slide29.xml": "18",
-    "slide30.xml": "17",  "slide31.xml": "17",
-    "slide33.xml": "25",
-    "slide35.xml": "22",  "slide36.xml": "17",
-    "slide38.xml": "22",  "slide39.xml": "22",
-    "slide21.xml": "16",  "slide22.xml": "14",
-}
-_SIDEBAR_DESC_ID: dict[str, str] = {
-    "slide13.xml": "17",  "slide15.xml": "17",
-    "slide29.xml": "19",
-    "slide30.xml": "18",  "slide31.xml": "18",
-    "slide33.xml": "26",
-    "slide36.xml": "18",
-    "slide38.xml": "12",  "slide39.xml": "12",
-    "slide21.xml": "14",  "slide22.xml": "16",
-}
 
 # ── 레이아웃 레지스트리 ────────────────────────────────────────
 # CLAUDE.md 카탈로그 기반: 역할별 최적 슬라이드 + 편집기 함수명
@@ -2806,27 +2787,29 @@ def _resolve_overlaps(root, changed_sid: str, gap: int = 50_000) -> None:
                     b.update(b_new)
 
 
-_CHAPTER_TITLE_MAP = {
-    '1': 'ML 기술 기반',
-    '2': 'ML 파이프라인 & 방법론',
-    '3': '엔터프라이즈 도입',
-    '4': 'GS Neotek ML 서비스',
-}
+_CHAPTER_MAP_CACHE: dict | None = None
+
+
+def _load_chapter_map() -> dict:
+    global _CHAPTER_MAP_CACHE
+    if _CHAPTER_MAP_CACHE is not None:
+        return _CHAPTER_MAP_CACHE
+    p = Path(__file__).parent / "harness" / "chapter_map.json"
+    if p.exists():
+        _CHAPTER_MAP_CACHE = json.loads(p.read_text()).get("chapters", {})
+    else:
+        _CHAPTER_MAP_CACHE = {}
+    return _CHAPTER_MAP_CACHE
 
 
 def _infer_chapter_title(slide_plan: dict) -> str:
-    """
-    section_title의 앞자리 번호(1.x→1, 2.x→2...)로 목차 챕터 대제목을 추론.
-    추론 불가 시 plan.title 반환.
-    챕터 맵은 plan.json의 toc slide items에서 자동 구성이 이상적이나,
-    현재는 _CHAPTER_TITLE_MAP 상수 사용.
-    """
+    """section_title의 앞자리 번호로 목차 챕터 대제목을 추론. 추론 불가 시 plan.title 반환."""
     content = slide_plan.get("content", {})
     sec_title = content.get("section_title", "")
     if sec_title:
         parts = sec_title.split(".")
         if parts and parts[0].strip().isdigit():
-            ch = _CHAPTER_TITLE_MAP.get(parts[0].strip())
+            ch = _load_chapter_map().get(parts[0].strip())
             if ch:
                 return ch
     return slide_plan.get("title", "")
@@ -2902,8 +2885,8 @@ def _apply_common_zones(root, slide_plan: dict, template_file: str) -> None:
 
     # Zone 2: 사이드바 — 존 맵(body_title/body_desc) 우선, 없으면 레거시 dict
     z = _zone(template_file)
-    label_id = z.get("body_title") or _SIDEBAR_LABEL_ID.get(template_file)
-    desc_id  = z.get("body_desc")  or _SIDEBAR_DESC_ID.get(template_file)
+    label_id = z.get("body_title")
+    desc_id  = z.get("body_desc")
     if label_id:
         label_text = sec_title or chapter_title
         # body_title은 Pretendard SemiBold 강제 (템플릿마다 typeface 상태가 달라도 통일)
@@ -2957,8 +2940,8 @@ def _edit_slide29(xml_path: Path, slide_plan: dict) -> None:
             ET.SubElement(r_new, f"{{{ns_a}}}t").text = text
             p.insert(idx, r_new); break
 
-    # 연도 레이블 설정 (2026→2025→2024→2023 순)
-    label_ids = ["16","17","22","23"]
+    # 연도 레이블 설정 — zone_map에서 읽어 하드코딩 제거
+    label_ids = _zone("slide29.xml").get("body", {}).get("period_labels", ["16","17","22","23"])
     for i, period in enumerate(periods[:4]):
         if isinstance(period, dict) and i < len(label_ids):
             _set(label_ids[i], period.get("label",""))
@@ -2967,8 +2950,9 @@ def _edit_slide29(xml_path: Path, slide_plan: dict) -> None:
     # slide29는 대각선 계단식 구조 (2026 최상단, 2023 최하단)
     # 각 연도 콘텐츠는 해당 연도 바 아래 빈 영역에 삽입
     # 근사 위치: 각 열의 x 오프셋과 연도별 y 오프셋 계산
-    DARK_COLS  = ["3C41E6","2D30B8","1E2490","1419AB"]
-    RISK_COLOR = {"낮음":"52C41A","중간":"F5A623","높음":"FF4B4B"}
+    _tc = _load_common_formatting().get("timeline_colors", {})
+    DARK_COLS  = _tc.get("dark_cols",  ["3C41E6","2D30B8","1E2490","1419AB"])
+    RISK_COLOR = _tc.get("risk_color", {"낮음":"52C41A","중간":"F5A623","높음":"FF4B4B"})
     # 대각선 구조 열 위치 (2026=좌, 2023=우)
     # 각 연도 바의 너비 ≈ 슬라이드폭 / 4 × (4-i)
     SLIDE_W   = 12_192_000
@@ -3069,9 +3053,10 @@ def _insert_rich_quarter_content(
     import copy as _copy, math as _math
     ns_p, ns_a = _NS_P, _NS_A
 
-    RISK_COLOR = {"낮음":"52C41A","중간":"F5A623","높음":"FF4B4B"}
-    DARK_COLS  = ["3C41E6","2D30B8","1E2490","1419AB"]
-    LIGHT_COLS = ["E8ECFC","D4DCFB","C0CCFA","AABBF9"]
+    _tc = _load_common_formatting().get("timeline_colors", {})
+    DARK_COLS  = _tc.get("dark_cols",  ["3C41E6","2D30B8","1E2490","1419AB"])
+    LIGHT_COLS = _tc.get("light_cols", ["E8ECFC","D4DCFB","C0CCFA","AABBF9"])
+    RISK_COLOR = _tc.get("risk_color", {"낮음":"52C41A","중간":"F5A623","높음":"FF4B4B"})
 
     LINE_H     = 190_500
     LOGO_Y     = 6_200_000
@@ -3897,70 +3882,23 @@ def _edit_slide17(xml_path: Path, slide_plan: dict) -> None:
 
 
 def _edit_slide25(xml_path: Path, slide_plan: dict) -> None:
-    """slide25 (이미지+우측3열): Zone1+2 공통 + 이미지슬롯 + 좌측overview + 우측3항목."""
+    """slide25 (이미지+우측3열): descriptions[0] → overview, descriptions[1:] → item_descs로 분리 후 zonemap 위임."""
     content = slide_plan.get("content", {})
-    body    = content.get("body", {})
-    items   = _coerce_list(content.get("items") or content.get("item_titles") or
-              (body.get("items") if isinstance(body, dict) else None) or [])
-    descs   = _coerce_list(content.get("descriptions") or content.get("bullets") or
-              (body.get("descriptions") if isinstance(body, dict) else None) or [])
-    img_descs = _coerce_list(content.get("image_descriptions") or
-                (body.get("image_descriptions") if isinstance(body, dict) else None) or [])
-    try:
-        tree = ET.parse(xml_path); root = tree.getroot()
-    except ET.ParseError: return
-    _apply_common_zones(root, slide_plan, "slide25.xml")
-    import copy as _copy; ns_p, ns_a = _NS_P, _NS_A
-    title_ids = ["66","71","74"]; img_id = "35"
-    overview_id = "29"; sub_desc_ids = ["65","70","73"]
-    for i, sid in enumerate(title_ids):
-        _slide_set_helper(root, ns_p, ns_a, sid,
-                          _truncate_to_lines(items[i] if i < len(items) else "", 2_500_000, 14, 2))
-    _slide_set_helper(root, ns_p, ns_a, overview_id,
-                      _truncate_to_lines(descs[0] if descs else "", 7_000_000, 12, 3))
-    for i, sid in enumerate(sub_desc_ids):
-        _slide_set_helper(root, ns_p, ns_a, sid,
-                          _truncate_to_lines(descs[i+1] if i+1 < len(descs) else "", 2_500_000, 12, 3))
-    img_txt = img_descs[0] if img_descs else ""
-    if img_txt:
-        _img_fmt25 = _load_common_formatting().get("image_slot_format", "[이미지: {description}]")
-        _set_image_slot_text(root, img_id, _truncate_to_lines(_img_fmt25.format(description=img_txt), 2_800_000, 11, 4))
-    else:
-        _slide_set_helper(root, ns_p, ns_a, img_id, "")
-    _clear_residual_placeholders(root); _write_xml(root, xml_path)
+    descs = _coerce_list(content.get("descriptions") or content.get("bullets") or [])
+    if descs:
+        content = {**content, "overview": descs[0], "descriptions": descs[1:]}
+        slide_plan = {**slide_plan, "content": content}
+    _edit_zonemap_slide(xml_path, slide_plan)
 
 
 def _edit_slide26(xml_path: Path, slide_plan: dict) -> None:
-    """slide26 (이미지+3항목): Zone1+2 공통 + 이미지슬롯 + overview + 3항목 제목/설명."""
+    """slide26 (이미지+3항목): descriptions[0] → main_desc, descriptions[1:] → item_descs로 분리 후 zonemap 위임."""
     content = slide_plan.get("content", {})
-    body    = content.get("body", {})
-    items   = _coerce_list(content.get("items") or content.get("item_titles") or
-              (body.get("items") if isinstance(body, dict) else None) or [])
-    descs   = _coerce_list(content.get("descriptions") or content.get("bullets") or
-              (body.get("descriptions") if isinstance(body, dict) else None) or [])
-    img_descs = _coerce_list(content.get("image_descriptions") or
-                (body.get("image_descriptions") if isinstance(body, dict) else None) or [])
-    try:
-        tree = ET.parse(xml_path); root = tree.getroot()
-    except ET.ParseError: return
-    _apply_common_zones(root, slide_plan, "slide26.xml")
-    import copy as _copy; ns_p, ns_a = _NS_P, _NS_A
-    title_ids = ["28","33","36"]; main_desc_id = "12"; sub_desc_ids = ["27","32","35"]; img_id = "24"
-    for i, sid in enumerate(title_ids):
-        _slide_set_helper(root, ns_p, ns_a, sid,
-                          _truncate_to_lines(items[i] if i < len(items) else "", 2_500_000, 14, 2))
-    _slide_set_helper(root, ns_p, ns_a, main_desc_id,
-                      _truncate_to_lines(descs[0] if descs else "", 7_000_000, 12, 3))
-    for i, sid in enumerate(sub_desc_ids):
-        _slide_set_helper(root, ns_p, ns_a, sid,
-                          _truncate_to_lines(descs[i+1] if i+1 < len(descs) else "", 2_500_000, 12, 3))
-    img_txt = img_descs[0] if img_descs else ""
-    if img_txt:
-        _img_fmt26 = _load_common_formatting().get("image_slot_format", "[이미지: {description}]")
-        _set_image_slot_text(root, img_id, _truncate_to_lines(_img_fmt26.format(description=img_txt), 2_800_000, 11, 4))
-    else:
-        _slide_set_helper(root, ns_p, ns_a, img_id, "")
-    _clear_residual_placeholders(root); _write_xml(root, xml_path)
+    descs = _coerce_list(content.get("descriptions") or content.get("bullets") or [])
+    if descs:
+        content = {**content, "main_desc": descs[0], "descriptions": descs[1:]}
+        slide_plan = {**slide_plan, "content": content}
+    _edit_zonemap_slide(xml_path, slide_plan)
 
 
 def _edit_slide34(xml_path: Path, slide_plan: dict) -> None:
@@ -4060,6 +3998,8 @@ _ZONE_FILL_RULES: dict[str, dict] = {
     "explains":      {"keys": ["explains", "descriptions"], "cx": 2_500_000, "pt": 11, "lines": 3},
     "banner":        {"keys": ["banner", "insight", "body"], "cx": 9_500_000, "pt": 14, "lines": 2},
     "sub_heading":   {"keys": ["sub_heading", "subtitle"], "cx": 9_000_000, "pt": 16, "lines": 2},
+    "overview":      {"keys": ["overview"], "cx": 7_000_000, "pt": 12, "lines": 3},
+    "main_desc":     {"keys": ["main_desc", "overview"], "cx": 7_000_000, "pt": 12, "lines": 3},
 }
 
 
