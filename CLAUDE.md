@@ -37,6 +37,29 @@
 - 재생성 전 수동 커스터마이징 목록을 파악하고 재적용 계획 수립
 - 수동 커스터마이징이 포함된 슬라이드를 재생성할 때는 "이 슬라이드에 수동 적용된 요소가 있음"을 명시적으로 확인
 
+### Python 수정 전 하네스 우선 원칙 (OVERRIDE)
+- 어떤 변경이든 Python 코드를 수정하기 **전에** 반드시 자문한다: **"이 변경을 harness JSON으로 표현할 수 있는가?"**
+- 가능하면 harness 먼저 수정한다. Python은 harness로 불가능한 경우에만 최후 수단으로 사용
+- 판단 기준:
+  - shape ID·역할·파라미터 변경 → `slide_shape_ids.json` 수정
+  - 슬라이드 레이아웃 규칙 변경 → `layout_zone_map.json` 수정
+  - 서식·색상·포맷 변경 → `common_formatting.json` 수정
+  - placeholder 탐지 패턴 변경 → `placeholder_patterns.json` 수정
+  - 새 슬라이드 동작 규칙 → `long_term_memory.json` 수정
+- Python 수정이 불가피한 경우에도 수정 범위를 최소화하고, 파라미터는 하네스에서 읽도록 설계
+
+### 슬라이드 편집 전 템플릿·하네스 확인 의무 (OVERRIDE)
+- 슬라이드를 생성하거나 수정하기 전 **반드시** 아래를 확인한다
+  1. `harness/long_term_memory.json` → `slide_layout_hints` + 해당 슬라이드의 `known_failure_fixes_*` 항목
+  2. `harness/layout_zone_map.json` → 해당 template_file의 zone 구조 (어떤 shape에 무엇이 들어가는지)
+  3. `harness/slide_shape_ids.json` → 해당 슬라이드의 shape ID · 역할 · truncate 파라미터
+- **템플릿을 보지 않고 추측으로 zone 역할 판단 금지**
+  - "이 shape이 이미지 슬롯인지 설명 슬롯인지"는 반드시 zone_map과 long_term_memory 근거로 판단
+  - XML의 noFill·텍스트 여부만으로 역할 추론 금지
+- 타임라인/흐름 레이아웃(slide30 등) 편집 시 `known_failure_fixes_v6.flow_card_right_cutoff_slide5` 제약 적용 필수
+  - 카드 우측 경계: card.left + card.width ≤ slide_width - 200000
+  - 카드 하단 경계: card.top + card.height ≤ slide_height - 200000
+
 ### 답변 신뢰도 태그 의무화
 모든 실질적 정보 제공 시 아래 태그를 붙인다. 순수 절차 설명·실행 결과 직접 인용은 생략 가능.
 

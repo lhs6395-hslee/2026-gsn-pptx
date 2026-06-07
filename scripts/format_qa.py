@@ -82,6 +82,24 @@ def para_fmt(para: etree._Element) -> dict:
     return {"algn": pPr.get("algn")}
 
 
+def get_geometry(sp: etree._Element) -> dict:
+    """shape의 xfrm(off x/y, ext cx/cy) 추출"""
+    NS_A_STR = f"{{{NS_A}}}"
+    xfrm = sp.find(f".//{NS_A_STR}xfrm")
+    if xfrm is None:
+        return {}
+    off = xfrm.find(f"{NS_A_STR}off")
+    ext = xfrm.find(f"{NS_A_STR}ext")
+    result = {}
+    if off is not None:
+        result["x"] = int(off.get("x", 0))
+        result["y"] = int(off.get("y", 0))
+    if ext is not None:
+        result["cx"] = int(ext.get("cx", 0))
+        result["cy"] = int(ext.get("cy", 0))
+    return result
+
+
 def extract_shapes(pptx_path: Path, slide_name: str) -> dict[str, dict]:
     """shape_id → {text, runs:[{text, fmt}], para_fmts:[{algn}]} 매핑"""
     with zipfile.ZipFile(pptx_path) as z:
@@ -123,6 +141,7 @@ def extract_shapes(pptx_path: Path, slide_name: str) -> dict[str, dict]:
             "text":       all_text,
             "runs":       runs,
             "para_fmts":  pfmts,
+            "geom":       get_geometry(sp),
         }
     return shapes
 
@@ -138,6 +157,8 @@ def compare_fmt(a: dict, b: dict) -> list[str]:
     return diffs
 
 
+GEOM_TOLERANCE = 5_000  # EMU ≈ 0.05mm (float 반올림 허용)
+
 def compare_shape(orig: dict, regen: dict) -> list[str]:
     issues = []
 
@@ -145,12 +166,10 @@ def compare_shape(orig: dict, regen: dict) -> list[str]:
     if orig["text"] != regen["text"]:
         issues.append(f"텍스트: {orig['text'][:60]!r} ≠ {regen['text'][:60]!r}")
 
-    # run 서식 비교 (run 개수가 다를 수 있으므로 합쳐서 대표 서식끼리 비교)
-    # 같은 위치 run끼리 비교
+    # run 서식 비교 (같은 위치 run끼리)
     for i, (ro, rr) in enumerate(zip(orig["runs"], regen["runs"])):
         fdiffs = compare_fmt(ro["fmt"], rr["fmt"])
         for d in fdiffs:
-            # 텍스트가 비어있는 run의 서식 차이는 무시
             if ro["text"].strip() or rr["text"].strip():
                 issues.append(f"  run[{i}] '{ro['text'][:30]}': {d}")
 
@@ -158,6 +177,18 @@ def compare_shape(orig: dict, regen: dict) -> list[str]:
     for i, (po, pr) in enumerate(zip(orig["para_fmts"], regen["para_fmts"])):
         if po.get("algn") != pr.get("algn"):
             issues.append(f"  para[{i}] 정렬: {po.get('algn')!r} → {pr.get('algn')!r}")
+
+    # 위치/크기 (x, y, cx, cy) — cy는 autofit으로 달라질 수 있으므로 별도 표기
+    og, rg = orig.get("geom", {}), regen.get("geom", {})
+    for key in ("x", "y", "cx"):
+        vo, vr = og.get(key), rg.get(key)
+        if vo is not None and vr is not None and abs(vo - vr) > GEOM_TOLERANCE:
+            issues.append(f"  geom.{key}: {vo} → {vr} (Δ{vr-vo:+,})")
+    # cy는 autofit 가능성 있어서 더 큰 허용 오차 적용 (±50,000 EMU ≈ 0.5mm)
+    for key in ("cy",):
+        vo, vr = og.get(key), rg.get(key)
+        if vo is not None and vr is not None and abs(vo - vr) > 50_000:
+            issues.append(f"  geom.cy [autofit?]: {vo} → {vr} (Δ{vr-vo:+,})")
 
     return issues
 

@@ -1,6 +1,10 @@
 {
   "_comment": "목차(TOC) 레이아웃 설정 — edit_toc_slide 함수에서 사용",
   "font_pt": 30,
+  "max_item_chars": 22,
+  "_max_item_chars_comment": "TOC 항목 최대 글자수. 초과 시 Python이 자름. 22자 기준 30pt 폰트로 한 줄 안전. cxnSp 위치는 line_x_max_emu로 별도 제한",
+  "line_x_max_emu": 11081475,
+  "_line_x_max_comment": "cxnSp(밑줄) 시작 x 최대값(EMU). page_number.x_emu(11431475) - line_gap_emu(350000) = 11081475. 이 값으로 캡을 걸면 밑줄이 항상 페이지번호 앞에서 시작되며 텍스트와 겹치지 않는다.",
   "text_width_factors": {
     "_comment": "텍스트 렌더링 폭 계산 계수 (font_pt 기준 배율)",
     "korean": 1.1,

@@ -184,6 +184,18 @@
       "severity": "MEDIUM",
       "action": "WARN",
       "source": "ppt_generator._resolve_overlaps"
+    },
+    "shape_coverage": {
+      "description": "템플릿 원본 shape에 있던 텍스트가 생성 후 비어있는지 자동 검사. 편집기가 필수 shape을 비워두거나 placeholder_patterns가 구조 레이블을 잘못 지운 경우 탐지.",
+      "severity": "MEDIUM",
+      "action": "WARN"
+    },
+    "zone1_subtitle_empty": {
+      "description": "본문 슬라이드(cover/toc/closing 제외)의 Zone1 중제목(ID=9)이 비어있는지 확인. plan의 slide.subtitle 필드 누락 시 ID=9가 빈 채로 생성됨. validate_plan 경고와 연동.",
+      "severity": "HIGH",
+      "action": "FAIL",
+      "check": "slide.subtitle 필드 존재 및 비어있지 않음",
+      "note": "중제목은 콘텐츠에 맞게 plan 생성 시 LLM이 직접 작성해야 함. 자동 생성 금지."
     }
   },
   "pass_threshold": "ALL_CRITICAL_PASS",
