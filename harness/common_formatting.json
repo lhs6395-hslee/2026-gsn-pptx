@@ -2,6 +2,12 @@
   "_comment": "범용 포맷 설정 — 모든 슬라이드에서 공통 사용",
   "description": "폰트, 색상, 정렬, 여백 등 공통 디자인 요소",
 
+  "locale": {
+    "lang": "ko-KR",
+    "altLang": "en-US",
+    "_comment": "텍스트 run rPr 언어 설정. 영문 PPT 요청 시 lang을 en-US로 변경."
+  },
+
   "image_slot_format": "[이미지: {description}]",
   "_image_slot_format_comment": "이미지 슬롯 텍스트 포맷. {description}은 plan.json의 image_desc로 채워짐",
 
@@ -59,6 +65,14 @@
     "light_cols":  ["E8ECFC", "D4DCFB", "C0CCFA", "AABBF9"],
     "risk_color":  { "낮음": "52C41A", "중간": "F5A623", "높음": "FF4B4B" },
     "risk_default": "888888"
+  },
+
+  "rich_quarter_box_settings": {
+    "_comment": "slide31/33 타임라인/흐름 레이아웃 행동 규칙 기본값. 치수는 slide_shape_ids.json 각 슬라이드에 저장.",
+    "normAutofit": true,
+    "_normAutofit_comment": "true = 텍스트 오버플로 시 자동 축소(normAutofit). false = 줄바꿈.",
+    "risk_width_ratio": 0.65,
+    "_risk_width_ratio_comment": "리스크 박스 너비 비율 (컬럼 bw 대비). 나머지는 규모 박스."
   },
 
   "spacing": {
