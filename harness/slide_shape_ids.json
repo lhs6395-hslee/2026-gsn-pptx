@@ -207,9 +207,11 @@
     "keyword_ids":  ["13", "14", "15"],
     "solution_ids": ["7",  "10", "11"],
     "detail_ids":   ["16", "17", "18"],
+    "service_ids":  ["19", "24", "25"],
     "keyword":  {"width_emu": 1500000, "font_pt": 12, "max_lines": 2},
     "solution": {"width_emu": 2000000, "font_pt": 12, "max_lines": 3},
-    "detail":   {"width_emu": 2000000, "font_pt": 12, "max_lines": 3}
+    "detail":   {"width_emu": 2000000, "font_pt": 12, "max_lines": 3},
+    "service":  {"width_emu": 2000000, "font_pt": 12, "max_lines": 3}
   },
   "slide42": {
     "main_desc_id": "28",

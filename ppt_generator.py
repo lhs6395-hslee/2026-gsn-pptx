@@ -2173,8 +2173,6 @@ _BANNED_SLIDES: set[str] = {
     # 이미지가 화면 대부분을 차지해 텍스트 설명으로 대체가 어려운 레이아웃
     "slide18.xml", "slide19.xml", "slide20.xml", "slide23.xml",
     "slide21.xml", "slide22.xml",
-    # 3행 상세 흐름도 — service(4번째) 컬럼 미충전 이슈 → flow는 slide38로 통일
-    "slide39.xml",
     # 영상(media) placeholder 미처리 슬라이드 (▶ 아이콘 노출 위험)
     "slide27.xml", "slide28.xml",
     # 차트 고정 (Excel 데이터 임베딩 미완성 — 추후 과제)
@@ -2212,8 +2210,9 @@ _ALLOWED_CONTENT_SLIDES: list[str] = [
     "slide35.xml",  # ✅ Before→After 비교
     "slide34.xml",  # ✅ 2이미지+키워드×4 버블 개념도
     "slide37.xml",  # ✅ 3구역 텍스트 비교
+    "slide39.xml",  # ✅ 4열 흐름도 (keyword/solution/detail/service)
     "slide42.xml",  # ✅ 대형 본문 텍스트 박스
-    # slide27~28(영상 placeholder), slide39(4컬럼), slide40~41/43(차트)
+    # slide27~28(영상 placeholder), slide40~41/43(차트)
     # 는 _BANNED — 추후 전용 처리 후 활성화
 ]
 
@@ -3847,12 +3846,14 @@ def _edit_slide36(xml_path: Path, slide_plan: dict) -> None:
 
 
 def _edit_slide39(xml_path: Path, slide_plan: dict) -> None:
-    """slide39 (3행 상세 흐름도): Zone1+2 공통 + Zone3 keyword/solution/detail."""
+    """slide39 (4열 상세 흐름도): Zone1+2 공통 + Zone3 keyword/solution/detail/service 4컬럼."""
     content   = slide_plan.get("content", {})
     body      = content.get("body", {})
     keywords  = (content.get("keywords")  or (body.get("keywords")  if isinstance(body,dict) else None) or [])[:3]
     solutions = (content.get("solutions") or (body.get("solutions") if isinstance(body,dict) else None) or [])[:3]
     details   = (content.get("details")   or (body.get("details")   if isinstance(body,dict) else None) or [])[:3]
+    services  = (content.get("services")  or content.get("details2")
+                 or (body.get("services") if isinstance(body,dict) else None) or [])[:3]
     try:
         tree = ET.parse(xml_path); root = tree.getroot()
     except ET.ParseError: return
@@ -3862,15 +3863,19 @@ def _edit_slide39(xml_path: Path, slide_plan: dict) -> None:
     _kw39  = _s39.get("keyword",  {"width_emu":1500000,"font_pt":12,"max_lines":2})
     _sol39 = _s39.get("solution", {"width_emu":2000000,"font_pt":12,"max_lines":3})
     _det39 = _s39.get("detail",   {"width_emu":2000000,"font_pt":12,"max_lines":3})
+    _svc39 = _s39.get("service",  {"width_emu":2000000,"font_pt":12,"max_lines":3})
     _kw_ids39  = _s39.get("keyword_ids",  ["13","14","15"])
     _sol_ids39 = _s39.get("solution_ids", ["7","10","11"])
     _det_ids39 = _s39.get("detail_ids",   ["16","17","18"])
+    _svc_ids39 = _s39.get("service_ids",  ["19","24","25"])
     for i, sid in enumerate(_kw_ids39):
         _slide_set_helper(root, ns_p, ns_a, sid, _truncate_to_lines(keywords[i] if i<len(keywords) else "",_kw39["width_emu"],_kw39["font_pt"],_kw39["max_lines"]))
     for i, sid in enumerate(_sol_ids39):
         _slide_set_helper(root, ns_p, ns_a, sid, _truncate_to_lines(solutions[i] if i<len(solutions) else "",_sol39["width_emu"],_sol39["font_pt"],_sol39["max_lines"]))
     for i, sid in enumerate(_det_ids39):
         _slide_set_helper(root, ns_p, ns_a, sid, _truncate_to_lines(details[i] if i<len(details) else "",_det39["width_emu"],_det39["font_pt"],_det39["max_lines"]))
+    for i, sid in enumerate(_svc_ids39):
+        _slide_set_helper(root, ns_p, ns_a, sid, _truncate_to_lines(services[i] if i<len(services) else "",_svc39["width_emu"],_svc39["font_pt"],_svc39["max_lines"]))
     _clear_residual_placeholders(root); _write_xml(root, xml_path)
 
 
@@ -5374,6 +5379,7 @@ def run_ppt_generation(
     audience: str = "전문가",
     n_slides: int = 10,
     plan_override: dict | None = None,
+    cleanup_work_dir: bool = True,
 ) -> Path:
     """
     analyze_template → generate_plan → edit_slide 루프 → pack → verify
@@ -5709,5 +5715,15 @@ def run_ppt_generation(
     # ── Excel 차트 데이터 파일 생성 ─────────────────
     dest_dir_for_excel = work_dir.parent  # runs 상위 디렉토리가 아닌 work_dir 사용
     generate_excel_for_charts(work_dir, plan, work_dir)
+
+    # ── tmp work_dir 정리 ────────────────────────────
+    if cleanup_work_dir:
+        import shutil as _shutil3
+        safe_name = topic.replace(" ", "_").replace("/", "_")[:60]
+        final_output = work_dir.parent.parent / f"{safe_name}.pptx"
+        _shutil3.move(str(output), str(final_output))
+        _shutil3.rmtree(work_dir, ignore_errors=True)
+        print(f"  ✓ 작업 디렉토리 정리 완료 → {final_output}")
+        return final_output, _vision_critical_total
 
     return output, _vision_critical_total
