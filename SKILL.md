@@ -55,7 +55,7 @@ Claude 자신이 오케스트레이터로서 각 단계를 직접 수행한다.
 **중요**: 프로젝트 디렉토리에서 실행해야 한다.
 
 ```bash
-cd /Users/toule/Documents/gsneotek/kiro/2026-gsn-pptx  # 프로젝트 디렉토리로 이동
+cd /Users/toule/Documents/claude/ppt-skill  # 프로젝트 디렉토리로 이동
 
 python3 - <<'PY'
 import sys, pathlib
@@ -96,7 +96,7 @@ PY
 
 ```bash
 # 프로젝트 디렉토리 확인
-cd /Users/toule/Documents/gsneotek/kiro/2026-gsn-pptx
+cd /Users/toule/Documents/claude/ppt-skill
 ls harness/CLAUDE.md 2>/dev/null || {
   echo "스킬 미설치. setup.sh를 먼저 실행하세요."
   exit 1
@@ -256,6 +256,17 @@ extract-text output.pptx | grep -iE "lorem|작성해주세요|TODO|\[insert" && 
   echo "PLACEHOLDER FOUND" || echo "CONTENT CLEAN"
 ```
 
+### 9.5. 서식 QA (format_qa.py)
+
+텍스트·폰트 서식을 원본 템플릿과 비교 검증한다. 생성 완료 후 선택적으로 실행.
+
+```bash
+python3 scripts/format_qa.py output.pptx template/2026_PPT\ Template.pptx
+```
+
+- 출력: 슬라이드별 서식 차이 리포트 (폰트명·크기·색상 불일치)
+- 지오메트리 비교: shape 위치·크기 허용 오차(±5%) 초과 시 경고
+
 ### 10. 결과 전달
 
 ```bash
@@ -311,6 +322,7 @@ digest를 읽고 `harness/` 파일들을 개선한다:
 | 시각 오버플로우 | 폰트 크기 축소 또는 내용 단축 |
 | 패킹 실패 | clean.py 재실행 후 재시도 |
 | 최대 2회 수정 후도 FAIL | best-effort 출력 + 사용자 알림 |
+| 특정 슬라이드만 재빌드 필요 | `python3 scripts/rebuild_slides.py <작업디렉토리> --slides <번호목록>` |
 
 ---
 

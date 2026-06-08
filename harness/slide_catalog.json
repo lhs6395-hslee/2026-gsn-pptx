@@ -7,20 +7,19 @@
     "slide23.xml": "이미지 전용 레이아웃",
     "slide21.xml": "이미지 전용 레이아웃",
     "slide22.xml": "이미지 전용 레이아웃",
-    "slide34.xml": "버블 개념도 — 전용 처리 필요",
     "slide39.xml": "3행 흐름도 4번째 컬럼 미충전",
     "slide27.xml": "영상(media) placeholder",
     "slide28.xml": "영상(media) placeholder",
     "slide40.xml": "차트 — Excel 임베딩 미완성",
     "slide41.xml": "차트 — Excel 임베딩 미완성",
-    "slide42.xml": "차트 — Excel 임베딩 미완성",
     "slide43.xml": "차트 — Excel 임베딩 미완성"
   },
   "allowed_content_slides": [
     "slide32.xml", "slide38.xml", "slide30.xml", "slide29.xml", "slide31.xml",
     "slide33.xml", "slide36.xml", "slide13.xml", "slide15.xml", "slide14.xml",
     "slide16.xml", "slide9.xml",  "slide10.xml", "slide11.xml", "slide12.xml",
-    "slide17.xml", "slide24.xml", "slide25.xml", "slide26.xml", "slide35.xml"
+    "slide17.xml", "slide24.xml", "slide25.xml", "slide26.xml", "slide35.xml",
+    "slide34.xml", "slide37.xml", "slide42.xml"
   ],
   "layout_content_req": {
     "slide29.xml": ["periods"],

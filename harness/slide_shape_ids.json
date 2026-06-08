@@ -176,6 +176,8 @@
     "img_slot":  {"width_emu": 2800000, "font_pt": 11, "max_lines": 4}
   },
   "slide35": {
+    "before_label_id": "39",
+    "after_label_id": "38",
     "before_ids": ["17", "16", "35"],
     "after_ids":  ["18", "21", "13", "19"],
     "bubble": {"width_emu": 1500000, "font_pt": 16, "max_lines": 2}

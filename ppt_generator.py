@@ -1660,7 +1660,7 @@ def generate_excel_for_charts(work_dir: Path, plan: dict, output_dir: Path) -> P
     """
     chart_slides = [s for s in plan.get("slides", [])
                     if s.get("template_file","") in
-                    {"slide40.xml","slide41.xml","slide42.xml","slide43.xml"}]
+                    {"slide40.xml","slide41.xml","slide43.xml"}]
     if not chart_slides:
         return None
     try:
@@ -2173,14 +2173,12 @@ _BANNED_SLIDES: set[str] = {
     # 이미지가 화면 대부분을 차지해 텍스트 설명으로 대체가 어려운 레이아웃
     "slide18.xml", "slide19.xml", "slide20.xml", "slide23.xml",
     "slide21.xml", "slide22.xml",
-    # 버블 개념도 (복잡 — 전용 편집기 필요)
-    "slide34.xml",
     # 3행 상세 흐름도 — service(4번째) 컬럼 미충전 이슈 → flow는 slide38로 통일
     "slide39.xml",
     # 영상(media) placeholder 미처리 슬라이드 (▶ 아이콘 노출 위험)
     "slide27.xml", "slide28.xml",
     # 차트 고정 (Excel 데이터 임베딩 미완성 — 추후 과제)
-    "slide40.xml", "slide41.xml", "slide42.xml", "slide43.xml",
+    "slide40.xml", "slide41.xml", "slide43.xml",
 }
 
 # ── 콘텐츠 유형별 슬라이드 카탈로그 ───────────────────────────────
@@ -2212,7 +2210,10 @@ _ALLOWED_CONTENT_SLIDES: list[str] = [
     "slide25.xml",  # ✅ 이미지+우측3열
     "slide26.xml",  # ✅ 이미지+3항목
     "slide35.xml",  # ✅ Before→After 비교
-    # slide27~28(영상 placeholder), slide34(버블), slide39(4컬럼), slide40~43(차트)
+    "slide34.xml",  # ✅ 2이미지+키워드×4 버블 개념도
+    "slide37.xml",  # ✅ 3구역 텍스트 비교
+    "slide42.xml",  # ✅ 대형 본문 텍스트 박스
+    # slide27~28(영상 placeholder), slide39(4컬럼), slide40~41/43(차트)
     # 는 _BANNED — 추후 전용 처리 후 활성화
 ]
 
@@ -3798,9 +3799,9 @@ def _edit_slide35(xml_path: Path, slide_plan: dict) -> None:
     except ET.ParseError: return
     _apply_common_zones(root, slide_plan, "slide35.xml")
     ns_p, ns_a = _NS_P, _NS_A
-    _slide_set_helper(root, ns_p, ns_a, "39", content.get("before_label","Before"))
-    _slide_set_helper(root, ns_p, ns_a, "38", content.get("after_label","After"))
     _s35 = _load_slide_shape_ids().get("slide35", {})
+    _slide_set_helper(root, ns_p, ns_a, _s35.get("before_label_id", "39"), content.get("before_label","Before"))
+    _slide_set_helper(root, ns_p, ns_a, _s35.get("after_label_id",  "38"), content.get("after_label","After"))
     _b35 = _s35.get("bubble", {"width_emu":1500000,"font_pt":16,"max_lines":2})
     _bef_ids35 = _s35.get("before_ids", ["17","16","35"])
     _aft_ids35 = _s35.get("after_ids",  ["18","21","13","19"])
