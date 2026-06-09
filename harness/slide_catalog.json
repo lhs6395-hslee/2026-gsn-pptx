@@ -1,25 +1,34 @@
 {
   "banned_slides": {
     "slide8.xml":  "section 구분 — 명시 요청 시에만",
-    "slide18.xml": "이미지 전용 레이아웃",
-    "slide19.xml": "이미지 전용 레이아웃",
-    "slide20.xml": "이미지 전용 레이아웃",
-    "slide23.xml": "이미지 전용 레이아웃",
-    "slide21.xml": "이미지 전용 레이아웃",
-    "slide22.xml": "이미지 전용 레이아웃",
-    "slide27.xml": "영상(media) placeholder",
-    "slide28.xml": "영상(media) placeholder",
+    "slide32.xml": "내부 콘텐츠 부족 — 실제 프레젠테이션 생성 시 사용 금지",
     "slide40.xml": "차트 — Excel 임베딩 미완성",
     "slide41.xml": "차트 — Excel 임베딩 미완성",
     "slide43.xml": "차트 — Excel 임베딩 미완성"
   },
   "allowed_content_slides": [
-    "slide32.xml", "slide38.xml", "slide30.xml", "slide29.xml", "slide31.xml",
+    "slide38.xml", "slide30.xml", "slide29.xml", "slide31.xml",
     "slide33.xml", "slide36.xml", "slide13.xml", "slide15.xml", "slide14.xml",
     "slide16.xml", "slide9.xml",  "slide10.xml", "slide11.xml", "slide12.xml",
     "slide17.xml", "slide24.xml", "slide25.xml", "slide26.xml", "slide35.xml",
-    "slide34.xml", "slide37.xml", "slide39.xml", "slide42.xml"
+    "slide34.xml", "slide37.xml", "slide39.xml", "slide42.xml", "slide27.xml",
+    "slide18.xml", "slide19.xml", "slide20.xml", "slide21.xml", "slide22.xml",
+    "slide23.xml", "slide28.xml"
   ],
+  "layout_variants": {
+    "slide27.xml": {
+      "description": "이미지(좌)+우측 3행 설명 패널 (body_title 줄 수로 slide27/28 자동 선택)",
+      "selection_field": "section_title",
+      "selection_method": "line_count",
+      "sidebar_width_emu": 2200000,
+      "font_pt": 20,
+      "chars_per_line": 15,
+      "thresholds": [
+        {"max_lines": 2, "use": "slide27.xml"},
+        {"min_lines": 3, "use": "slide28.xml"}
+      ]
+    }
+  },
   "layout_content_req": {
     "slide29.xml": ["periods"],
     "slide31.xml": ["quarters"],

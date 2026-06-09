@@ -40,13 +40,13 @@
     "lines": 2
   },
   "flow_keyword": {
-    "keys": ["keywords"],
+    "keys": ["keywords", "items"],
     "cx": 2400000,
     "pt": 12,
     "lines": 2
   },
   "flow_solution": {
-    "keys": ["solutions"],
+    "keys": ["solutions", "descriptions"],
     "cx": 2700000,
     "pt": 12,
     "lines": 3
@@ -58,7 +58,7 @@
     "lines": 2
   },
   "detail_items": {
-    "keys": ["details", "sub_items"],
+    "keys": ["details", "sub_items", "descriptions"],
     "cx": 1600000,
     "pt": 11,
     "lines": 5
@@ -92,5 +92,77 @@
     "cx": 9000000,
     "pt": 16,
     "lines": 2
+  },
+  "overview": {
+    "keys": ["overview"],
+    "cx": 7000000,
+    "pt": 12,
+    "lines": 3
+  },
+  "main_desc": {
+    "keys": ["main_desc", "overview", "bullets", "descriptions"],
+    "cx": 7000000,
+    "pt": 12,
+    "lines": 3
+  },
+  "bullets": {
+    "keys": ["bullets", "items"],
+    "cx": 7000000,
+    "pt": 12,
+    "lines": 5
+  },
+  "body": {
+    "keys": ["body", "main_desc", "overview"],
+    "cx": 7000000,
+    "pt": 12,
+    "lines": 5
+  },
+  "period_labels": {
+    "keys": ["period_labels"],
+    "cx": 2000000,
+    "pt": 14,
+    "lines": 1
+  },
+  "period_cards": {
+    "empty": true
+  },
+  "timeline_q": {
+    "empty": true
+  },
+  "compare_label": {
+    "keys": ["compare_labels", "labels"],
+    "cx": 4000000,
+    "pt": 14,
+    "lines": 1
+  },
+  "item_body": {
+    "keys": ["descriptions", "items"],
+    "cx": 2400000,
+    "pt": 12,
+    "lines": 6
+  },
+  "flow_solutions": {
+    "keys": ["solutions"],
+    "cx": 2700000,
+    "pt": 12,
+    "lines": 3
+  },
+  "flow_keywords": {
+    "keys": ["keywords"],
+    "cx": 2400000,
+    "pt": 12,
+    "lines": 2
+  },
+  "flow_services": {
+    "keys": ["services", "details"],
+    "cx": 3500000,
+    "pt": 12,
+    "lines": 2
+  },
+  "image_caption": {
+    "keys": ["image_caption", "section_title"],
+    "cx": 3803650,
+    "pt": 14,
+    "lines": 1
   }
 }

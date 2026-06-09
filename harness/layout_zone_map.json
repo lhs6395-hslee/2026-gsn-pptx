@@ -376,6 +376,9 @@
       ],
       "image_slots": [
         "35"
+      ],
+      "image_caption": [
+        "68"
       ]
     }
   },
@@ -399,6 +402,9 @@
       ],
       "image_slots": [
         "24"
+      ],
+      "image_caption": [
+        "30"
       ]
     }
   },
@@ -420,6 +426,9 @@
         "38",
         "43",
         "46"
+      ],
+      "image_caption": [
+        "40"
       ]
     }
   },
@@ -427,12 +436,12 @@
     "title": "8",
     "subtitle": "9",
     "body_title": "22",
+    "body_desc": "21",
     "body": {
       "image_slots": [
         "24"
       ],
       "item_descs": [
-        "21",
         "19",
         "28",
         "40"
@@ -441,6 +450,9 @@
         "23",
         "38",
         "41"
+      ],
+      "image_caption": [
+        "26"
       ]
     }
   },
@@ -475,7 +487,26 @@
         "29",
         "30",
         "31"
-      ]
+      ],
+      "_zone_note": "상단(zone_upper): ID=17 소제목 + upper_bullets(동적, 개조식 최소5개). 하단(zone_lower_grid): 4열×4행 grid 박스(동적, 흰색/회색 교대). step_descs → upper_bullets. step_meta(4개 dict, 각 4키) → grid",
+      "zone_upper": {
+        "role": "upper_bullets",
+        "shape_id": "17",
+        "dynamic_bullets_id_start": "500",
+        "min_items": 5,
+        "plan_key": "step_descs"
+      },
+      "zone_lower_grid": {
+        "role": "grid_4col_4row",
+        "dynamic_id_start": "600",
+        "cols": 4,
+        "rows": 4,
+        "plan_key": "step_meta",
+        "bg_alternating": [
+          "FFFFFF",
+          "F0F0F0"
+        ]
+      }
     }
   },
   "slide31.xml": {
@@ -499,6 +530,10 @@
     "body": {
       "item_descs": [
         "26"
+      ],
+      "item_titles": [
+        "19",
+        "20"
       ]
     }
   },
@@ -686,9 +721,12 @@
     "title": "8",
     "subtitle": "9",
     "body_title": "40",
+    "body_desc": "28",
     "body": {
-      "main_desc": [
-        "28"
+      "item_descs": [
+        "43",
+        "47",
+        "51"
       ]
     }
   },

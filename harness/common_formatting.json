@@ -71,7 +71,7 @@
     "_comment": "slide31/33 타임라인/흐름 레이아웃 행동 규칙 기본값. 치수는 slide_shape_ids.json 각 슬라이드에 저장.",
     "normAutofit": true,
     "_normAutofit_comment": "true = 텍스트 오버플로 시 자동 축소(normAutofit). false = 줄바꿈.",
-    "risk_width_ratio": 0.65,
+    "risk_width_ratio": 0.60,
     "_risk_width_ratio_comment": "리스크 박스 너비 비율 (컬럼 bw 대비). 나머지는 규모 박스."
   },
 

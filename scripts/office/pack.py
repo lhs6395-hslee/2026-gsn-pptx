@@ -123,7 +123,14 @@ def _condense_xml(xml_file: Path) -> None:
                 ) or child.nodeType == child.COMMENT_NODE:
                     element.removeChild(child)
 
-        xml_file.write_bytes(dom.toxml(encoding="UTF-8"))
+        # dom.toxml(encoding="UTF-8")은 standalone="yes"를 제거하므로
+        # 바이트 결과에서 XML 선언을 standalone 포함 버전으로 교체
+        raw = dom.toxml(encoding="UTF-8")
+        raw = raw.replace(
+            b'<?xml version="1.0" encoding="UTF-8"?>',
+            b'<?xml version="1.0" encoding="UTF-8" standalone="yes"?>'
+        )
+        xml_file.write_bytes(raw)
     except Exception as e:
         print(f"ERROR: Failed to parse {xml_file.name}: {e}", file=sys.stderr)
         raise

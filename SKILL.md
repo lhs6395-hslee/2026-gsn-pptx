@@ -77,6 +77,7 @@ out, vision_issues = run_ppt_generation(
     work_dir=work_dir,
     audience="<청중>",
     n_slides=<장수>,
+    # layout_from_pptx=PROJECT_DIR / "reference.pptx",  # 레이아웃 고정 시 지정
 )
 print("완료:", out, "| vision_issues:", vision_issues)
 PY
@@ -275,6 +276,124 @@ DEST="${OUTPUT_DIR:-$HOME/Desktop}/${TOPIC// /_}.pptx"
 cp output.pptx "$DEST"
 echo "완료: $DEST"
 ```
+
+### 11. 자동 QA (생성 완료 후 즉시 실행 — 사용자 요청 불필요)
+
+**생성이 완료되면 반드시 이 단계를 자동으로 실행한다. 사용자가 별도로 `/qa_review`를 호출하지 않아도 된다.**
+
+생성된 PPTX 경로(`DEST` 또는 `run_ppt_generation()` 반환값 `out`)를 확보한 후,
+**Agent tool을 사용해 독립 에이전트를 spawn**한다.
+생성 컨텍스트 없이 처음 보는 리뷰어 관점으로 QA를 수행하도록 아래 프롬프트를 전달한다.
+
+```
+당신은 PPT QA 리뷰어입니다. 생성 컨텍스트 없이 독립적으로 아래 PPTX를 검증하세요.
+
+PPTX 경로: <생성된 PPTX 절대 경로>
+하네스 경로: /Users/toule/Documents/claude/ppt-skill/harness/
+
+## 단계 1: 텍스트/XML 검증
+
+1. PPTX 언팩:
+   mkdir -p /tmp/qa_auto && unzip -o "<생성된 PPTX 절대 경로>" -d /tmp/qa_auto/
+
+2. placeholder_patterns.json 읽기:
+   /Users/toule/Documents/claude/ppt-skill/harness/placeholder_patterns.json
+
+3. 모든 슬라이드 XML에서 잔류 placeholder 탐지 (python3 인라인):
+   python3 -c "
+   import json, re, os, glob
+   from xml.etree import ElementTree as ET
+
+   with open('/Users/toule/Documents/claude/ppt-skill/harness/placeholder_patterns.json') as f:
+       patterns = json.load(f)['patterns']
+
+   ns = {'a': 'http://schemas.openxmlformats.org/drawingml/2006/main'}
+   issues = []
+
+   for xml_path in sorted(glob.glob('/tmp/qa_auto/ppt/slides/slide[0-9]*.xml')):
+       slide_name = os.path.basename(xml_path)
+       try:
+           tree = ET.parse(xml_path)
+           root = tree.getroot()
+           for sp in root.iter():
+               tag = sp.tag
+               if not tag.endswith('}sp'):
+                   continue
+               nvSpPr = sp.find('.//{http://schemas.openxmlformats.org/presentationml/2006/main}nvSpPr') or \
+                        sp.find('.//{http://schemas.openxmlformats.org/drawingml/2006/main}nvSpPr')
+               cNvPr = sp.find('.//{http://schemas.openxmlformats.org/drawingml/2006/main}cNvPr')
+               if cNvPr is None:
+                   for child in sp.iter():
+                       if child.tag.endswith('}cNvPr'):
+                           cNvPr = child
+                           break
+               shape_id = cNvPr.get('id') if cNvPr is not None else '?'
+               texts = [t.text or '' for t in sp.iter('{http://schemas.openxmlformats.org/drawingml/2006/main}t')]
+               full_text = ''.join(texts).strip()
+               if not full_text:
+                   continue
+               for pat in patterns:
+                   if re.search(pat, full_text, re.IGNORECASE | re.MULTILINE):
+                       issues.append({'slide': slide_name, 'shape_id': shape_id, 'pattern': pat, 'text': full_text[:80]})
+                       break
+       except Exception as e:
+           issues.append({'slide': slide_name, 'shape_id': 'parse_error', 'pattern': str(e), 'text': ''})
+
+   print(json.dumps(issues, ensure_ascii=False, indent=2))
+   "
+
+4. 결과를 정리하여 잔류 placeholder 목록 출력
+
+## 단계 2: 가시성 검증 (PowerPoint PDF export)
+
+1. PDF 저장 경로: `/Users/toule/Documents/claude/ppt-skill/result/tmp/qa_review.pdf` (항상 고정 경로 사용 — 프로젝트 폴더에 저장 금지)
+
+2. osascript로 PowerPoint PDF export:
+   osascript << 'APPLESCRIPT'
+   tell application "Microsoft PowerPoint"
+       activate
+       set pptFile to POSIX file "<생성된 PPTX 절대 경로>"
+       set pdfFile to POSIX file "/Users/toule/Documents/claude/ppt-skill/result/tmp/qa_review.pdf"
+       open pptFile
+       delay 3
+       set theDoc to active presentation
+       save theDoc in pdfFile as save as PDF
+       delay 2
+       close theDoc saving no
+   end tell
+   APPLESCRIPT
+
+3. PDF 생성 확인: ls -la /Users/toule/Documents/claude/ppt-skill/result/tmp/qa_review.pdf
+
+   **⚠️ QA 진행 중 PDF 삭제 금지**: QA 리포트를 출력하는 동안 PDF를 삭제하지 않는다. 사용자가 리포트와 함께 PDF를 직접 열어 확인할 수 있어야 한다. PDF 삭제는 Step 10(result 폴더 복사) 완료 후에만 허용한다.
+
+4. PDF 모든 페이지를 Read tool로 읽어 슬라이드별 가시성 확인:
+   - placeholder 텍스트 잔류 여부
+   - 텍스트가 슬라이드 밖으로 넘침 여부
+   - 비어있어야 할 영역에 텍스트가 있는지
+   - 내용이 있어야 할 영역이 비어있는지
+
+## 결과 리포트 형식
+
+아래 구조로 리포트를 반환하세요:
+
+### 텍스트/XML 검증 결과
+| 슬라이드 | Shape ID | 패턴 | 텍스트 |
+|---|---|---|---|
+| ... | ... | ... | ... |
+
+### 가시성 검증 결과
+| 페이지 | 레이아웃 | 상태 | 이슈 |
+|---|---|---|---|
+| ... | ... | ... | ... |
+
+### 종합 판정
+- 통과: 이슈 없는 슬라이드 목록
+- 수정 필요: 이슈 있는 슬라이드 + 이슈 요약
+```
+
+에이전트 결과를 받아 통합 리포트를 출력하고,
+수정 필요 항목이 있으면 사용자에게 수정 여부를 확인 후 진행한다.
 
 ---
 

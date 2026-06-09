@@ -58,6 +58,14 @@
     "detail 0[1-9]",
     "Insight \\/ Definition",
     "insight \\/ definition",
-    "\\bInsight\\b.*\\/.*\\bDefinition\\b"
+    "\\bInsight\\b.*\\/.*\\bDefinition\\b",
+    "이미지 설명 텍스트",
+    "dolor sit amet",
+    "텍스트 길이 늘어날",
+    "두 줄 작성할 경우",
+    "설명 텍스트를 작성",
+    "^Title$",
+    "^0%$",
+    "^CONTENTS"
   ]
 }
