@@ -247,23 +247,25 @@ def generate_plan_with_claude(
         "=== 본문 슬라이드 헤더 3존 규칙 (cover/toc/closing 제외 모든 슬라이드 필수) ===\n"
         "① title(대제목)   : 이 슬라이드가 속한 목차 챕터 제목 — TOC items 중 해당 번호의 텍스트 그대로\n"
         "                    (예: TOC 2번 항목이 '핵심 아키텍처 및 처리 모델'이면 title='핵심 아키텍처 및 처리 모델')\n"
-        "② subtitle(중제목): 대제목(챕터) 안에서 이 슬라이드가 속하는 세부 분류 이름.\n"
-        "   역할: 대제목과 본문제목 사이의 중간 계층. 같은 챕터의 여러 슬라이드를\n"
-        "         주제별로 묶어주는 그룹 이름이다.\n"
+        "② subtitle(중제목): 대제목보다 구체적인 핵심 키워드나 기술명을 표현하는 곳.\n"
+        "   역할: 대제목의 추상적인 챕터명을 좀 더 구체적인 기술/개념 키워드로 표현한다.\n"
+        "         예) 대제목='핵심 기술'이면 중제목='Constitutional AI & RLHF' 처럼\n"
+        "             그 챕터에서 실제로 다루는 핵심 기술명·개념명·프레임워크명을 직접 기재\n"
         "   규칙:\n"
-        "   - 반드시 채워야 한다. 슬라이드가 1장이어도 그 챕터의 주제 분류명을 작성\n"
-        "   - 숫자(01, 02)가 아닌 의미 있는 주제어로 작성\n"
+        "   - 반드시 채워야 한다. 슬라이드가 1장이어도 구체적인 기술/개념명을 작성\n"
+        "   - 숫자(01, 02) 단독 금지 — 반드시 의미 있는 키워드 포함\n"
+        "   - 대제목이 포괄적일수록 중제목은 더 구체적인 기술명/개념명으로 작성\n"
         "   - 같은 챕터 내 동일한 주제 그룹 슬라이드 → 동일한 중제목\n"
         "   - 같은 챕터 내 다른 주제 그룹 슬라이드 → 다른 중제목\n"
-        "   - 대제목보다 구체적이고, 본문제목보다 포괄적인 수준으로 작성\n"
-        "   도출 방법: 본문제목(들)을 보고 공통 주제를 추출해 중제목으로 설정\n"
-        "             예) 본문제목이 '시장 규모', '성장률', '채택 현황'이면 중제목은 '시장 동향'\n"
+        "   도출 방법: 그 슬라이드에서 실제 다루는 핵심 기술명/개념명을 중제목으로 설정\n"
+        "             예) 대='핵심 기술', 본문='Constitutional AI 개요' → 중='Constitutional AI & RLHF'\n"
+        "             예) 대='시장 현황', 본문='시장 규모·성장률' → 중='글로벌 AI 시장 동향'\n"
         "   예) 챕터 2 '핵심 아키텍처'에 슬라이드 3장:\n"
-        "     slide A: subtitle='처리 엔진 구조', section_title='2.1 JobManager 역할'\n"
-        "     slide B: subtitle='처리 엔진 구조', section_title='2.2 TaskManager 구성'\n"
-        "     slide C: subtitle='상태 관리',      section_title='2.3 State Backend'\n"
+        "     slide A: subtitle='JobManager & TaskManager', section_title='2.1 JobManager 역할'\n"
+        "     slide B: subtitle='JobManager & TaskManager', section_title='2.2 TaskManager 구성'\n"
+        "     slide C: subtitle='State Backend 설계',       section_title='2.3 State Backend'\n"
         "   예) 챕터 1에 슬라이드 1장:\n"
-        "     slide A: subtitle='시장 동향', section_title='1. 실시간 스트리밍 시장 동향'\n"
+        "     slide A: subtitle='실시간 스트리밍 시장 규모', section_title='1. 실시간 스트리밍 시장 동향'\n"
         "③ section_title   : 이 슬라이드가 실제로 표현하는 제목 — content 내부에 위치\n"
         "   - 중제목의 세부 분류 역할. 항상 title(대제목)과 다른 텍스트여야 한다\n"
         "   - 챕터 내 단독 슬라이드: 'N. 제목' (예: '1. 실시간 스트리밍 시장 동향')\n"
@@ -1761,7 +1763,7 @@ def edit_slide(work_dir: Path, slide_plan: dict) -> bool:
                 or []
             )
             page_nums = content.get("page_nums", [])
-            # prs_title: 전체 발표 제목 (TOC ID=42용). slide_plan.title은 "목차"로 잘못됨
+            # prs_title: ID=42 "발표 제목" placeholder → plan 전체 제목
             prs_title_for_toc = slide_plan.get("prs_title") or slide_plan["title"]
             edit_toc_slide(xml_path, prs_title_for_toc, items, page_nums)
         elif role == "closing":
@@ -3310,6 +3312,25 @@ def _apply_common_zones(root, slide_plan: dict, template_file: str) -> None:
         _auto_resize_textbox(root, label_id, label_text)
         # 2) 확장된 body_title 기준으로 body_desc 위치 재조정 (겹침 방지)
         _resize_sidebar_and_reposition_desc(root, label_id, desc_id, label_text)
+
+    # group_title: 우측 패널 네이비 박스(사이드 소제목) → subtitle 주입
+    # 폰트·줄수는 하네스(slide_shape_ids) 우선, 기본 14pt·2줄 (박스 높이 ~0.5") — body_title과 동일 패턴
+    group_id = z.get("group_title")
+    if group_id and subtitle:
+        _sids_grp = _load_slide_shape_ids().get(template_file.replace(".xml", ""), {})
+        _gt_font  = _sids_grp.get("group_title_font_pt", 14)
+        _gt_lines = _sids_grp.get("group_title_max_lines", 2)
+        _grp_cx = 3_800_000
+        _sp_grp = _find_shape_by_id(root, group_id)
+        if _sp_grp is not None:
+            _xfrm = _sp_grp.find(f".//{{{ns_a}}}xfrm")
+            if _xfrm is not None:
+                _ext = _xfrm.find(f"{{{ns_a}}}ext")
+                if _ext is not None:
+                    _grp_cx = int(_ext.get("cx", _grp_cx))
+        grp_text = _truncate_to_lines(subtitle, _grp_cx, _gt_font, _gt_lines)
+        _set_shape(group_id, grp_text, force_semibold=True)
+
     # section_desc fallback: LLM 누락 시 section_title 기반 1줄 desc 생성
     if not sec_desc and sec_title:
         bare = re.sub(r'^\d+(\.\d+)*[\s.]*', '', sec_title).strip()
@@ -3632,19 +3653,39 @@ def _insert_rich_quarter_content(
         content_lines = _math.ceil(len(text) / cpp) if text else 1
         return (header_lines + content_lines) * LINE_H + _V_PAD
 
+    # ── 하단 메타: 데이터 주도 ───────────────────────────────────────
+    # 라벨/키는 하네스(quarter_meta_slots) 정의. plan이 q["meta"] dict를 주면
+    # 그 키=라벨로 우선 사용(고정 kpi/risk/effort 강제 아님). 최대 3슬롯
+    # (entries[0]=상단 wide, [1]=좌, [2]=우).
+    _meta_slots = _bd.get("quarter_meta_slots", [
+        {"label": "핵심 목표", "key": "kpi"},
+        {"label": "리스크",    "key": "risk"},
+        {"label": "규모",      "key": "effort"},
+    ])
+
+    def _q_meta(q):
+        qm = q.get("meta") if isinstance(q, dict) else None
+        if isinstance(qm, dict) and qm:
+            return [(str(k), str(v)) for k, v in qm.items()][:3]
+        if isinstance(q, dict):
+            return [(s.get("label", ""), str(q.get(s.get("key", ""), ""))) for s in _meta_slots][:3]
+        return [(s.get("label", ""), "") for s in _meta_slots][:3]
+
+    _meta_by_q = [_q_meta(q) for q in quarters[:4]]
+
     max_kpi_h  = KPI_H
     max_risk_h = RISK_H
-    for i_q, q in enumerate(quarters[:4]):
-        if not isinstance(q, dict) or i_q >= len(_col_cx):
-            continue
+    for i_q in range(min(len(_meta_by_q), len(_col_cx))):
+        entries   = _meta_by_q[i_q]
         bw_i      = _col_cx[i_q] - PAD * 2
         risk_w_i  = int(bw_i * RISK_WIDTH_RATIO)
         eff_w_i   = bw_i - risk_w_i - 40_000
-        max_kpi_h  = max(max_kpi_h,
-                         _box_h(q.get("kpi", ""),    bw_i))
-        max_risk_h = max(max_risk_h,
-                         _box_h(q.get("risk", ""),   risk_w_i),
-                         _box_h(q.get("effort", ""), eff_w_i))
+        if len(entries) >= 1:
+            max_kpi_h  = max(max_kpi_h,  _box_h(entries[0][1], bw_i))
+        if len(entries) >= 2:
+            max_risk_h = max(max_risk_h, _box_h(entries[1][1], risk_w_i))
+        if len(entries) >= 3:
+            max_risk_h = max(max_risk_h, _box_h(entries[2][1], eff_w_i))
     KPI_H  = max_kpi_h
     RISK_H = max_risk_h
     # ────────────────────────────────────────────────────────────────
@@ -3666,32 +3707,32 @@ def _insert_rich_quarter_content(
         if isinstance(q, dict):
             period  = q.get("period", f"Q{i+1}")
             items   = q.get("items", [])
-            kpi     = q.get("kpi", "")
             team    = q.get("team", "")
-            risk    = q.get("risk", "낮음")
-            effort  = q.get("effort", "")
         else:
-            period = str(q); items = []; kpi = ""; team = ""; risk = "낮음"; effort = ""
+            period = str(q); items = []; team = ""
 
         desc_lines = [(f"▷ {period}", 1100, True, dk), ("", 500, False, None)]
         desc_lines += [(item, 1100, False, "444444") for item in items[:3]]
         if team: desc_lines += [("", 500, False, None), (f"● {team}", 1000, False, "888888")]
         _add_desc(sid, bx, DESC_START_Y, bw, 4_000_000, desc_lines); sid += 1
 
+        # 하단 메타 박스 — entries[0]=상단 wide, [1]=좌, [2]=우 (라벨·값 모두 데이터 주도)
+        entries = _meta_by_q[i] if i < len(_meta_by_q) else []
         y = LOWER_START
-        _add_box(sid, bx, y, bw, KPI_H, "F4F6FE",
-                 [("핵심 목표", 900, True, dk, "ctr"), (kpi, 1100, False, "111111", "ctr")],
-                 border=dk); sid += 1
-        y += KPI_H + GAP
-
-        # 리스크(RISK_WIDTH_RATIO) + 규모(나머지) — 하네스 비율 적용
-        risk_w = int(bw * RISK_WIDTH_RATIO)
-        eff_w  = bw - risk_w - 40_000
-        rc = RISK_COLOR.get(risk, "888888")
-        _add_box(sid, bx, y, risk_w, RISK_H, lt,
-                 [("리스크", 900, True, dk, "ctr"), (risk, 1100, False, rc, "ctr")]); sid += 1
-        _add_box(sid, bx + risk_w + 40_000, y, eff_w, RISK_H, lt,
-                 [("규모", 900, True, dk, "ctr"), (effort, 1100, False, "333333", "ctr")]); sid += 1
+        if len(entries) >= 1 and (entries[0][0] or entries[0][1]):
+            _add_box(sid, bx, y, bw, KPI_H, "F4F6FE",
+                     [(entries[0][0], 900, True, dk, "ctr"), (entries[0][1], 1100, False, "111111", "ctr")],
+                     border=dk); sid += 1
+            y += KPI_H + GAP
+        if len(entries) >= 2 and (entries[1][0] or entries[1][1]):
+            risk_w = int(bw * RISK_WIDTH_RATIO)
+            eff_w  = bw - risk_w - 40_000
+            rc = RISK_COLOR.get(entries[1][1], "888888")
+            _add_box(sid, bx, y, risk_w, RISK_H, lt,
+                     [(entries[1][0], 900, True, dk, "ctr"), (entries[1][1], 1100, False, rc, "ctr")]); sid += 1
+            if len(entries) >= 3 and (entries[2][0] or entries[2][1]):
+                _add_box(sid, bx + risk_w + 40_000, y, eff_w, RISK_H, lt,
+                         [(entries[2][0], 900, True, dk, "ctr"), (entries[2][1], 1100, False, "333333", "ctr")]); sid += 1
 
 
 def _edit_slide31(xml_path: Path, slide_plan: dict) -> None:
@@ -4422,7 +4463,9 @@ def _edit_slide24(xml_path: Path, slide_plan: dict) -> None:
             para.insert(idx, r_new)
 
     # Zone3: 본문 내용 (_apply_common_zones의 body_desc 이후 override)
-    _s24 = _load_slide_shape_ids().get("slide24", {})
+    # 템플릿별 shape_id 우선 조회 (slide22는 하단 배너 ID=11 사용) → 없으면 slide24 기본값
+    _all_sids = _load_slide_shape_ids()
+    _s24 = _all_sids.get(tmpl.replace(".xml", ""), {}) or _all_sids.get("slide24", {})
     sp7  = _find_shape_by_id(root, _s24.get("body1_id", "7"))
     sp10 = _find_shape_by_id(root, _s24.get("body2_id", "10"))
 
@@ -6190,6 +6233,44 @@ def _sync_plan_with_fixes(plan: dict, fix_instructions: list[dict], plan_path: P
 
 # ── 메인 루프 ────────────────────────────────────────────────
 
+def _record_run_experience(topic: str, plan: dict, vision_issues: int) -> None:
+    """AHE 경험 관찰성(❷) + auto-update: 매 실행 후 long_term_memory에 run 기록을 append하고
+    메타(total_runs/success_rate/last_updated)를 갱신한다. evolution/last_run_digest.json에도 요약 기록.
+    실패해도 생성 결과엔 영향 없도록 전부 try/except로 감싼다 (AHE_PRINCIPLES §5 경험 관찰성)."""
+    try:
+        from datetime import datetime as _dt
+        slides = plan.get("slides", [])
+        rec = {
+            "ts": _dt.now().isoformat(timespec="seconds"),
+            "topic": topic,
+            "n_slides": len(slides),
+            "templates": [s.get("template_file", "") for s in slides],
+            "vision_issues": int(vision_issues),
+            "qa_ok": int(vision_issues) == 0,
+        }
+        mem_path = SKILL_DIR / "harness" / "long_term_memory.json"
+        mem = json.loads(mem_path.read_text(encoding="utf-8"))
+        runs = mem.setdefault("runs", [])
+        runs.append(rec)
+        mem["runs"] = runs[-50:]  # 최근 50건만 유지 (progressive disclosure — 토큰 절약)
+        mem["total_runs"] = mem.get("total_runs", 0) + 1
+        # success_rate는 qa_ok 필드가 있는 신규 스키마 run만 집계 (레거시 run은 필드 부재 → 제외)
+        rated = [r for r in mem["runs"] if "qa_ok" in r]
+        if rated:
+            mem["success_rate"] = round(sum(1 for r in rated if r.get("qa_ok")) / len(rated), 3)
+        mem["last_updated"] = rec["ts"][:10]
+        mem_path.write_text(json.dumps(mem, ensure_ascii=False, indent=2), encoding="utf-8")
+
+        evo_dir = SKILL_DIR / "evolution"
+        evo_dir.mkdir(exist_ok=True)
+        (evo_dir / "last_run_digest.json").write_text(
+            json.dumps(rec, ensure_ascii=False, indent=2), encoding="utf-8")
+        print(f"  ✓ AHE 경험 기록: total_runs={mem['total_runs']}, "
+              f"success_rate={mem['success_rate']}, qa_ok={rec['qa_ok']} → harness/long_term_memory.json")
+    except Exception as _e:
+        print(f"  ⚠ AHE 경험 기록 실패(무시): {_e}")
+
+
 def run_ppt_generation(
     topic: str,
     template_path: Path,
@@ -6199,11 +6280,20 @@ def run_ppt_generation(
     plan_override: dict | None = None,
     cleanup_work_dir: bool = True,
     layout_from_pptx: Path | None = None,
+    inline_vision_qa: bool = True,
 ) -> Path:
     """
     analyze_template → generate_plan → edit_slide 루프 → pack → verify
     layout_from_pptx가 지정되면 해당 PPTX의 슬라이드 순서를 그대로 사용한다.
     최종 output.pptx 경로를 반환한다.
+
+    inline_vision_qa (AHE_PRINCIPLES §2 생성≠판정):
+      True (기본, headless 폴백) — 엔진이 인라인 Vision Fix Agent로 자기 결과를 검증·수정.
+        같은 프로세스의 자기-검증이라 확증편향 위험이 있어, 오케스트레이터(Claude Code 세션)가
+        없는 headless 실행에서만 권장.
+      False (skill 경로 권장) — 인라인 vision QA를 건너뛴다. QA는 SKILL.md 지시대로
+        오케스트레이터가 '생성 컨텍스트를 모르는 독립 격리 에이전트'로 수행해 확증편향을 차단한다.
+      어느 경우든 결정적 검증(verifier_rules·placeholder·폰트)은 항상 수행된다.
     """
     print(f"\n[PPT Generator] topic={topic!r}, slides={n_slides}, audience={audience!r}")
 
@@ -6328,7 +6418,9 @@ def run_ppt_generation(
         for idx, item in enumerate(toc_items, 1):
             _dynamic_chapter_map[str(idx)] = item if isinstance(item, str) else str(item)
     else:
-        _dynamic_chapter_map = _CHAPTER_TITLE_MAP.copy()
+        # toc 슬라이드가 없으면 동적 챕터맵 없음 → _infer_chapter_title이 plan.title로 폴백
+        # (과거 _CHAPTER_TITLE_MAP 전역은 정의된 적 없어 NameError였음 — ML 전용 chapter_map.json도 의도적으로 미사용)
+        _dynamic_chapter_map = {}
 
     # _infer_chapter_title이 chapter_map.json(ML 전용)을 읽지 않도록
     # 현재 문서의 챕터 맵을 캐시에 주입 → 렌더링 시 올바른 헤더 표시
@@ -6345,6 +6437,24 @@ def run_ppt_generation(
             ch = _dynamic_chapter_map.get(parts[0].strip())
             if ch and s.get("title") != ch:
                 s["title"] = ch
+
+    # ── section_title 중복 방지: title과 동일하면 번호 prefix 추가 ──
+    for s in plan["slides"]:
+        if s.get("role") in ("cover", "toc", "closing"): continue
+        content = s.get("content", {})
+        sec_title = content.get("section_title", "")
+        slide_title = s.get("title", "")
+        if not sec_title or not slide_title: continue
+        # 번호 제거 후 비교
+        bare_sec = re.sub(r'^\d+(\.\d+)*[\s.。]*', '', sec_title).strip()
+        bare_title = re.sub(r'^\d+(\.\d+)*[\s.。]*', '', slide_title).strip()
+        if bare_sec == bare_title and bare_sec:
+            # section_title에 인덱스가 없으면 기본 "N." prefix 부여
+            if not re.match(r'^\d', sec_title.strip()):
+                content["section_title"] = f"1. {sec_title}"
+            else:
+                # 같은 텍스트인데 번호만 있는 경우 → 보조 키워드 추가 불가, 경고만
+                print(f"  ⚠️  slide {s.get('index')}: section_title이 title과 동일 — LLM 재생성 권장")
 
     # ── 중제목 순번(subtitle_seq) 주입 — 대제목 기준 01/02/03 카운터 ──
     _subtitle_counter: dict[str, int] = {}
@@ -6467,7 +6577,7 @@ def run_ppt_generation(
     for slide_plan in plan["slides"]:
         xml_path = slides_dir / slide_plan.get("template_file", "")
 
-        # TOC 슬라이드: slide_plan.title은 "목차" — 전체 발표 제목을 prs_title로 주입
+        # TOC 슬라이드: ID=42는 "발표 제목을 작성해주세요" placeholder → 전체 발표 제목 주입
         if slide_plan.get("role") == "toc" and "prs_title" not in slide_plan:
             slide_plan["prs_title"] = plan.get("title", slide_plan.get("title", ""))
 
@@ -6516,10 +6626,16 @@ def run_ppt_generation(
         if remaining:
             print(f"  ⚠ 재시도 후 CRITICAL {len(remaining)}건 잔존 (best-effort 출력)")
 
-    # ── 시각 QA ──────────────────────────────────
-    images = visual_qa(work_dir, output)
-    if images:
-        print(f"  → QA 이미지 {len(images)}장 생성")
+    # ── 시각 QA (인라인) ──────────────────────────────────
+    # AHE_PRINCIPLES §2: skill 경로(inline_vision_qa=False)는 인라인 자기-검증을 건너뛰고
+    # 오케스트레이터가 독립 격리 QA 에이전트로 검증(확증편향 차단). headless는 인라인 폴백 사용.
+    images = []
+    if inline_vision_qa:
+        images = visual_qa(work_dir, output)
+        if images:
+            print(f"  → QA 이미지 {len(images)}장 생성")
+    else:
+        print("  → 인라인 vision QA 생략 (독립 QA 에이전트가 검증 — AHE_PRINCIPLES §2 생성≠판정)")
 
     # ── Vision Fix Agent 루프 (최대 3회) ────────
     MAX_VISION_ITER = 3
@@ -6601,6 +6717,9 @@ def run_ppt_generation(
     # ── Excel 차트 데이터 파일 생성 ─────────────────
     dest_dir_for_excel = work_dir.parent  # runs 상위 디렉토리가 아닌 work_dir 사용
     generate_excel_for_charts(work_dir, plan, work_dir)
+
+    # ── AHE 경험 자동 기록 (❷ 경험 관찰성 + auto-update) ──
+    _record_run_experience(topic, plan, _vision_critical_total)
 
     # ── tmp work_dir 정리 ────────────────────────────
     if cleanup_work_dir:

@@ -1,5 +1,5 @@
 {
-  "version": "0.3",
+  "version": "0.4",
   "template_patterns": {
     "2025_PPT_Template_FINAL.pptx": {
       "brand": "GS Neotek",
@@ -65,6 +65,7 @@
     }
   },
   "known_failure_fixes": {
+    "_note": "advisory knowledge — apply_known_fixes는 이 내용을 실행하지 않는다(비어있지 않은지 게이트로만 쓰고 하드코딩 2픽스 적용). 레이아웃 편집/생성 시 사람·에이전트 참고용 설계 메모.",
     "slide22_multi_shape_duplicate": {
       "pattern": "slide22 편집 시 동일 텍스트가 여러 shape에 중복 삽입되고 사이드바(ID=14)에 긴 제목이 들어가 overflow 발생",
       "cause": "shape을 Y좌표 순 순회로 역할 구분 실패",
@@ -94,6 +95,152 @@
       "pattern": "목차 슬라이드(slide7) ID=42에 전체 발표 제목 대신 '목차' 텍스트가 삽입됨",
       "cause": "edit_toc_slide 호출 시 slide_plan['title']('목차')을 prs_title로 전달. 전체 발표 제목(plan['title'])을 써야 함",
       "fix": "편집 루프에서 role=toc 슬라이드에 prs_title=plan['title'] 주입 후 edit_toc_slide에 전달"
+    },
+    "sidebar_text_overflow_and_logo_overlap": {
+      "pattern": "슬라이드 3~4에서 좌측 사이드바(ID=14) 텍스트가 슬라이드 하단 경계를 초과하고 GS Neotek 로고와 겹치는 현상이 반복 발생",
+      "cause": "사이드바 ID=14에 삽입되는 텍스트 양이 컨테이너 높이를 초과함. 폰트 크기가 자동 축소되지 않고 오버플로우 발생. 로고 shape과 사이드바 텍스트박스의 좌표가 겹치는 구조",
+      "fix": "ID=14(사이드바) 텍스트는 총 글자수 50자 이내, 줄 수 3줄 이내로 엄격히 제한. 폰트 크기 8pt 이하로 강제 설정 금지 — 대신 텍스트 자체를 줄일 것. 사이드바 하단 y좌표가 로고 영역(y > slide_height - 150000 EMU)과 겹치지 않도록 텍스트 삽입 전 컨테이너 바운딩박스 확인 필수",
+      "enforcement": "편집 코드 내에서 len(sidebar_text) > 50 이면 AssertionError 발생시켜 삽입 중단"
+    },
+    "content_duplication_in_multiple_regions": {
+      "pattern": "슬라이드 4에서 동일 내용이 상단 텍스트 영역(ID=8, ID=14)과 하단 파란 박스(ID=11) 두 곳에 중복 렌더링",
+      "cause": "콘텐츠 생성 시 단일 텍스트 소스 원칙이 없어 LLM이 동일 내용을 여러 shape에 반복 배정. 편집 코드가 shape 역할을 명확히 구분하지 않고 순회하며 동일 텍스트를 삽입",
+      "fix": "각 shape ID별 역할과 콘텐츠를 미리 dict로 정의하고, 동일 텍스트 문자열이 두 shape에 배정되면 AssertionError로 차단. ID=8(헤더 제목), ID=11(본문 bullet — 유일한 콘텐츠 소스), ID=14(사이드바 키워드 단어만), ID=16(사이드바 설명 60자 이내)의 역할을 코드 상단에 ROLE_MAP 상수로 선언하고 벗어나는 배정 금지",
+      "enforcement": "assert len(set(shape_contents.values())) == len(shape_contents), 'Duplicate content detected across shapes'"
+    },
+    "card_layout_text_overlap_slide3": {
+      "pattern": "슬라이드 3에서 단계별 설명 텍스트(1단계/2단계/3단계)가 카드 레이아웃 헤더 파란 바 위에 중첩되어 읽을 수 없음. 하단 카드 행이 슬라이드 경계 밖으로 잘려 콘텐츠 누락 발생.",
+      "cause": "단계 설명 텍스트박스와 카드 shape의 y좌표 범위가 겹치도록 배치됨. 카드 행의 하단 y+height가 슬라이드 높이(6858000 EMU)를 초과함.",
+      "fix": "슬라이드 3 편집 시: (1) 단계 설명 텍스트박스의 bottom(y+height)이 카드 행의 top(y)보다 반드시 작아야 함 — 두 영역의 y범위가 겹치면 AssertionError로 차단. (2) 카드 행의 bottom(y+height) ≤ slide_height - 300000 EMU 조건을 강제 확인. (3) 카드 내 콘텐츠 텍스트는 카드 컨테이너 height의 80% 이내로 제한.",
+      "enforcement": "assert card_top > step_text_bottom, 'Step text overlaps card layout'\nassert card_bottom <= SLIDE_HEIGHT - 300000, 'Card row exceeds slide boundary'"
+    },
+    "icon_placeholder_not_replaced": {
+      "pattern": "슬라이드 3의 카드 shape 4개에 'icon'이라는 placeholder 텍스트가 미교체 상태로 그대로 노출됨.",
+      "cause": "카드 레이아웃 편집 시 아이콘 자리 placeholder를 실제 이모지/텍스트 아이콘으로 교체하는 로직이 누락됨. 기존 placeholder_check verifier가 XML 수준에서만 검사하여 시각적 'icon' 텍스트를 탐지하지 못함.",
+      "fix": "편집 코드에서 모든 shape의 <a:t> 텍스트를 순회하여 'icon'(대소문자 무관) 문자열이 단독으로 존재하면 AssertionError로 차단. 카드 아이콘 자리는 반드시 실제 기호(예: ▶, ✔, 📋) 또는 의미있는 한글/영문 약어로 대체.",
+      "enforcement": "for shape in slide.shapes:\n    for para in shape.text_frame.paragraphs:\n        for run in para.runs:\n            assert run.text.strip().lower() != 'icon', f'Unresolved icon placeholder in shape {shape.shape_id}'"
+    },
+    "template_instruction_text_exposed": {
+      "pattern": "슬라이드 4 제목 영역에 '텍스트 길어질 경우 아래 확장/ 최대 3줄로 작성하여 사용' 등 템플릿 작성 안내 문구가 실제 슬라이드에 그대로 노출됨.",
+      "cause": "LLM이 제목 텍스트박스 전체 내용을 교체하지 않고 일부 run만 교체하여, 원본 템플릿 안내 run이 남아 있음. 또는 안내 문구가 별도 run으로 분리되어 있어 단순 교체로는 제거 불가.",
+      "fix": "제목/부제목 shape 편집 시 해당 shape의 모든 paragraph와 run을 삭제하고 새로 작성. '아래 확장', '최대 N줄', '작성하여 사용', '텍스트 길어질 경우' 등 한글 템플릿 안내 패턴을 regex로 탐지하여 잔존 시 AssertionError 발생.",
+      "enforcement": "import re\nTEMPLATE_GUIDE_PATTERN = re.compile(r'(텍스트 길어질|아래 확장|최대 [0-9]+줄|작성하여 사용|여기에 입력|내용을 입력)')\nfor shape in slide.shapes:\n    assert not TEMPLATE_GUIDE_PATTERN.search(shape.text_frame.text), f'Template guide text exposed in shape {shape.shape_id}'"
+    },
+    "toc_page_number_incomplete": {
+      "pattern": "슬라이드 2(목차)에서 항목이 4개임에도 페이지 번호와 구분선이 2개만 렌더링되어 나머지 2개 항목의 번호가 누락됨.",
+      "cause": "목차 페이지 번호 shape 생성 로직이 항목 수를 정확히 반영하지 못하고 고정값(2개) 또는 첫 루프 조건에서 조기 종료됨.",
+      "fix": "목차 편집 시 items 배열 길이와 생성되는 페이지 번호 shape 수가 반드시 일치해야 함. assert len(page_num_shapes) == len(toc_items) 조건으로 불일치 즉시 차단. 구분선(divider line)도 동일하게 items 수만큼 생성 확인.",
+      "enforcement": "assert len(generated_page_nums) == len(toc_items), f'TOC page numbers({len(generated_page_nums)}) != items({len(toc_items)})'\nassert len(generated_dividers) == len(toc_items), f'TOC dividers count mismatch'"
+    },
+    "left_title_box_overflow_slide4": {
+      "pattern": "슬라이드 4 좌측 제목 텍스트박스가 컨테이너 경계를 벗어나 아래로 크게 넘침. 중앙~우측 상단 영역은 비어 콘텐츠 불균형 발생.",
+      "cause": "좌측 제목 텍스트가 3줄을 초과하거나 폰트 크기가 컨테이너 높이 대비 과대함. 콘텐츠가 좌측에만 집중되고 우측 영역이 미활용됨.",
+      "fix": "슬라이드 4 좌측 제목(ID=8 또는 해당 shape)은 최대 2줄·40자 이내로 제한. 우측 영역(중앙~우측)에 별도 콘텐츠 박스를 배치하여 레이아웃 균형 확보. 제목 shape bottom이 다음 콘텐츠 shape top과 겹치지 않도록 gap 최소 100000 EMU 확보.",
+      "enforcement": "assert len(title_text) <= 40, 'Left title too long (>40 chars)'\nassert title_text.count('\\n') <= 1, 'Left title exceeds 2 lines'"
+    },
+    "slide3_layout_collapse_overlap_overflow": {
+      "pattern": "슬라이드 3에서 좌측 텍스트 블록이 컨테이너를 크게 벗어나고, 우측 파란 배경 박스와 겹쳐 레이아웃 전체가 붕괴됨. 파란 배경 위 텍스트 일부가 어두운 색으로 가독성 심각. 레이어 순서 오류로 파란 박스가 텍스트 위를 덮음.",
+      "cause": "1) 좌측 텍스트 shape의 폰트 크기가 40pt 이상으로 과대 설정되고 AutoFit이 비활성화되어 컨테이너 초과. 2) 좌측 텍스트 shape과 우측 파란 박스의 x+width/x 범위가 겹치도록 배치. 3) shape z-order(레이어)가 잘못 설정되어 파란 박스가 텍스트 위에 올라옴. 4) 파란 배경 shape 위의 텍스트 색상이 RGBColor(0,0,0) 또는 기본값으로 남아 있음.",
+      "fix": "슬라이드 3 편집 시: (1) 좌측 텍스트 shape 폰트는 최대 14pt, 텍스트 총 길이 150자 이내 — 초과 시 글머리 요약으로 압축. (2) 좌측 콘텐츠 영역(x~x+width)과 우측 파란 박스(x~x+width) x범위가 겹치지 않도록 gap 최소 100000 EMU 확보. (3) 파란 배경 shape는 반드시 zorder를 텍스트 shape보다 낮게 설정(send_to_back 또는 xml에서 sp 순서를 배경 먼저). (4) 파란 배경(#1419AB, #3C41E6 계열) 위의 모든 텍스트는 RGBColor(255,255,255) 흰색 강제 적용. (5) 모든 텍스트 shape에 txBody>bodyPr에 autofit(spAutoFit 또는 normAutofit) 설정 필수.",
+      "enforcement": "assert left_text_len <= 150, 'Slide3 left text block too long'\nassert left_box_right <= right_blue_box_left - 100000, 'Slide3 left text overlaps right blue box'\nfor shape in blue_bg_shapes:\n    for para in shape.text_frame.paragraphs:\n        for run in para.runs:\n            assert run.font.color.rgb == RGBColor(255,255,255), f'Text on blue bg must be white: shape {shape.shape_id}'\n# z-order: blue background shape must appear before text shapes in spTree XML"
+    },
+    "multi_column_right_cutoff": {
+      "pattern": "슬라이드 4의 다열(3열) 레이아웃에서 오른쪽 열 박스들이 슬라이드 우측 경계 밖으로 잘려 콘텐츠 미표시. 중앙 열 텍스트도 박스 너비 초과로 말줄임 발생.",
+      "cause": "3열 배치 시 각 열의 x + width 합산이 슬라이드 너비(9144000 EMU)를 초과하도록 좌표가 설정됨. 열 간격(gap) 없이 빽빽하게 배치하거나, 우측 열 x값이 슬라이드 경계에 근접하여 width 부여 후 초과 발생. 텍스트가 박스 width에 비해 길어 말줄임 처리됨.",
+      "fix": "다열 레이아웃 생성 시: (1) 모든 열의 right_edge(x+width) ≤ 슬라이드 너비 - 200000 EMU(우측 여백) 조건 강제. (2) 3열 배치 기준: slide_width=12192000, left_margin=300000, right_margin=300000, col_gap=100000 → 각 열 width = (12192000-600000-200000)/3 = 약 3797333 EMU. (3) 각 열 텍스트는 해당 width 기준 최대 20자/줄, 폰트 10~12pt로 제한. (4) 중앙 열 텍스트는 50자 이내로 요약.",
+      "enforcement": "SLIDE_WIDTH = 12192000\nRIGHT_MARGIN = 200000\nfor col_shape in column_shapes:\n    assert col_shape.left + col_shape.width <= SLIDE_WIDTH - RIGHT_MARGIN, f'Column shape {col_shape.shape_id} exceeds slide right boundary'\nassert mid_col_text_len <= 50, 'Middle column text too long (>50 chars)'"
+    },
+    "slide4_title_text_truncated": {
+      "pattern": "슬라이드 4 좌측 상단 제목 텍스트가 박스 경계 밖으로 넘쳐 잘리고 마지막 글자가 'ㄱ' 등 불완전한 상태로 렌더링됨.",
+      "cause": "제목 텍스트가 박스 width에 비해 과도하게 길고 줄바꿈이 의도치 않게 발생. AutoFit 미설정으로 폰트 크기가 자동 축소되지 않음. 한글 음절이 잘리는 것은 텍스트가 픽셀 단위로 박스를 초과했음을 의미.",
+      "fix": "슬라이드 4 제목 shape: 텍스트 최대 40자, 2줄 이내(개행 포함). 폰트 14pt 이하. bodyPr에 normAutofit 설정. 제목 텍스트에 완전한 문장만 삽입하고 중간 잘림 방지를 위해 삽입 전 len(title) <= 40 assert 실행.",
+      "enforcement": "assert len(slide4_title_text.replace('\\n','')) <= 40, 'Slide4 title exceeds 40 chars'\nassert slide4_title_text.count('\\n') <= 1, 'Slide4 title exceeds 2 lines'\n# bodyPr 반드시 포함: <a:normAutofit/>"
+    },
+    "autofit_mandatory_all_text_shapes": {
+      "pattern": "AutoFit 미설정으로 인한 텍스트 오버플로우가 슬라이드 3·4에서 반복 발생.",
+      "cause": "python-pptx로 생성한 텍스트박스의 기본 bodyPr에 AutoFit 설정이 없어 텍스트가 박스를 초과해도 자동 축소되지 않음.",
+      "fix": "모든 새로 생성하는 TextFrame의 bodyPr에 반드시 normAutofit 또는 spAutoFit 설정. python-pptx API: text_frame.auto_size = MSO_AUTO_SIZE.TEXT_TO_FIT_SHAPE 또는 XML 직접 수정으로 <a:normAutofit/> 삽입. 기존 shape 편집 시에도 bodyPr 확인 후 AutoFit 없으면 추가.",
+      "enforcement": "from pptx.util import Pt\nfrom pptx.oxml.ns import qn\nfrom lxml import etree\ndef ensure_autofit(text_frame):\n    bodyPr = text_frame._txBody.find(qn('a:bodyPr'))\n    if bodyPr.find(qn('a:normAutofit')) is None and bodyPr.find(qn('a:spAutoFit')) is None:\n        bodyPr.append(etree.SubElement(bodyPr, qn('a:normAutofit')))"
+    },
+    "right_navy_box_media_placeholder_not_replaced": {
+      "pattern": "슬라이드 3·7·8의 우측 대형 네이비 배경 영역에 재생 아이콘(삼각형)만 표시되고 실제 콘텐츠(이미지, 텍스트, 다이어그램)가 전혀 없음. 동일한 좌측 텍스트 + 우측 대형 네이비 박스 레이아웃을 공유하는 슬라이드 전체에서 우측이 미완성 상태로 배포됨.",
+      "cause": "우측 대형 박스가 python-pptx에서 MediaPlaceholder 또는 PicturePlaceholder 타입으로 인식되어 일반 텍스트/도형 삽입 코드에서 건너뜀. 또는 해당 shape을 편집 대상으로 식별하지 못해 콘텐츠 삽입 로직이 실행되지 않음. 재생 아이콘(삼각형)은 미디어 플레이스홀더의 기본 UI 요소임.",
+      "fix": "우측 네이비 박스 shape 편집 시: (1) shape.placeholder_format이 존재하고 idx가 미디어/픽처 타입이면 해당 placeholder를 제거하고 새 텍스트박스 또는 도형으로 대체. (2) 대체 콘텐츠로 다이어그램 설명 텍스트, 핵심 수치, 구조도 텍스트를 흰색(RGBColor(255,255,255))으로 삽입. (3) 우측 박스가 비어 있는지(shape.text.strip() == '' 이고 미디어 타입인지) 편집 전 반드시 검사하여 콘텐츠 주입 강제. (4) 미디어 플레이스홀더를 완전히 제거할 수 없을 경우 그 위에 텍스트박스 도형을 z-order 최상위로 오버레이하여 콘텐츠 표시.",
+      "enforcement": "for shape in slide.shapes:\n    if shape.has_text_frame and shape.text.strip() == '' and hasattr(shape, 'placeholder_format'):\n        assert False, f'Empty placeholder detected in slide {slide_number}, shape {shape.shape_id} — must replace with actual content'\n# 우측 네이비 박스 확인: 배경색이 네이비(#1419AB/#3C41E6)이고 width > 3000000 EMU인 shape이 텍스트 없으면 FAIL"
+    },
+    "step_column_header_truncation": {
+      "pattern": "슬라이드 4의 4단계 컬럼(1단계~4단계) 헤더 텍스트가 모두 '...'으로 잘려 핵심 내용이 미표시됨. 2·3·4단계 본문 영역이 비어 있어 미완성 상태.",
+      "cause": "각 컬럼 헤더 셀의 width 대비 텍스트가 길고 폰트 크기가 자동 축소되지 않아 말줄임 처리. 2~4단계 본문 콘텐츠 생성 로직이 누락되거나 1단계 내용만 작성 후 나머지를 빈 상태로 방치.",
+      "fix": "(1) 각 단계 컬럼 헤더 텍스트는 최대 12자 이내로 제한(예: 'GG 설치·설정', '데이터 이관', '복제 검증', '컷오버'). (2) 4개 단계 모두 본문 bullet을 3개 이상 반드시 작성 — 빈 컬럼 금지. (3) 헤더 셀 폰트 10pt 이하, normAutofit 설정. (4) 삽입 전 assert len(header) <= 12 실행.",
+      "enforcement": "assert all(len(h) <= 12 for h in step_headers), 'Step column header exceeds 12 chars'\nassert all(len(body) > 0 for body in step_bodies), 'Step column body is empty — all 4 steps must have content'"
+    },
+    "slide5_title_only_numbering_shown": {
+      "pattern": "슬라이드 5 상단 제목 영역에 '1.4' 등 섹션 번호만 표시되고 실제 슬라이드 제목 텍스트가 없음. 3개 행의 오른쪽 회색 박스(3열)가 모두 비어 있음.",
+      "cause": "제목 shape 편집 시 번호 run만 교체하고 제목 텍스트 run을 삽입하지 않음. 또는 제목 텍스트가 별도 run에 있어 교체 로직에서 누락. 3열 회색 박스는 콘텐츠 배정 dict에서 제외되어 빈 상태로 방치.",
+      "fix": "(1) 슬라이드 5 제목 shape의 모든 run을 삭제 후 '섹션번호 + 공백 + 실제제목' 형태로 재작성. 제목은 15자 이내. (2) 3행 × 3열 레이아웃에서 3열(오른쪽 회색 박스) 포함 모든 9개 셀에 콘텐츠 삽입 강제. (3) 삽입 후 shape.text.strip() == '' 이면 AssertionError.",
+      "enforcement": "assert slide5_title.strip() not in ['', '1.4', '1.3', '1.2', '1.1'], 'Slide5 title is empty or shows only section number'\nassert all(cell_text.strip() != '' for cell_text in slide5_all_cells), 'Slide5 has empty cells in grid layout'"
+    },
+    "section_slide_right_textbox_overflow": {
+      "pattern": "슬라이드 3(section 레이아웃) 우측 흰 영역의 서브타이틀 텍스트('1.2 이관 목표 및 성공 기준 정의' 등)가 텍스트박스 너비를 초과하여 마지막 단어가 다음 줄로 강제 줄바꿈됨.",
+      "cause": "section 슬라이드 우측 텍스트박스의 cx가 콘텐츠 길이 대비 너무 좁게 설정되어 있고, normAutofit 미설정으로 자동 축소가 되지 않음. 섹션 번호 + 긴 제목 조합(예: '1.2 이관 목표 및 성공 기준 정의' = 18자)이 단일 줄에 들어가지 못함.",
+      "fix": "(1) section 슬라이드 우측 서브타이틀 텍스트는 최대 16자 이내로 제한. '섹션번호 제목' 형태에서 제목 부분만 15자 이내로 요약. (2) 해당 텍스트박스 cx를 슬라이드 우측 여백 기준으로 slide_width - textbox_x - 200000 EMU로 계산하여 최대 확장. (3) bodyPr에 normAutofit 필수 적용. (4) 삽입 전 assert len(section_subtitle) <= 16 실행.",
+      "enforcement": "assert len(section_subtitle_text) <= 16, f'Section subtitle too long ({len(section_subtitle_text)} chars) — max 16'\n# textbox cx 계산 강제:\n# section_right_tb.width = slide.width - section_right_tb.left - 200000"
+    },
+    "flow_card_right_cutoff_slide5": {
+      "pattern": "슬라이드 5의 4단계 플로우 카드 레이아웃에서 마지막 카드(Step 4)가 슬라이드 오른쪽 경계를 벗어나 잘림. 하단 콘텐츠도 슬라이드 하단 경계 초과.",
+      "cause": "4개 카드의 x+width 합산 및 카드 간 gap이 슬라이드 너비(9144000 EMU)를 초과하도록 계산됨. 하단 카드의 y+height가 슬라이드 높이(6858000 EMU)를 초과.",
+      "fix": "(1) 4열 카드 배치: slide_width=12192000, left_margin=200000, right_margin=200000, col_gap=80000 → 각 카드 width=(12192000-400000-240000)/4=2888000 EMU 이하. (2) 각 카드 right_edge(x+width) <= slide_width-200000 조건 강제. (3) 카드 하단 bottom(y+height) <= slide_height-200000(=6658000 EMU) 조건 강제. (4) 카드 내 텍스트는 최대 12자/줄, 폰트 10pt 이하.",
+      "enforcement": "SLIDE_WIDTH = 12192000\nSLIDE_HEIGHT = 6858000\nfor card in flow_cards:\n    assert card.left + card.width <= SLIDE_WIDTH - 200000, f'Flow card {card.shape_id} exceeds right boundary'\n    assert card.top + card.height <= SLIDE_HEIGHT - 200000, f'Flow card {card.shape_id} exceeds bottom boundary'"
+    },
+    "as_is_tobe_diagram_text_overlap_slide6": {
+      "pattern": "슬라이드 6(As-Is/To-Be 비교)에서 설명 텍스트 블록이 원형 다이어그램 shape과 심하게 겹쳐 가독성이 크게 저하됨. '아래 확장/최대 3줄로' 템플릿 안내 문구가 실제 슬라이드에 그대로 노출됨.",
+      "cause": "설명 텍스트박스의 x/y/width/height가 원형 다이어그램 shape과 겹치도록 배치됨. 템플릿 안내 run이 별도 paragraph로 존재하여 제목/본문 교체 시 누락됨.",
+      "fix": "(1) 슬라이드 6 편집 시 설명 텍스트박스의 bounding box와 다이어그램 shape의 bounding box가 겹치지 않도록 gap 최소 50000 EMU 확보. (2) '아래 확장', '최대 N줄', '아래 확장/ 최대' 패턴을 포함하는 모든 run을 삭제하고 실제 콘텐츠로 교체. (3) 슬라이드 6 전체 텍스트 shape 순회 후 템플릿 안내 패턴 탐지 시 AssertionError. (4) As-Is/To-Be 각 설명은 3줄 이내, 각 줄 20자 이내로 제한.",
+      "enforcement": "import re\nSLIDE6_GUIDE_PATTERN = re.compile(r'(아래 확장|최대 [0-9]+줄|아래 확장/ 최대)')\nfor shape in slide6.shapes:\n    if shape.has_text_frame:\n        assert not SLIDE6_GUIDE_PATTERN.search(shape.text_frame.text), f'Template guide text in slide6 shape {shape.shape_id}'\n# bounding box 겹침 검사:\nfor txt_shape in text_shapes:\n    for diag_shape in diagram_shapes:\n        assert not boxes_overlap(txt_shape, diag_shape), f'Text shape {txt_shape.shape_id} overlaps diagram shape {diag_shape.shape_id}'"
+    },
+    "slide7_right_column_empty_boxes": {
+      "pattern": "슬라이드 7 플로우 다이어그램의 오른쪽 열(회색 박스 3개)이 모두 비어 있어 Target DB 정보 및 세부 설명 콘텐츠가 누락됨.",
+      "cause": "콘텐츠 배정 dict 생성 시 왼쪽·중앙 열만 처리하고 오른쪽 열 shape들이 식별되지 않거나 배정 로직에서 제외됨. 또는 shape ID 매핑이 부정확하여 오른쪽 열 shape에 콘텐츠가 주입되지 않음.",
+      "fix": "(1) 슬라이드 7 편집 전 모든 회색 박스 shape(배경색 기준 또는 크기 기준)을 열 순서대로 정렬하여 리스트 구성. (2) 각 shape에 콘텐츠 배정 후 shape.text.strip() != '' 검증 필수. (3) 오른쪽 열 shape 3개 포함 전체 박스에 Target DB 관련 실제 텍스트 삽입 강제. (4) 삽입 후 빈 shape 존재 시 AssertionError.",
+      "enforcement": "for shape in slide7_grid_shapes:\n    assert shape.text_frame.text.strip() != '', f'Slide7 grid box shape {shape.shape_id} is empty — must insert Target DB content'"
+    },
+    "slide31_slide33_quarters_items_missing": {
+      "pattern": "slide31/slide33(분기별 타임라인/흐름 레이아웃) 생성 시 Q1~Q4 아래 하단 영역(핵심 목표·리스크·규모 등)이 비어 있음.",
+      "cause": "_insert_rich_quarter_content()가 quarters[i].get('items')가 있을 때만 실행됨. 플랜 생성 시 quarters 배열 안에 items 키가 누락되면 하단 콘텐츠 박스 전체가 생성되지 않음.",
+      "fix": "slide31/slide33 플랜 생성 시 quarters 배열의 각 항목에 반드시 items 문자열 배열을 포함해야 함. 형식: quarters: [{period: 'Q1', kpi: '...', risk: '...', effort: '...', items: ['□ 항목1', '□ 항목2', '□ 항목3']}, ...]. items는 반드시 문자열 배열(dict 금지), 3개 이상 필수. kpi·risk·effort 값은 주제와 내용에 맞게 실제로 채워야 함 — 예시값('핵심지표', '낮음/중간/높음', '규모')은 참고용이며 내용에 따라 다른 표현으로 바꿔 써도 됨. items 내용도 핵심목표·리스크·규모에 국한하지 않고 주제에 맞게 자유롭게 구성.",
+      "enforcement": "for q in slide_plan['content']['quarters']:\n    assert isinstance(q.get('items'), list) and all(isinstance(i, str) for i in q['items']), f'slide31/33 quarters.items must be string list — e.g. [\"□ 항목1\", \"□ 항목2\"]'"
+    },
+    "slide29_periods_items_missing": {
+      "pattern": "slide29(연도별/월별 타임라인) 생성 시 연도 아래 콘텐츠 박스(items/kpi/team 등)가 비어 있음.",
+      "cause": "_edit_slide29()가 periods[i].get('items')가 없으면 desc_lines에 항목을 추가하지 않아 빈 텍스트박스만 삽입됨.",
+      "fix": "slide29 플랜 생성 시 periods 배열의 각 항목에 items(문자열 배열), kpi, risk, team을 포함해야 함. 형식: periods: [{label: '2026', period: 'Jan~Jun', items: ['□ 항목1', '□ 항목2'], kpi: '...', risk: '...', team: '...'}]. items는 문자열 배열 필수. kpi·risk·team 값은 주제와 내용에 맞게 실제로 채워야 함 — 예시값('핵심지표', '낮음', '담당팀')은 참고용이며 내용에 따라 다른 값으로 바꿔 써야 함.",
+      "enforcement": "for p in slide_plan['content']['periods']:\n    assert isinstance(p.get('items'), list), f'slide29 periods.items must be string list'"
+    },
+    "slide30_layout_spec": {
+      "pattern": "slide30 레이아웃 구조 정의 — 상단 개조식 + 하단 4×4 grid",
+      "spec": "상단(zone_upper): Step1~4 헤더(ID=28~31) + 좌측 소제목(ID=17) + 개조식 bullet 최소 5개(동적 sp ID=500~). 하단(zone_lower_grid): 4열×4행=16개 박스(동적 sp ID=600~), 배경색 열별 흰색(FFFFFF)/회색(F0F0F0) 교대, 테두리 #3C41E6.",
+      "plan_keys": {
+        "steps": "Step1~4 헤더 텍스트 (12자 이내)",
+        "step_descs": "상단 개조식 bullet 항목 — 최소 5개, 각 항목 40자 이내",
+        "step_meta": "하단 grid 데이터 — 4개 dict, 각 dict 키=행 레이블·값=내용 (4키 권장)"
+      },
+      "enforcement": "assert len(slide_plan['content'].get('step_descs', [])) >= 5, 'slide30 step_descs 최소 5개 필수'\nassert len(slide_plan['content'].get('step_meta', [])) >= 4, 'slide30 step_meta 4개 필수'\nfor m in slide_plan['content']['step_meta']:\n    assert isinstance(m, dict) and len(m) >= 1"
+    },
+    "slide30_step_descs_missing": {
+      "pattern": "slide30(4단계 스텝) 생성 시 상단 개조식 bullet이 비어 있음.",
+      "cause": "_edit_slide30()이 step_descs가 없으면 동적 sp를 추가하지 않아 bullet 영역이 빔.",
+      "fix": "slide30 플랜 생성 시 step_descs(최소 5개, 각 항목 40자 이내 bullet 텍스트)를 포함해야 함.",
+      "enforcement": "assert len(slide_plan['content'].get('step_descs', [])) >= 5, 'slide30 step_descs 최소 5개 필수'"
+    },
+    "slide30_step_meta": {
+      "pattern": "slide30(4단계 스텝) 하단 grid 영역(4열×4행=16개 박스)이 비어 있음.",
+      "cause": "플랜에 step_meta 키가 없거나 빈 값이면 _edit_slide30()이 grid 박스를 생성하지 않음.",
+      "fix": "slide30 플랜 생성 시 step_meta(4개, 각 4키 dict)를 포함해야 함. 각 dict의 키가 행 레이블, 값이 셀 내용. 예: [{'출시': '2023.03', '특징': '텍스트전용', '성능': '...', '비고': '...'}, ...]. 4열×4행이므로 각 dict는 정확히 4키 권장.",
+      "enforcement": "assert len(slide_plan['content'].get('step_meta', [])) >= 4, 'slide30 step_meta 4개 필수'\nfor m in slide_plan['content']['step_meta']:\n    assert isinstance(m, dict) and len(m) >= 1, 'step_meta 각 항목은 dict(키-값 1개 이상)'",
+      "harness_params": {
+        "geometry": "slide_shape_ids.json slide30: grid_x/y/total_cx/total_cy/col_gap/row_gap/bg_colors",
+        "dynamic_ids": "grid 박스: id=600~ (row*4+col 순서)"
+      }
     }
   },
   "slide_layout_hints": {
@@ -216,195 +363,17 @@
     }
   ],
   "total_runs": 17,
-  "evolution_notes": "v0.3 — 2026-06-02: closing slide 편집 금지, TOC 페이지번호 자동생성, slide22 전용 편집기, 모든 allowed slides는 이미지+사이드바 레이아웃 패턴 추가",
+  "evolution_notes": "v0.4 — 2026-06-09: AHE 공식 원칙 명문화(AHE_PRINCIPLES.md) + 결정관찰성 원장(change_manifest.jsonl) 도입. slide_catalog verified 13→33 재분류(slide23 ban). slide31/33 하단 메타 데이터주도화. group_title(사이드 소제목=subtitle) 도입. 원칙: 생성≠판정 분리(확증편향 방지), stale scaffolding 제거(Opus 4.8 기준 stress test), falsifiable-contract 의무.",
   "qa_enforcement_note": "qa_ok=false인 실행은 issue_count=0이더라도 완료 조건 미검증으로 간주. verifier에서 qa_done 플래그를 반드시 확인하고, false인 경우 WARN 처리하여 다음 실행에서 QA 단계를 강제 수행할 것.",
   "last_evolved": "2026-06-02T06:14:48.197792",
   "success_rate": 0.12,
-  "last_updated": "2026-06-02T06:14:48.199546",
+  "last_updated": "2026-06-09",
   "planning_constraints": [
-    "슬라이드 4(content) 오버플로우 방지: 4개 단계 컬럼(1단계~4단계) 의 헤더 텍스트가 모두 '...'으로 잘려 있음. 텍스트가 셀 너비 내에 표 — 제목 25자 이내, 항목 30자 이내로 제한",
-    "슬라이드 7(content) 오버플로우 방지: 좌측 텍스트 '노후 Oracle DB의 안정적 이관을 위해 GoldenGate 실시간 복제를 활용하여 서비스 — 제목 25자 이내, 항목 30자 이내로 제한",
-    "슬라이드 8(closing) 오버플로우 방지: 좌측 텍스트 '이관 전·중·후 전 구간에 걸쳐 자동화된 모니터링과 검증 체계를 구축하여 데이터 손실 및 서비 — 제목 25자 이내, 항목 30자 이내로 제한",
-    "[반복 패턴] 슬라이드 3, 7, 8이 동일한 좌측 텍스트 + 우측 대형 네이비 박스 레이아웃을 공유하며, 우측 영역 모두 미완성 상태임 — 동일 템플릿 적용 후 콘텐츠 미삽입 패턴",
-    "슬라이드 3(section) 오버플로우 방지: 우측 흰 영역의 '1.2 이관 목표 및 성공 기준 정의' 텍스트가 텍스트 박스 너비를 초과하여 '정의'가 다 — 제목 25자 이내, 항목 30자 이내로 제한",
-    "슬라이드 4(content) 오버플로우 방지: 좌측 설명 텍스트('Supplemental Logging 설정 ALL COLUMNS...')가 텍스트 박스를 — 제목 25자 이내, 항목 30자 이내로 제한",
-    "슬라이드 4(content) 오버플로우 방지: 우측 세 번째 컬럼 헤더 '성능 및 모니터링'이 슬라이드 오른쪽 경계를 넘어 잘려 보임. — 제목 25자 이내, 항목 30자 이내로 제한",
-    "슬라이드 4(content) 오버플로우 방지: 하단 카드 영역이 슬라이드 아래 경계를 넘어 잘려 있어 콘텐츠 일부가 표시되지 않음. — 제목 25자 이내, 항목 30자 이내로 제한",
-    "슬라이드 5(flow) 오버플로우 방지: 4단계 플로우 카드 중 'Step 4: Cutover 및 검증' 카드가 슬라이드 오른쪽 경계를 벗어나 일부  — 제목 25자 이내, 항목 30자 이내로 제한",
-    "슬라이드 5(flow) 오버플로우 방지: 콘텐츠 영역 하단이 슬라이드 아래 경계를 넘어 잘려 있음. — 제목 25자 이내, 항목 30자 이내로 제한",
-    "슬라이드 6(steps) 오버플로우 방지: As-Is 섹션의 설명 텍스트('GoldenGate CDC(Change...')가 원형 다이어그램 위에 겹쳐 — 제목 25자 이내, 항목 30자 이내로 제한",
-    "[반복 패턴] 여러 슬라이드에서 텍스트 박스 크기가 콘텐츠 양에 비해 작게 설정되어 오버플로우가 반복 발생함 — 텍스트 박스 자동 크기 조정 또는 폰트 크기 축소 정책 수립 필요",
-    "슬라이드 3(content) 오버플로우 방지: 세 개의 카드 영역이 슬라이드 하단 경계 밖으로 잘려 나가고 있음. 카드 하단 섹션이 화면 밖으로 오버플로우 — 제목 25자 이내, 항목 30자 이내로 제한",
-    "슬라이드 3(content) 오버플로우 방지: 각 카드 본문 텍스트가 '...'으로 잘려 표시됨 (예: '암...', '읽...', '재생성하...') — — 제목 25자 이내, 항목 30자 이내로 제한",
-    "슬라이드 3(content): 플레이스홀더 미교체 발생 — 반드시 실제 콘텐츠로 채울 것 (작성해주세요 금지)",
-    "슬라이드 4(flow): 플레이스홀더 미교체 발생 — 반드시 실제 콘텐츠로 채울 것 (작성해주세요 금지)",
-    "슬라이드 4(flow) 오버플로우 방지: 각 단계 열의 텍스트가 '...'으로 잘림 (예: 'Gol...', 'Export/Import...', '프 — 제목 25자 이내, 항목 30자 이내로 제한",
-    "슬라이드 4(flow) 오버플로우 방지: 4단계 'Cutover 전환' 열이 슬라이드 우측 경계 밖으로 잘려 나가고 있음 — 제목 25자 이내, 항목 30자 이내로 제한",
-    "슬라이드 5(steps): 플레이스홀더 미교체 발생 — 반드시 실제 콘텐츠로 채울 것 (작성해주세요 금지)",
-    "슬라이드 5(steps) 오버플로우 방지: 하단 콘텐츠 박스 영역이 슬라이드 하단 경계 밖으로 잘려 나가고 있음 — 제목 25자 이내, 항목 30자 이내로 제한",
-    {
-      "slide": "slide30",
-      "rule": "step_meta 4개 필수",
-      "format": "step_meta: [{'키': '값', ...}, ...] — 키는 내용에 따라 자유롭게, 각 dict 1~3쌍 권장"
-    },
-    "slide30(steps 레이아웃) 사용 시 반드시 step_meta 필드 포함: 4개 dict, 각 dict는 단계·방법·기준·결과 키를 가짐. 없으면 하단 4×4 grid가 비어있게 됨."
+    "텍스트 간결화: 본문제목 25자·항목 30자 이내 권장. 엔진이 _truncate_to_lines로 자동 절단하고 텍스트박스 cy를 자동 확장하므로, 가독성을 위해 plan 단계에서 핵심만 간결하게 작성한다.",
+    "콘텐츠 양 적합: 텍스트박스 대비 콘텐츠가 많으면 자동 폰트축소/크기조정이 적용된다 — 레이아웃 용량에 맞게 항목 수·문장 길이를 조절한다.",
+    "플레이스홀더 잔여 금지: 모든 zone을 실제 콘텐츠로 채운다 ('작성해주세요'/lorem/TODO 금지).",
+    "slide30(steps) 사용 시 step_meta 4개 dict 필수(각 1~3쌍, 키는 내용에 따라 자유). 없으면 하단 4×4 grid가 빈칸으로 남는다."
   ],
-  "known_failure_fixes_v2": {
-    "sidebar_text_overflow_and_logo_overlap": {
-      "pattern": "슬라이드 3~4에서 좌측 사이드바(ID=14) 텍스트가 슬라이드 하단 경계를 초과하고 GS Neotek 로고와 겹치는 현상이 반복 발생",
-      "cause": "사이드바 ID=14에 삽입되는 텍스트 양이 컨테이너 높이를 초과함. 폰트 크기가 자동 축소되지 않고 오버플로우 발생. 로고 shape과 사이드바 텍스트박스의 좌표가 겹치는 구조",
-      "fix": "ID=14(사이드바) 텍스트는 총 글자수 50자 이내, 줄 수 3줄 이내로 엄격히 제한. 폰트 크기 8pt 이하로 강제 설정 금지 — 대신 텍스트 자체를 줄일 것. 사이드바 하단 y좌표가 로고 영역(y > slide_height - 150000 EMU)과 겹치지 않도록 텍스트 삽입 전 컨테이너 바운딩박스 확인 필수",
-      "enforcement": "편집 코드 내에서 len(sidebar_text) > 50 이면 AssertionError 발생시켜 삽입 중단"
-    },
-    "content_duplication_in_multiple_regions": {
-      "pattern": "슬라이드 4에서 동일 내용이 상단 텍스트 영역(ID=8, ID=14)과 하단 파란 박스(ID=11) 두 곳에 중복 렌더링",
-      "cause": "콘텐츠 생성 시 단일 텍스트 소스 원칙이 없어 LLM이 동일 내용을 여러 shape에 반복 배정. 편집 코드가 shape 역할을 명확히 구분하지 않고 순회하며 동일 텍스트를 삽입",
-      "fix": "각 shape ID별 역할과 콘텐츠를 미리 dict로 정의하고, 동일 텍스트 문자열이 두 shape에 배정되면 AssertionError로 차단. ID=8(헤더 제목), ID=11(본문 bullet — 유일한 콘텐츠 소스), ID=14(사이드바 키워드 단어만), ID=16(사이드바 설명 60자 이내)의 역할을 코드 상단에 ROLE_MAP 상수로 선언하고 벗어나는 배정 금지",
-      "enforcement": "assert len(set(shape_contents.values())) == len(shape_contents), 'Duplicate content detected across shapes'"
-    }
-  },
-  "known_failure_fixes_v3": {
-    "card_layout_text_overlap_slide3": {
-      "pattern": "슬라이드 3에서 단계별 설명 텍스트(1단계/2단계/3단계)가 카드 레이아웃 헤더 파란 바 위에 중첩되어 읽을 수 없음. 하단 카드 행이 슬라이드 경계 밖으로 잘려 콘텐츠 누락 발생.",
-      "cause": "단계 설명 텍스트박스와 카드 shape의 y좌표 범위가 겹치도록 배치됨. 카드 행의 하단 y+height가 슬라이드 높이(6858000 EMU)를 초과함.",
-      "fix": "슬라이드 3 편집 시: (1) 단계 설명 텍스트박스의 bottom(y+height)이 카드 행의 top(y)보다 반드시 작아야 함 — 두 영역의 y범위가 겹치면 AssertionError로 차단. (2) 카드 행의 bottom(y+height) ≤ slide_height - 300000 EMU 조건을 강제 확인. (3) 카드 내 콘텐츠 텍스트는 카드 컨테이너 height의 80% 이내로 제한.",
-      "enforcement": "assert card_top > step_text_bottom, 'Step text overlaps card layout'\nassert card_bottom <= SLIDE_HEIGHT - 300000, 'Card row exceeds slide boundary'"
-    },
-    "icon_placeholder_not_replaced": {
-      "pattern": "슬라이드 3의 카드 shape 4개에 'icon'이라는 placeholder 텍스트가 미교체 상태로 그대로 노출됨.",
-      "cause": "카드 레이아웃 편집 시 아이콘 자리 placeholder를 실제 이모지/텍스트 아이콘으로 교체하는 로직이 누락됨. 기존 placeholder_check verifier가 XML 수준에서만 검사하여 시각적 'icon' 텍스트를 탐지하지 못함.",
-      "fix": "편집 코드에서 모든 shape의 <a:t> 텍스트를 순회하여 'icon'(대소문자 무관) 문자열이 단독으로 존재하면 AssertionError로 차단. 카드 아이콘 자리는 반드시 실제 기호(예: ▶, ✔, 📋) 또는 의미있는 한글/영문 약어로 대체.",
-      "enforcement": "for shape in slide.shapes:\n    for para in shape.text_frame.paragraphs:\n        for run in para.runs:\n            assert run.text.strip().lower() != 'icon', f'Unresolved icon placeholder in shape {shape.shape_id}'"
-    },
-    "template_instruction_text_exposed": {
-      "pattern": "슬라이드 4 제목 영역에 '텍스트 길어질 경우 아래 확장/ 최대 3줄로 작성하여 사용' 등 템플릿 작성 안내 문구가 실제 슬라이드에 그대로 노출됨.",
-      "cause": "LLM이 제목 텍스트박스 전체 내용을 교체하지 않고 일부 run만 교체하여, 원본 템플릿 안내 run이 남아 있음. 또는 안내 문구가 별도 run으로 분리되어 있어 단순 교체로는 제거 불가.",
-      "fix": "제목/부제목 shape 편집 시 해당 shape의 모든 paragraph와 run을 삭제하고 새로 작성. '아래 확장', '최대 N줄', '작성하여 사용', '텍스트 길어질 경우' 등 한글 템플릿 안내 패턴을 regex로 탐지하여 잔존 시 AssertionError 발생.",
-      "enforcement": "import re\nTEMPLATE_GUIDE_PATTERN = re.compile(r'(텍스트 길어질|아래 확장|최대 [0-9]+줄|작성하여 사용|여기에 입력|내용을 입력)')\nfor shape in slide.shapes:\n    assert not TEMPLATE_GUIDE_PATTERN.search(shape.text_frame.text), f'Template guide text exposed in shape {shape.shape_id}'"
-    },
-    "toc_page_number_incomplete": {
-      "pattern": "슬라이드 2(목차)에서 항목이 4개임에도 페이지 번호와 구분선이 2개만 렌더링되어 나머지 2개 항목의 번호가 누락됨.",
-      "cause": "목차 페이지 번호 shape 생성 로직이 항목 수를 정확히 반영하지 못하고 고정값(2개) 또는 첫 루프 조건에서 조기 종료됨.",
-      "fix": "목차 편집 시 items 배열 길이와 생성되는 페이지 번호 shape 수가 반드시 일치해야 함. assert len(page_num_shapes) == len(toc_items) 조건으로 불일치 즉시 차단. 구분선(divider line)도 동일하게 items 수만큼 생성 확인.",
-      "enforcement": "assert len(generated_page_nums) == len(toc_items), f'TOC page numbers({len(generated_page_nums)}) != items({len(toc_items)})'\nassert len(generated_dividers) == len(toc_items), f'TOC dividers count mismatch'"
-    },
-    "left_title_box_overflow_slide4": {
-      "pattern": "슬라이드 4 좌측 제목 텍스트박스가 컨테이너 경계를 벗어나 아래로 크게 넘침. 중앙~우측 상단 영역은 비어 콘텐츠 불균형 발생.",
-      "cause": "좌측 제목 텍스트가 3줄을 초과하거나 폰트 크기가 컨테이너 높이 대비 과대함. 콘텐츠가 좌측에만 집중되고 우측 영역이 미활용됨.",
-      "fix": "슬라이드 4 좌측 제목(ID=8 또는 해당 shape)은 최대 2줄·40자 이내로 제한. 우측 영역(중앙~우측)에 별도 콘텐츠 박스를 배치하여 레이아웃 균형 확보. 제목 shape bottom이 다음 콘텐츠 shape top과 겹치지 않도록 gap 최소 100000 EMU 확보.",
-      "enforcement": "assert len(title_text) <= 40, 'Left title too long (>40 chars)'\nassert title_text.count('\\n') <= 1, 'Left title exceeds 2 lines'"
-    }
-  },
-  "known_failure_fixes_v4": {
-    "slide3_layout_collapse_overlap_overflow": {
-      "pattern": "슬라이드 3에서 좌측 텍스트 블록이 컨테이너를 크게 벗어나고, 우측 파란 배경 박스와 겹쳐 레이아웃 전체가 붕괴됨. 파란 배경 위 텍스트 일부가 어두운 색으로 가독성 심각. 레이어 순서 오류로 파란 박스가 텍스트 위를 덮음.",
-      "cause": "1) 좌측 텍스트 shape의 폰트 크기가 40pt 이상으로 과대 설정되고 AutoFit이 비활성화되어 컨테이너 초과. 2) 좌측 텍스트 shape과 우측 파란 박스의 x+width/x 범위가 겹치도록 배치. 3) shape z-order(레이어)가 잘못 설정되어 파란 박스가 텍스트 위에 올라옴. 4) 파란 배경 shape 위의 텍스트 색상이 RGBColor(0,0,0) 또는 기본값으로 남아 있음.",
-      "fix": "슬라이드 3 편집 시: (1) 좌측 텍스트 shape 폰트는 최대 14pt, 텍스트 총 길이 150자 이내 — 초과 시 글머리 요약으로 압축. (2) 좌측 콘텐츠 영역(x~x+width)과 우측 파란 박스(x~x+width) x범위가 겹치지 않도록 gap 최소 100000 EMU 확보. (3) 파란 배경 shape는 반드시 zorder를 텍스트 shape보다 낮게 설정(send_to_back 또는 xml에서 sp 순서를 배경 먼저). (4) 파란 배경(#1419AB, #3C41E6 계열) 위의 모든 텍스트는 RGBColor(255,255,255) 흰색 강제 적용. (5) 모든 텍스트 shape에 txBody>bodyPr에 autofit(spAutoFit 또는 normAutofit) 설정 필수.",
-      "enforcement": "assert left_text_len <= 150, 'Slide3 left text block too long'\nassert left_box_right <= right_blue_box_left - 100000, 'Slide3 left text overlaps right blue box'\nfor shape in blue_bg_shapes:\n    for para in shape.text_frame.paragraphs:\n        for run in para.runs:\n            assert run.font.color.rgb == RGBColor(255,255,255), f'Text on blue bg must be white: shape {shape.shape_id}'\n# z-order: blue background shape must appear before text shapes in spTree XML"
-    },
-    "multi_column_right_cutoff": {
-      "pattern": "슬라이드 4의 다열(3열) 레이아웃에서 오른쪽 열 박스들이 슬라이드 우측 경계 밖으로 잘려 콘텐츠 미표시. 중앙 열 텍스트도 박스 너비 초과로 말줄임 발생.",
-      "cause": "3열 배치 시 각 열의 x + width 합산이 슬라이드 너비(9144000 EMU)를 초과하도록 좌표가 설정됨. 열 간격(gap) 없이 빽빽하게 배치하거나, 우측 열 x값이 슬라이드 경계에 근접하여 width 부여 후 초과 발생. 텍스트가 박스 width에 비해 길어 말줄임 처리됨.",
-      "fix": "다열 레이아웃 생성 시: (1) 모든 열의 right_edge(x+width) ≤ 슬라이드 너비 - 200000 EMU(우측 여백) 조건 강제. (2) 3열 배치 기준: slide_width=12192000, left_margin=300000, right_margin=300000, col_gap=100000 → 각 열 width = (12192000-600000-200000)/3 = 약 3797333 EMU. (3) 각 열 텍스트는 해당 width 기준 최대 20자/줄, 폰트 10~12pt로 제한. (4) 중앙 열 텍스트는 50자 이내로 요약.",
-      "enforcement": "SLIDE_WIDTH = 12192000\nRIGHT_MARGIN = 200000\nfor col_shape in column_shapes:\n    assert col_shape.left + col_shape.width <= SLIDE_WIDTH - RIGHT_MARGIN, f'Column shape {col_shape.shape_id} exceeds slide right boundary'\nassert mid_col_text_len <= 50, 'Middle column text too long (>50 chars)'"
-    },
-    "slide4_title_text_truncated": {
-      "pattern": "슬라이드 4 좌측 상단 제목 텍스트가 박스 경계 밖으로 넘쳐 잘리고 마지막 글자가 'ㄱ' 등 불완전한 상태로 렌더링됨.",
-      "cause": "제목 텍스트가 박스 width에 비해 과도하게 길고 줄바꿈이 의도치 않게 발생. AutoFit 미설정으로 폰트 크기가 자동 축소되지 않음. 한글 음절이 잘리는 것은 텍스트가 픽셀 단위로 박스를 초과했음을 의미.",
-      "fix": "슬라이드 4 제목 shape: 텍스트 최대 40자, 2줄 이내(개행 포함). 폰트 14pt 이하. bodyPr에 normAutofit 설정. 제목 텍스트에 완전한 문장만 삽입하고 중간 잘림 방지를 위해 삽입 전 len(title) <= 40 assert 실행.",
-      "enforcement": "assert len(slide4_title_text.replace('\\n','')) <= 40, 'Slide4 title exceeds 40 chars'\nassert slide4_title_text.count('\\n') <= 1, 'Slide4 title exceeds 2 lines'\n# bodyPr 반드시 포함: <a:normAutofit/>"
-    },
-    "autofit_mandatory_all_text_shapes": {
-      "pattern": "AutoFit 미설정으로 인한 텍스트 오버플로우가 슬라이드 3·4에서 반복 발생.",
-      "cause": "python-pptx로 생성한 텍스트박스의 기본 bodyPr에 AutoFit 설정이 없어 텍스트가 박스를 초과해도 자동 축소되지 않음.",
-      "fix": "모든 새로 생성하는 TextFrame의 bodyPr에 반드시 normAutofit 또는 spAutoFit 설정. python-pptx API: text_frame.auto_size = MSO_AUTO_SIZE.TEXT_TO_FIT_SHAPE 또는 XML 직접 수정으로 <a:normAutofit/> 삽입. 기존 shape 편집 시에도 bodyPr 확인 후 AutoFit 없으면 추가.",
-      "enforcement": "from pptx.util import Pt\nfrom pptx.oxml.ns import qn\nfrom lxml import etree\ndef ensure_autofit(text_frame):\n    bodyPr = text_frame._txBody.find(qn('a:bodyPr'))\n    if bodyPr.find(qn('a:normAutofit')) is None and bodyPr.find(qn('a:spAutoFit')) is None:\n        bodyPr.append(etree.SubElement(bodyPr, qn('a:normAutofit')))"
-    }
-  },
-  "known_failure_fixes_v5": {
-    "right_navy_box_media_placeholder_not_replaced": {
-      "pattern": "슬라이드 3·7·8의 우측 대형 네이비 배경 영역에 재생 아이콘(삼각형)만 표시되고 실제 콘텐츠(이미지, 텍스트, 다이어그램)가 전혀 없음. 동일한 좌측 텍스트 + 우측 대형 네이비 박스 레이아웃을 공유하는 슬라이드 전체에서 우측이 미완성 상태로 배포됨.",
-      "cause": "우측 대형 박스가 python-pptx에서 MediaPlaceholder 또는 PicturePlaceholder 타입으로 인식되어 일반 텍스트/도형 삽입 코드에서 건너뜀. 또는 해당 shape을 편집 대상으로 식별하지 못해 콘텐츠 삽입 로직이 실행되지 않음. 재생 아이콘(삼각형)은 미디어 플레이스홀더의 기본 UI 요소임.",
-      "fix": "우측 네이비 박스 shape 편집 시: (1) shape.placeholder_format이 존재하고 idx가 미디어/픽처 타입이면 해당 placeholder를 제거하고 새 텍스트박스 또는 도형으로 대체. (2) 대체 콘텐츠로 다이어그램 설명 텍스트, 핵심 수치, 구조도 텍스트를 흰색(RGBColor(255,255,255))으로 삽입. (3) 우측 박스가 비어 있는지(shape.text.strip() == '' 이고 미디어 타입인지) 편집 전 반드시 검사하여 콘텐츠 주입 강제. (4) 미디어 플레이스홀더를 완전히 제거할 수 없을 경우 그 위에 텍스트박스 도형을 z-order 최상위로 오버레이하여 콘텐츠 표시.",
-      "enforcement": "for shape in slide.shapes:\n    if shape.has_text_frame and shape.text.strip() == '' and hasattr(shape, 'placeholder_format'):\n        assert False, f'Empty placeholder detected in slide {slide_number}, shape {shape.shape_id} — must replace with actual content'\n# 우측 네이비 박스 확인: 배경색이 네이비(#1419AB/#3C41E6)이고 width > 3000000 EMU인 shape이 텍스트 없으면 FAIL"
-    },
-    "step_column_header_truncation": {
-      "pattern": "슬라이드 4의 4단계 컬럼(1단계~4단계) 헤더 텍스트가 모두 '...'으로 잘려 핵심 내용이 미표시됨. 2·3·4단계 본문 영역이 비어 있어 미완성 상태.",
-      "cause": "각 컬럼 헤더 셀의 width 대비 텍스트가 길고 폰트 크기가 자동 축소되지 않아 말줄임 처리. 2~4단계 본문 콘텐츠 생성 로직이 누락되거나 1단계 내용만 작성 후 나머지를 빈 상태로 방치.",
-      "fix": "(1) 각 단계 컬럼 헤더 텍스트는 최대 12자 이내로 제한(예: 'GG 설치·설정', '데이터 이관', '복제 검증', '컷오버'). (2) 4개 단계 모두 본문 bullet을 3개 이상 반드시 작성 — 빈 컬럼 금지. (3) 헤더 셀 폰트 10pt 이하, normAutofit 설정. (4) 삽입 전 assert len(header) <= 12 실행.",
-      "enforcement": "assert all(len(h) <= 12 for h in step_headers), 'Step column header exceeds 12 chars'\nassert all(len(body) > 0 for body in step_bodies), 'Step column body is empty — all 4 steps must have content'"
-    },
-    "slide5_title_only_numbering_shown": {
-      "pattern": "슬라이드 5 상단 제목 영역에 '1.4' 등 섹션 번호만 표시되고 실제 슬라이드 제목 텍스트가 없음. 3개 행의 오른쪽 회색 박스(3열)가 모두 비어 있음.",
-      "cause": "제목 shape 편집 시 번호 run만 교체하고 제목 텍스트 run을 삽입하지 않음. 또는 제목 텍스트가 별도 run에 있어 교체 로직에서 누락. 3열 회색 박스는 콘텐츠 배정 dict에서 제외되어 빈 상태로 방치.",
-      "fix": "(1) 슬라이드 5 제목 shape의 모든 run을 삭제 후 '섹션번호 + 공백 + 실제제목' 형태로 재작성. 제목은 15자 이내. (2) 3행 × 3열 레이아웃에서 3열(오른쪽 회색 박스) 포함 모든 9개 셀에 콘텐츠 삽입 강제. (3) 삽입 후 shape.text.strip() == '' 이면 AssertionError.",
-      "enforcement": "assert slide5_title.strip() not in ['', '1.4', '1.3', '1.2', '1.1'], 'Slide5 title is empty or shows only section number'\nassert all(cell_text.strip() != '' for cell_text in slide5_all_cells), 'Slide5 has empty cells in grid layout'"
-    }
-  },
-  "known_failure_fixes_v6": {
-    "section_slide_right_textbox_overflow": {
-      "pattern": "슬라이드 3(section 레이아웃) 우측 흰 영역의 서브타이틀 텍스트('1.2 이관 목표 및 성공 기준 정의' 등)가 텍스트박스 너비를 초과하여 마지막 단어가 다음 줄로 강제 줄바꿈됨.",
-      "cause": "section 슬라이드 우측 텍스트박스의 cx가 콘텐츠 길이 대비 너무 좁게 설정되어 있고, normAutofit 미설정으로 자동 축소가 되지 않음. 섹션 번호 + 긴 제목 조합(예: '1.2 이관 목표 및 성공 기준 정의' = 18자)이 단일 줄에 들어가지 못함.",
-      "fix": "(1) section 슬라이드 우측 서브타이틀 텍스트는 최대 16자 이내로 제한. '섹션번호 제목' 형태에서 제목 부분만 15자 이내로 요약. (2) 해당 텍스트박스 cx를 슬라이드 우측 여백 기준으로 slide_width - textbox_x - 200000 EMU로 계산하여 최대 확장. (3) bodyPr에 normAutofit 필수 적용. (4) 삽입 전 assert len(section_subtitle) <= 16 실행.",
-      "enforcement": "assert len(section_subtitle_text) <= 16, f'Section subtitle too long ({len(section_subtitle_text)} chars) — max 16'\n# textbox cx 계산 강제:\n# section_right_tb.width = slide.width - section_right_tb.left - 200000"
-    },
-    "flow_card_right_cutoff_slide5": {
-      "pattern": "슬라이드 5의 4단계 플로우 카드 레이아웃에서 마지막 카드(Step 4)가 슬라이드 오른쪽 경계를 벗어나 잘림. 하단 콘텐츠도 슬라이드 하단 경계 초과.",
-      "cause": "4개 카드의 x+width 합산 및 카드 간 gap이 슬라이드 너비(9144000 EMU)를 초과하도록 계산됨. 하단 카드의 y+height가 슬라이드 높이(6858000 EMU)를 초과.",
-      "fix": "(1) 4열 카드 배치: slide_width=12192000, left_margin=200000, right_margin=200000, col_gap=80000 → 각 카드 width=(12192000-400000-240000)/4=2888000 EMU 이하. (2) 각 카드 right_edge(x+width) <= slide_width-200000 조건 강제. (3) 카드 하단 bottom(y+height) <= slide_height-200000(=6658000 EMU) 조건 강제. (4) 카드 내 텍스트는 최대 12자/줄, 폰트 10pt 이하.",
-      "enforcement": "SLIDE_WIDTH = 12192000\nSLIDE_HEIGHT = 6858000\nfor card in flow_cards:\n    assert card.left + card.width <= SLIDE_WIDTH - 200000, f'Flow card {card.shape_id} exceeds right boundary'\n    assert card.top + card.height <= SLIDE_HEIGHT - 200000, f'Flow card {card.shape_id} exceeds bottom boundary'"
-    },
-    "as_is_tobe_diagram_text_overlap_slide6": {
-      "pattern": "슬라이드 6(As-Is/To-Be 비교)에서 설명 텍스트 블록이 원형 다이어그램 shape과 심하게 겹쳐 가독성이 크게 저하됨. '아래 확장/최대 3줄로' 템플릿 안내 문구가 실제 슬라이드에 그대로 노출됨.",
-      "cause": "설명 텍스트박스의 x/y/width/height가 원형 다이어그램 shape과 겹치도록 배치됨. 템플릿 안내 run이 별도 paragraph로 존재하여 제목/본문 교체 시 누락됨.",
-      "fix": "(1) 슬라이드 6 편집 시 설명 텍스트박스의 bounding box와 다이어그램 shape의 bounding box가 겹치지 않도록 gap 최소 50000 EMU 확보. (2) '아래 확장', '최대 N줄', '아래 확장/ 최대' 패턴을 포함하는 모든 run을 삭제하고 실제 콘텐츠로 교체. (3) 슬라이드 6 전체 텍스트 shape 순회 후 템플릿 안내 패턴 탐지 시 AssertionError. (4) As-Is/To-Be 각 설명은 3줄 이내, 각 줄 20자 이내로 제한.",
-      "enforcement": "import re\nSLIDE6_GUIDE_PATTERN = re.compile(r'(아래 확장|최대 [0-9]+줄|아래 확장/ 최대)')\nfor shape in slide6.shapes:\n    if shape.has_text_frame:\n        assert not SLIDE6_GUIDE_PATTERN.search(shape.text_frame.text), f'Template guide text in slide6 shape {shape.shape_id}'\n# bounding box 겹침 검사:\nfor txt_shape in text_shapes:\n    for diag_shape in diagram_shapes:\n        assert not boxes_overlap(txt_shape, diag_shape), f'Text shape {txt_shape.shape_id} overlaps diagram shape {diag_shape.shape_id}'"
-    },
-    "slide7_right_column_empty_boxes": {
-      "pattern": "슬라이드 7 플로우 다이어그램의 오른쪽 열(회색 박스 3개)이 모두 비어 있어 Target DB 정보 및 세부 설명 콘텐츠가 누락됨.",
-      "cause": "콘텐츠 배정 dict 생성 시 왼쪽·중앙 열만 처리하고 오른쪽 열 shape들이 식별되지 않거나 배정 로직에서 제외됨. 또는 shape ID 매핑이 부정확하여 오른쪽 열 shape에 콘텐츠가 주입되지 않음.",
-      "fix": "(1) 슬라이드 7 편집 전 모든 회색 박스 shape(배경색 기준 또는 크기 기준)을 열 순서대로 정렬하여 리스트 구성. (2) 각 shape에 콘텐츠 배정 후 shape.text.strip() != '' 검증 필수. (3) 오른쪽 열 shape 3개 포함 전체 박스에 Target DB 관련 실제 텍스트 삽입 강제. (4) 삽입 후 빈 shape 존재 시 AssertionError.",
-      "enforcement": "for shape in slide7_grid_shapes:\n    assert shape.text_frame.text.strip() != '', f'Slide7 grid box shape {shape.shape_id} is empty — must insert Target DB content'"
-    },
-    "slide31_slide33_quarters_items_missing": {
-      "pattern": "slide31/slide33(분기별 타임라인/흐름 레이아웃) 생성 시 Q1~Q4 아래 하단 영역(핵심 목표·리스크·규모 등)이 비어 있음.",
-      "cause": "_insert_rich_quarter_content()가 quarters[i].get('items')가 있을 때만 실행됨. 플랜 생성 시 quarters 배열 안에 items 키가 누락되면 하단 콘텐츠 박스 전체가 생성되지 않음.",
-      "fix": "slide31/slide33 플랜 생성 시 quarters 배열의 각 항목에 반드시 items 문자열 배열을 포함해야 함. 형식: quarters: [{period: 'Q1', kpi: '...', risk: '...', effort: '...', items: ['□ 항목1', '□ 항목2', '□ 항목3']}, ...]. items는 반드시 문자열 배열(dict 금지), 3개 이상 필수. kpi·risk·effort 값은 주제와 내용에 맞게 실제로 채워야 함 — 예시값('핵심지표', '낮음/중간/높음', '규모')은 참고용이며 내용에 따라 다른 표현으로 바꿔 써도 됨. items 내용도 핵심목표·리스크·규모에 국한하지 않고 주제에 맞게 자유롭게 구성.",
-      "enforcement": "for q in slide_plan['content']['quarters']:\n    assert isinstance(q.get('items'), list) and all(isinstance(i, str) for i in q['items']), f'slide31/33 quarters.items must be string list — e.g. [\"□ 항목1\", \"□ 항목2\"]'"
-    },
-    "slide29_periods_items_missing": {
-      "pattern": "slide29(연도별/월별 타임라인) 생성 시 연도 아래 콘텐츠 박스(items/kpi/team 등)가 비어 있음.",
-      "cause": "_edit_slide29()가 periods[i].get('items')가 없으면 desc_lines에 항목을 추가하지 않아 빈 텍스트박스만 삽입됨.",
-      "fix": "slide29 플랜 생성 시 periods 배열의 각 항목에 items(문자열 배열), kpi, risk, team을 포함해야 함. 형식: periods: [{label: '2026', period: 'Jan~Jun', items: ['□ 항목1', '□ 항목2'], kpi: '...', risk: '...', team: '...'}]. items는 문자열 배열 필수. kpi·risk·team 값은 주제와 내용에 맞게 실제로 채워야 함 — 예시값('핵심지표', '낮음', '담당팀')은 참고용이며 내용에 따라 다른 값으로 바꿔 써야 함.",
-      "enforcement": "for p in slide_plan['content']['periods']:\n    assert isinstance(p.get('items'), list), f'slide29 periods.items must be string list'"
-    },
-    "slide30_layout_spec": {
-      "pattern": "slide30 레이아웃 구조 정의 — 상단 개조식 + 하단 4×4 grid",
-      "spec": "상단(zone_upper): Step1~4 헤더(ID=28~31) + 좌측 소제목(ID=17) + 개조식 bullet 최소 5개(동적 sp ID=500~). 하단(zone_lower_grid): 4열×4행=16개 박스(동적 sp ID=600~), 배경색 열별 흰색(FFFFFF)/회색(F0F0F0) 교대, 테두리 #3C41E6.",
-      "plan_keys": {
-        "steps": "Step1~4 헤더 텍스트 (12자 이내)",
-        "step_descs": "상단 개조식 bullet 항목 — 최소 5개, 각 항목 40자 이내",
-        "step_meta": "하단 grid 데이터 — 4개 dict, 각 dict 키=행 레이블·값=내용 (4키 권장)"
-      },
-      "enforcement": "assert len(slide_plan['content'].get('step_descs', [])) >= 5, 'slide30 step_descs 최소 5개 필수'\nassert len(slide_plan['content'].get('step_meta', [])) >= 4, 'slide30 step_meta 4개 필수'\nfor m in slide_plan['content']['step_meta']:\n    assert isinstance(m, dict) and len(m) >= 1"
-    },
-    "slide30_step_descs_missing": {
-      "pattern": "slide30(4단계 스텝) 생성 시 상단 개조식 bullet이 비어 있음.",
-      "cause": "_edit_slide30()이 step_descs가 없으면 동적 sp를 추가하지 않아 bullet 영역이 빔.",
-      "fix": "slide30 플랜 생성 시 step_descs(최소 5개, 각 항목 40자 이내 bullet 텍스트)를 포함해야 함.",
-      "enforcement": "assert len(slide_plan['content'].get('step_descs', [])) >= 5, 'slide30 step_descs 최소 5개 필수'"
-    },
-    "slide30_step_meta": {
-      "pattern": "slide30(4단계 스텝) 하단 grid 영역(4열×4행=16개 박스)이 비어 있음.",
-      "cause": "플랜에 step_meta 키가 없거나 빈 값이면 _edit_slide30()이 grid 박스를 생성하지 않음.",
-      "fix": "slide30 플랜 생성 시 step_meta(4개, 각 4키 dict)를 포함해야 함. 각 dict의 키가 행 레이블, 값이 셀 내용. 예: [{'출시': '2023.03', '특징': '텍스트전용', '성능': '...', '비고': '...'}, ...]. 4열×4행이므로 각 dict는 정확히 4키 권장.",
-      "enforcement": "assert len(slide_plan['content'].get('step_meta', [])) >= 4, 'slide30 step_meta 4개 필수'\nfor m in slide_plan['content']['step_meta']:\n    assert isinstance(m, dict) and len(m) >= 1, 'step_meta 각 항목은 dict(키-값 1개 이상)'",
-      "harness_params": {
-        "geometry": "slide_shape_ids.json slide30: grid_x/y/total_cx/total_cy/col_gap/row_gap/bg_colors",
-        "dynamic_ids": "grid 박스: id=600~ (row*4+col 순서)"
-      }
-    }
-  },
   "content_limits": {
     "_note": "LLM plan 생성 시 각 필드 글자 수 상한. 초과 시 코드가 자르지 않고 LLM이 처음부터 제한 내로 작성해야 함.",
     "common": {
@@ -528,5 +497,7 @@
         "chars_each": 40
       }
     }
-  }
+  },
+  "principles_doc": "harness/AHE_PRINCIPLES.md",
+  "decision_ledger": "harness/change_manifest.jsonl"
 }

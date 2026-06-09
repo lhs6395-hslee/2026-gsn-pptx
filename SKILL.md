@@ -77,16 +77,21 @@ out, vision_issues = run_ppt_generation(
     work_dir=work_dir,
     audience="<청중>",
     n_slides=<장수>,
+    inline_vision_qa=False,   # AHE_PRINCIPLES §2: 엔진 자기-QA 끔 → 11단계 독립 QA 에이전트가 검증(확증편향 차단)
     # layout_from_pptx=PROJECT_DIR / "reference.pptx",  # 레이아웃 고정 시 지정
 )
 print("완료:", out, "| vision_issues:", vision_issues)
 PY
 ```
 
-엔진이 자동으로 수행하는 것:
+엔진(결정적 hands)이 자동으로 수행하는 것:
 - 템플릿 언팩 → 41슬라이드 존 분석(`layout_zone_map.json`)
-- LLM 기반 plan 생성 → 레이아웃-콘텐츠 적합성 가드(타임라인/차트 오용 차단)
-- 존 맵 기반 슬라이드 편집(아이콘/이미지 자리·정렬 정확) → 패킹 → PowerPoint 시각 QA
+- plan 기반 존 맵 슬라이드 편집(아이콘/이미지 자리·정렬 정확) → 패킹 → 결정적 검증(verifier_rules·placeholder·폰트)
+- 매 실행 후 경험 자동 기록(`_record_run_experience` → `long_term_memory.json`·`evolution/last_run_digest.json`)
+
+> **plan과 QA는 brain 작업**이다(AHE_PRINCIPLES §6 brain/hands 분리). plan은 오케스트레이터(이 Claude 세션)가
+> 작성하고(5단계), QA는 **생성 컨텍스트를 모르는 독립 격리 에이전트**가 수행한다(11단계, §2 확증편향 차단).
+> `inline_vision_qa=False`로 엔진의 인라인 자기-검증을 끈다. (headless `python main.py` 폴백만 인라인 vision 사용)
 
 생성된 `output.pptx`를 사용자 지정 위치로 복사해 전달한다.
 아래 0~9단계는 엔진 내부 동작의 참고용 상세 설명이다.
@@ -182,26 +187,11 @@ Claude가 직접 plan.json을 작성한다:
 
 각 슬라이드를 순서대로 편집한다.
 
-**편집 전 미들웨어 Pre-hook:**
-```bash
-python3 -c "
-import sys
-from harness_hooks import pre_xml_edit
-result = pre_xml_edit(open('$SLIDE_XML').read())
-if not result['pass']:
-    print('PRE-HOOK FAIL:', result['issues'])
-    sys.exit(1)
-"
-```
+**편집 전/후 검사는 엔진이 내부 처리한다** — 별도 훅 import 불필요:
+- 이스케이프·lang=ko-KR·endParaRPr 순서: `apply_known_fixes`(편집 전) + `_write_xml`(편집 시)
+- XML 유효성: `pack_output`이 패킹 전 `ET.parse`로 전 슬라이드 검증
 
-**편집 후 Post-hook:**
-```bash
-python3 -c "
-import xml.etree.ElementTree as ET
-ET.parse('$SLIDE_XML')
-print('XML valid')
-"
-```
+(수동 점검이 필요하면 `python3 -c "import xml.etree.ElementTree as ET; ET.parse('$SLIDE_XML')"`로 XML 유효성만 확인.)
 
 ### 7. 클린 & 패킹
 
@@ -293,8 +283,8 @@ PPTX 경로: <생성된 PPTX 절대 경로>
 
 ## 단계 1: 텍스트/XML 검증
 
-1. PPTX 언팩:
-   mkdir -p /tmp/qa_auto && unzip -o "<생성된 PPTX 절대 경로>" -d /tmp/qa_auto/
+1. PPTX 언팩 (임시 폴더는 프로젝트 내 result/tmp 사용 — /tmp 금지):
+   mkdir -p /Users/toule/Documents/claude/ppt-skill/result/tmp/qa_auto && unzip -o "<생성된 PPTX 절대 경로>" -d /Users/toule/Documents/claude/ppt-skill/result/tmp/qa_auto/
 
 2. placeholder_patterns.json 읽기:
    /Users/toule/Documents/claude/ppt-skill/harness/placeholder_patterns.json
@@ -310,7 +300,7 @@ PPTX 경로: <생성된 PPTX 절대 경로>
    ns = {'a': 'http://schemas.openxmlformats.org/drawingml/2006/main'}
    issues = []
 
-   for xml_path in sorted(glob.glob('/tmp/qa_auto/ppt/slides/slide[0-9]*.xml')):
+   for xml_path in sorted(glob.glob('/Users/toule/Documents/claude/ppt-skill/result/tmp/qa_auto/ppt/slides/slide[0-9]*.xml')):
        slide_name = os.path.basename(xml_path)
        try:
            tree = ET.parse(xml_path)
@@ -395,6 +385,28 @@ PPTX 경로: <생성된 PPTX 절대 경로>
 에이전트 결과를 받아 통합 리포트를 출력하고,
 수정 필요 항목이 있으면 사용자에게 수정 여부를 확인 후 진행한다.
 
+> **확증편향 차단(AHE_PRINCIPLES §2)**: 이 QA 에이전트는 plan·생성 근거를 전달받지 않는다.
+> 결과 PPTX·렌더 이미지·원 주제만 보고 판정한다. 오케스트레이터(생성한 세션)가 직접 자기 결과를
+> 평가하지 말 것 — 반드시 독립 에이전트의 판정을 받는다.
+
+### 11.5 AHE 피드백 — QA 발견을 하네스에 반영 (falsifiable-contract + 통보)
+
+독립 QA가 **반복적·체계적 결함**(특정 레이아웃/존이 또 깨짐, placeholder 잔류 패턴 등)을 발견하면,
+일회성 수정에 그치지 말고 **하네스 변경**으로 반영한다. 절차:
+
+1. **stale 가정 자문(§3)**: 이 결함이 "약한 모델용 scaffolding이 빠져서"인가, 아니면 "하네스 데이터·로직 버그"인가?
+   - 데이터·로직 버그 → 해당 `harness/*.json` 또는 편집기 수정 (하네스 우선).
+   - 현 모델이면 충분한 일회성 콘텐츠 문제 → 하네스 변경 없이 콘텐츠만 교정.
+2. **falsifiable-contract 기록**: 하네스를 바꿨다면 `harness/change_manifest.jsonl`에 1줄 append —
+   `{date, id, change, files, evidence, root_cause, fix, predicted_fixes, regression_risk, verification:"pending"}`.
+3. **사용자 통보**: 변경 건마다 manifest 항목을 요약해 사용자에게 알린다 (필수).
+4. **다음 실행 검증**: 다음 생성에서 예측이 맞았는지(`predicted_fixes` 해결 / `regression_risk` 미발생) 확인하고
+   manifest의 `verification`을 `verified`/`refuted`로 갱신한다.
+
+> 엔진은 매 실행 후 `_record_run_experience`로 `long_term_memory.json`(runs/success_rate)과
+> `evolution/last_run_digest.json`을 자동 갱신한다(경험 관찰성 ❷ + auto-update). 하네스 *변경* 기록은
+> 위 manifest(결정 관찰성 ❸)가 담당한다 — 둘은 역할이 다르다.
+
 ---
 
 ## AHE 진화 루프 (--evolve 시에만 실행)
@@ -405,20 +417,18 @@ PPTX 경로: <생성된 PPTX 절대 경로>
 각 슬라이드 결과를 `~/.ppt-skill/traces/` 에 JSON으로 저장한다.
 
 ### Digest 생성
-```bash
-python3 ~/.ppt-skill/ahe_tools/distill_digest.py \
-  --run-id "$RUN_ID" \
-  --traces-dir ~/.ppt-skill/traces/
-```
+`--evolve` 헤드리스 경로는 `ahe_loop.run_evolve_loop`(main.py)가 자체 `distill_digest`로 트레이스를 압축한다.
+일반(skill) 경로는 매 실행 후 `_record_run_experience`가 `long_term_memory.json`(runs/success_rate)과
+`evolution/last_run_digest.json`을 자동 기록한다(경험 관찰성 ❷).
 
 ### Evolve Agent 실행
 digest를 읽고 `harness/` 파일들을 개선한다:
-- 실패 패턴 → 해당 컴포넌트 수정
-- 모든 편집에 예측 선언 (`change_manifest.json`)
+- 실패 패턴 → 해당 컴포넌트 수정 (하네스 우선)
+- 모든 편집에 예측 선언 → `harness/change_manifest.jsonl` (falsifiable-contract, AHE_PRINCIPLES §4)
 - git commit으로 변경 추적
 
 ### 예측 검증
-다음 라운드 결과와 이전 예측을 비교해 manifest를 업데이트한다.
+다음 라운드 결과와 이전 예측을 비교해 `change_manifest.jsonl`의 `verification`을 verified/refuted로 갱신한다.
 
 ---
 

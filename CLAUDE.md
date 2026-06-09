@@ -56,7 +56,7 @@
 - **템플릿을 보지 않고 추측으로 zone 역할 판단 금지**
   - "이 shape이 이미지 슬롯인지 설명 슬롯인지"는 반드시 zone_map과 long_term_memory 근거로 판단
   - XML의 noFill·텍스트 여부만으로 역할 추론 금지
-- 타임라인/흐름 레이아웃(slide30 등) 편집 시 `known_failure_fixes_v6.flow_card_right_cutoff_slide5` 제약 적용 필수
+- 타임라인/흐름 레이아웃(slide30 등) 편집 시 `known_failure_fixes.flow_card_right_cutoff_slide5` 제약 적용 필수 (v2~v6는 단일 dict로 통합됨)
   - 카드 우측 경계: card.left + card.width ≤ slide_width - 200000
   - 카드 하단 경계: card.top + card.height ≤ slide_height - 200000
 
@@ -80,8 +80,10 @@ AHE(Agentic Harness Engineering, arXiv:2604.25850) 기법으로 하네스가 실
 - Claude Code 스킬로 동작 — `python main.py`를 직접 실행하지 않음.
 - 실행마다 `~/.ppt-skill/runs/<날짜>_<주제>/` 작업 폴더만 새로 생성.
 
+원칙은 `harness/AHE_PRINCIPLES.md`에 명문화(2026-06 공식 출처 기반). 모든 하네스 변경은 이 문서 기준으로 판단.
+
 | AHE 기둥 | 구현 위치 | 역할 |
 |---------|-----------|------|
 | ❶ Component Observability | `harness/` 파일들 | 하네스를 파일로 분리, git 추적 |
-| ❷ Experience Observability | `ahe_tools/distill_digest.py` | 실행 트레이스 → 구조화된 digest |
-| ❸ Decision Observability | `evolution/iteration_N_manifest.json` | 편집+예측 선언 → 다음 라운드 검증 |
+| ❷ Experience Observability | `_record_run_experience` → `long_term_memory.json`(runs/success_rate) · `evolution/last_run_digest.json` (헤드리스 `--evolve`는 `ahe_loop.distill_digest`) | 매 실행 경험 자동 기록 |
+| ❸ Decision Observability | `harness/change_manifest.jsonl` (falsifiable-contract 원장) | 편집+예측 선언 → 다음 라운드 검증 |

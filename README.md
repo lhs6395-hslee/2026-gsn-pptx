@@ -152,10 +152,12 @@ PPT_SKILL_BACKEND=bedrock python3 main.py --topic "..."
 ├── SKILL.md                    ← Claude Code 스킬 선언
 ├── harness/
 │   ├── CLAUDE.md               ← 에이전트 시스템 프롬프트
+│   ├── AHE_PRINCIPLES.md       ← 하네스 엔지니어링 원칙 (공식 출처 기반)
+│   ├── change_manifest.jsonl   ← 변경별 falsifiable-contract 원장 (결정 관찰성 ❸)
 │   ├── long_term_memory.json   ← 누적 경험 (AHE 자동 업데이트)
+│   ├── slide_catalog.json      ← verified/banned 레이아웃 분류
 │   ├── verifier_rules.json     ← 검증 기준
-│   ├── tools.json
-│   └── middleware.py
+│   └── tools.json
 ├── scripts/office/
 │   ├── unpack.py               ← pptx → 디렉토리
 │   ├── pack.py                 ← 디렉토리 → pptx
