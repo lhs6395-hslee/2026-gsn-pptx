@@ -152,10 +152,10 @@
         "28"
       ],
       "item_descs": [
-        "30",
         "62",
         "25",
-        "29"
+        "29",
+        "30"
       ],
       "icon_slots": [
         "20",
@@ -210,10 +210,10 @@
         "28"
       ],
       "item_descs": [
-        "30",
         "62",
         "25",
-        "29"
+        "29",
+        "30"
       ],
       "image_slots": [
         "20",
@@ -360,6 +360,7 @@
     "title": "8",
     "subtitle": "9",
     "body_title": "22",
+    "group_title": "68",
     "body": {
       "item_titles": [
         "66",
@@ -376,9 +377,6 @@
       ],
       "image_slots": [
         "35"
-      ],
-      "image_caption": [
-        "68"
       ]
     }
   },
@@ -386,6 +384,7 @@
     "title": "8",
     "subtitle": "9",
     "body_title": "22",
+    "group_title": "30",
     "body": {
       "item_titles": [
         "28",
@@ -402,9 +401,6 @@
       ],
       "image_slots": [
         "24"
-      ],
-      "image_caption": [
-        "30"
       ]
     }
   },
@@ -412,6 +408,7 @@
     "title": "8",
     "subtitle": "9",
     "body_title": "22",
+    "group_title": "40",
     "body": {
       "item_descs": [
         "12",
@@ -426,9 +423,6 @@
         "38",
         "43",
         "46"
-      ],
-      "image_caption": [
-        "40"
       ]
     }
   },
@@ -437,6 +431,7 @@
     "subtitle": "9",
     "body_title": "22",
     "body_desc": "21",
+    "group_title": "26",
     "body": {
       "image_slots": [
         "24"
@@ -450,9 +445,6 @@
         "23",
         "38",
         "41"
-      ],
-      "image_caption": [
-        "26"
       ]
     }
   },
