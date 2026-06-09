@@ -389,9 +389,16 @@ PPTX 경로: <생성된 PPTX 절대 경로>
 > 결과 PPTX·렌더 이미지·원 주제만 보고 판정한다. 오케스트레이터(생성한 세션)가 직접 자기 결과를
 > 평가하지 말 것 — 반드시 독립 에이전트의 판정을 받는다.
 
-### 11.5 AHE 피드백 — QA 발견을 하네스에 반영 (falsifiable-contract + 통보)
+### 11.5 AHE 피드백 — QA 판정 기록 + 발견을 하네스에 반영 (falsifiable-contract + 통보)
 
-독립 QA가 **반복적·체계적 결함**(특정 레이아웃/존이 또 깨짐, placeholder 잔류 패턴 등)을 발견하면,
+**(0) 독립 QA 판정을 경험 기록에 반영 (필수, F1 루프 닫기)** — skill 경로는 엔진이 QA를 안 해
+`qa_ok=None`(보류)으로 기록돼 있다. 독립 QA 에이전트의 종합 판정(통과/수정필요)을 확정값으로 채운다:
+```bash
+python3 -c "import sys; sys.path.insert(0,'.'); from ppt_generator import update_last_run_qa; update_last_run_qa($QA_OK)"
+# $QA_OK = True(이슈 없음) / False(수정 필요). success_rate가 독립 QA 결과를 반영하게 됨.
+```
+
+그 다음, 독립 QA가 **반복적·체계적 결함**(특정 레이아웃/존이 또 깨짐, placeholder 잔류 패턴 등)을 발견하면,
 일회성 수정에 그치지 말고 **하네스 변경**으로 반영한다. 절차:
 
 1. **stale 가정 자문(§3)**: 이 결함이 "약한 모델용 scaffolding이 빠져서"인가, 아니면 "하네스 데이터·로직 버그"인가?

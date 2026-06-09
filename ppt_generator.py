@@ -3724,12 +3724,14 @@ def _insert_rich_quarter_content(
                      [(entries[0][0], 900, True, dk, "ctr"), (entries[0][1], 1100, False, "111111", "ctr")],
                      border=dk); sid += 1
             y += KPI_H + GAP
-        if len(entries) >= 2 and (entries[1][0] or entries[1][1]):
+        # 좌(entries[1])·우(entries[2]) 박스는 서로 독립 — 한쪽이 비어도 다른 쪽은 렌더 (F2)
+        if len(entries) >= 2:
             risk_w = int(bw * RISK_WIDTH_RATIO)
             eff_w  = bw - risk_w - 40_000
-            rc = RISK_COLOR.get(entries[1][1], "888888")
-            _add_box(sid, bx, y, risk_w, RISK_H, lt,
-                     [(entries[1][0], 900, True, dk, "ctr"), (entries[1][1], 1100, False, rc, "ctr")]); sid += 1
+            if entries[1][0] or entries[1][1]:
+                rc = RISK_COLOR.get(entries[1][1], "888888")
+                _add_box(sid, bx, y, risk_w, RISK_H, lt,
+                         [(entries[1][0], 900, True, dk, "ctr"), (entries[1][1], 1100, False, rc, "ctr")]); sid += 1
             if len(entries) >= 3 and (entries[2][0] or entries[2][1]):
                 _add_box(sid, bx + risk_w + 40_000, y, eff_w, RISK_H, lt,
                          [(entries[2][0], 900, True, dk, "ctr"), (entries[2][1], 1100, False, "333333", "ctr")]); sid += 1
@@ -6233,10 +6235,23 @@ def _sync_plan_with_fixes(plan: dict, fix_instructions: list[dict], plan_path: P
 
 # ── 메인 루프 ────────────────────────────────────────────────
 
-def _record_run_experience(topic: str, plan: dict, vision_issues: int) -> None:
+def _success_rate(runs: list) -> float | None:
+    """qa_ok이 확정(bool)인 run만으로 성공률 계산. None(판정 보류)·레거시(필드 부재)는 제외."""
+    rated = [r for r in runs if isinstance(r.get("qa_ok"), bool)]
+    if not rated:
+        return None
+    return round(sum(1 for r in rated if r["qa_ok"]) / len(rated), 3)
+
+
+def _record_run_experience(topic: str, plan: dict, vision_issues: int,
+                           qa_done: bool = True) -> None:
     """AHE 경험 관찰성(❷) + auto-update: 매 실행 후 long_term_memory에 run 기록을 append하고
     메타(total_runs/success_rate/last_updated)를 갱신한다. evolution/last_run_digest.json에도 요약 기록.
-    실패해도 생성 결과엔 영향 없도록 전부 try/except로 감싼다 (AHE_PRINCIPLES §5 경험 관찰성)."""
+    실패해도 생성 결과엔 영향 없도록 전부 try/except로 감싼다 (AHE_PRINCIPLES §5 경험 관찰성).
+
+    qa_done=False (skill 경로, inline_vision_qa=False)면 엔진이 QA를 안 한 것이므로
+    qa_ok=None(판정 보류)로 기록한다. 실제 판정은 오케스트레이터의 독립 QA 에이전트가
+    update_last_run_qa()로 채운다 (확증편향 차단 + success_rate 정확성, F1)."""
     try:
         from datetime import datetime as _dt
         slides = plan.get("slides", [])
@@ -6246,7 +6261,9 @@ def _record_run_experience(topic: str, plan: dict, vision_issues: int) -> None:
             "n_slides": len(slides),
             "templates": [s.get("template_file", "") for s in slides],
             "vision_issues": int(vision_issues),
-            "qa_ok": int(vision_issues) == 0,
+            "qa_done": bool(qa_done),
+            # 엔진이 QA했을 때만 확정값. skill 경로는 None → 독립 QA가 나중에 채움
+            "qa_ok": (int(vision_issues) == 0) if qa_done else None,
         }
         mem_path = SKILL_DIR / "harness" / "long_term_memory.json"
         mem = json.loads(mem_path.read_text(encoding="utf-8"))
@@ -6254,10 +6271,9 @@ def _record_run_experience(topic: str, plan: dict, vision_issues: int) -> None:
         runs.append(rec)
         mem["runs"] = runs[-50:]  # 최근 50건만 유지 (progressive disclosure — 토큰 절약)
         mem["total_runs"] = mem.get("total_runs", 0) + 1
-        # success_rate는 qa_ok 필드가 있는 신규 스키마 run만 집계 (레거시 run은 필드 부재 → 제외)
-        rated = [r for r in mem["runs"] if "qa_ok" in r]
-        if rated:
-            mem["success_rate"] = round(sum(1 for r in rated if r.get("qa_ok")) / len(rated), 3)
+        sr = _success_rate(mem["runs"])
+        if sr is not None:
+            mem["success_rate"] = sr
         mem["last_updated"] = rec["ts"][:10]
         mem_path.write_text(json.dumps(mem, ensure_ascii=False, indent=2), encoding="utf-8")
 
@@ -6265,10 +6281,32 @@ def _record_run_experience(topic: str, plan: dict, vision_issues: int) -> None:
         evo_dir.mkdir(exist_ok=True)
         (evo_dir / "last_run_digest.json").write_text(
             json.dumps(rec, ensure_ascii=False, indent=2), encoding="utf-8")
+        _qa = rec["qa_ok"] if rec["qa_ok"] is not None else "보류(독립 QA 대기)"
         print(f"  ✓ AHE 경험 기록: total_runs={mem['total_runs']}, "
-              f"success_rate={mem['success_rate']}, qa_ok={rec['qa_ok']} → harness/long_term_memory.json")
+              f"success_rate={mem.get('success_rate')}, qa_ok={_qa} → harness/long_term_memory.json")
     except Exception as _e:
         print(f"  ⚠ AHE 경험 기록 실패(무시): {_e}")
+
+
+def update_last_run_qa(qa_ok: bool) -> None:
+    """오케스트레이터(독립 QA 에이전트)의 실제 판정을 가장 최근 run 기록에 반영한다 (F1).
+    skill 경로에서 _record_run_experience가 qa_ok=None으로 남긴 것을 확정값으로 채우고
+    success_rate를 재계산한다. SKILL.md 11.5단계에서 독립 QA 종료 후 호출."""
+    try:
+        mem_path = SKILL_DIR / "harness" / "long_term_memory.json"
+        mem = json.loads(mem_path.read_text(encoding="utf-8"))
+        runs = mem.get("runs", [])
+        if not runs:
+            print("  ⚠ QA 판정 반영: run 기록 없음"); return
+        runs[-1]["qa_ok"] = bool(qa_ok)
+        runs[-1]["qa_done"] = True
+        sr = _success_rate(runs)
+        if sr is not None:
+            mem["success_rate"] = sr
+        mem_path.write_text(json.dumps(mem, ensure_ascii=False, indent=2), encoding="utf-8")
+        print(f"  ✓ 독립 QA 판정 반영: qa_ok={qa_ok} → success_rate={mem.get('success_rate')}")
+    except Exception as _e:
+        print(f"  ⚠ QA 판정 반영 실패(무시): {_e}")
 
 
 def run_ppt_generation(
@@ -6449,9 +6487,12 @@ def run_ppt_generation(
         bare_sec = re.sub(r'^\d+(\.\d+)*[\s.。]*', '', sec_title).strip()
         bare_title = re.sub(r'^\d+(\.\d+)*[\s.。]*', '', slide_title).strip()
         if bare_sec == bare_title and bare_sec:
-            # section_title에 인덱스가 없으면 기본 "N." prefix 부여
+            # section_title에 인덱스가 없으면 챕터 번호 prefix 부여
             if not re.match(r'^\d', sec_title.strip()):
-                content["section_title"] = f"1. {sec_title}"
+                # 챕터 번호는 동적 맵에서 역추출 (하드코딩 "1." 금지 — N챕터 오라벨 방지, F3)
+                _ch_num = next((k for k, v in _dynamic_chapter_map.items()
+                                if v == slide_title), None) or "1"
+                content["section_title"] = f"{_ch_num}. {sec_title}"
             else:
                 # 같은 텍스트인데 번호만 있는 경우 → 보조 키워드 추가 불가, 경고만
                 print(f"  ⚠️  slide {s.get('index')}: section_title이 title과 동일 — LLM 재생성 권장")
@@ -6719,7 +6760,8 @@ def run_ppt_generation(
     generate_excel_for_charts(work_dir, plan, work_dir)
 
     # ── AHE 경험 자동 기록 (❷ 경험 관찰성 + auto-update) ──
-    _record_run_experience(topic, plan, _vision_critical_total)
+    # skill 경로(inline_vision_qa=False)는 qa_ok 보류로 기록 → 독립 QA가 update_last_run_qa로 확정 (F1)
+    _record_run_experience(topic, plan, _vision_critical_total, qa_done=inline_vision_qa)
 
     # ── tmp work_dir 정리 ────────────────────────────
     if cleanup_work_dir:
