@@ -3,6 +3,11 @@ result/tmp/
 result/*.pdf
 result/slide-*.jpg
 result/thumbs*.jpg
+result/*.pptx
+result/*.bak
+
+# Office 임시 잠금 파일
+template/~$*
 
 # macOS
 .DS_Store
