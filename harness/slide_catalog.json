@@ -1,20 +1,51 @@
 {
+  "verified_slides": {
+    "slide6.xml":  {"role": "cover",   "desc": "표지"},
+    "slide7.xml":  {"role": "toc",     "desc": "목차"},
+    "slide17.xml": {"role": "content", "desc": "4항목 + 이미지"},
+    "slide25.xml": {"role": "content", "desc": "이미지 + 3항목 overview+3행"},
+    "slide26.xml": {"role": "content", "desc": "이미지 + 3항목 상세"},
+    "slide27.xml": {"role": "content", "desc": "이미지(좌) + 우측 3행 패널"},
+    "slide30.xml": {"role": "steps",   "desc": "4열 step + 하단 4×4 grid"},
+    "slide34.xml": {"role": "content", "desc": "2이미지 + 키워드 4개"},
+    "slide36.xml": {"role": "content", "desc": "As-is / To-be 벤다이어그램"},
+    "slide37.xml": {"role": "content", "desc": "3구역 텍스트 (2025→2026)"},
+    "slide39.xml": {"role": "flow",    "desc": "4열 상세 흐름도"},
+    "slide42.xml": {"role": "content", "desc": "대형 본문 + 3원형"},
+    "slide46.xml": {"role": "closing", "desc": "감사합니다 — 편집 금지"}
+  },
+  "unverified_slides": {
+    "slide9.xml":  {"role": "content", "desc": "3항목 + 이미지"},
+    "slide10.xml": {"role": "content", "desc": "3항목 + 이미지 + 인사이트 배너"},
+    "slide11.xml": {"role": "content", "desc": "3항목 설명"},
+    "slide12.xml": {"role": "content", "desc": "3항목 + 이미지"},
+    "slide13.xml": {"role": "content", "desc": "3항목 기능/장점"},
+    "slide14.xml": {"role": "content", "desc": "4항목 기능/구성요소"},
+    "slide15.xml": {"role": "content", "desc": "3항목 (slide13 패턴)"},
+    "slide16.xml": {"role": "content", "desc": "4항목"},
+    "slide18.xml": {"role": "content", "desc": "미검증"},
+    "slide19.xml": {"role": "content", "desc": "미검증"},
+    "slide20.xml": {"role": "content", "desc": "미검증"},
+    "slide21.xml": {"role": "content", "desc": "미검증"},
+    "slide22.xml": {"role": "content", "desc": "2블록 텍스트 (slide24 패턴)"},
+    "slide23.xml": {"role": "content", "desc": "미검증"},
+    "slide24.xml": {"role": "content", "desc": "2블록 텍스트"},
+    "slide28.xml": {"role": "content", "desc": "좌측 이미지 + 우측 대형 텍스트"},
+    "slide29.xml": {"role": "timeline","desc": "타임라인 (periods)"},
+    "slide31.xml": {"role": "timeline","desc": "분기별 타임라인"},
+    "slide33.xml": {"role": "timeline","desc": "분기별 타임라인 (slide31 변형)"},
+    "slide35.xml": {"role": "content", "desc": "Before / After 키워드"},
+    "slide38.xml": {"role": "flow",    "desc": "3행 흐름도 keyword→solution→service"}
+  },
   "banned_slides": {
     "slide8.xml":  "section 구분 — 명시 요청 시에만",
     "slide32.xml": "내부 콘텐츠 부족 — 실제 프레젠테이션 생성 시 사용 금지",
     "slide40.xml": "차트 — Excel 임베딩 미완성",
     "slide41.xml": "차트 — Excel 임베딩 미완성",
-    "slide43.xml": "차트 — Excel 임베딩 미완성"
+    "slide43.xml": "차트 — Excel 임베딩 미완성",
+    "slide44.xml": "closing 전용 — 미검증 변형",
+    "slide45.xml": "closing 전용 — 미검증 변형"
   },
-  "allowed_content_slides": [
-    "slide38.xml", "slide30.xml", "slide29.xml", "slide31.xml",
-    "slide33.xml", "slide36.xml", "slide13.xml", "slide15.xml", "slide14.xml",
-    "slide16.xml", "slide9.xml",  "slide10.xml", "slide11.xml", "slide12.xml",
-    "slide17.xml", "slide24.xml", "slide25.xml", "slide26.xml", "slide35.xml",
-    "slide34.xml", "slide37.xml", "slide39.xml", "slide42.xml", "slide27.xml",
-    "slide18.xml", "slide19.xml", "slide20.xml", "slide21.xml", "slide22.xml",
-    "slide23.xml", "slide28.xml"
-  ],
   "layout_variants": {
     "slide27.xml": {
       "description": "이미지(좌)+우측 3행 설명 패널 (body_title 줄 수로 slide27/28 자동 선택)",
@@ -40,7 +71,7 @@
     "slide13.xml": ["items"],
     "slide15.xml": ["items"]
   },
-  "closing_slides": ["slide46.xml", "slide44.xml", "slide45.xml"],
+  "closing_slides": ["slide46.xml"],
   "cover_slide": {
     "title_id": "12",
     "subtitle_id": "6",

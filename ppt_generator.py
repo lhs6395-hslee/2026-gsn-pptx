@@ -2464,7 +2464,12 @@ def enforce_plan_constraints(plan: dict, slide_info: list[dict]) -> tuple[dict, 
     # slide_catalog.json 우선, 없으면 하드코딩 폴백
     _cat = _load_slide_catalog()
     _banned    = set(_cat["banned_slides"].keys())    if _cat.get("banned_slides")         else _BANNED_SLIDES
-    _allowed   = _cat["allowed_content_slides"]       if _cat.get("allowed_content_slides") else _ALLOWED_CONTENT_SLIDES
+    # verified + unverified 합집합. 구버전 키(allowed_content_slides) 폴백 유지
+    if _cat.get("verified_slides") or _cat.get("unverified_slides"):
+        _allowed = (list(_cat.get("verified_slides", {}).keys()) +
+                    list(_cat.get("unverified_slides", {}).keys()))
+    else:
+        _allowed = _cat.get("allowed_content_slides", _ALLOWED_CONTENT_SLIDES)
     _cont_req  = _cat.get("layout_content_req", {})   or _LAYOUT_CONTENT_REQ
 
     available_files = {s["file"] for s in slide_info}
@@ -6235,8 +6240,11 @@ def run_ppt_generation(
         raw_order = _extract_layout_order(Path(layout_from_pptx))
         cat = _load_slide_catalog()
         banned = set(cat.get("banned_slides", {}).keys())
-        # 대체 후보: allowed_content_slides 중 banned가 아닌 것
-        allowed = [s for s in cat.get("allowed_content_slides", []) if s not in banned]
+        # 대체 후보: verified + unverified 중 banned가 아닌 것
+        _all = (list(cat.get("verified_slides", {}).keys()) +
+                list(cat.get("unverified_slides", {}).keys()) or
+                cat.get("allowed_content_slides", []))
+        allowed = [s for s in _all if s not in banned]
         replaced: list[tuple[str, str]] = []
         resolved: list[str] = []
         for tmpl in raw_order:
