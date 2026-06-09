@@ -241,6 +241,12 @@
         "geometry": "slide_shape_ids.json slide30: grid_x/y/total_cx/total_cy/col_gap/row_gap/bg_colors",
         "dynamic_ids": "grid 박스: id=600~ (row*4+col 순서)"
       }
+    },
+    "slide36_explains_omitted_overloaded_field": {
+      "symptom": "slide36 우측 explain(shape 7/27) 영구 공백 — 원형 키워드만 보이고 설명 누락",
+      "root_cause": "explain을 as_is[3]/to_be[3](원형 키워드 리스트 4번째 원소)에서 가져옴. 원형 도형은 3개뿐이라 콘텐츠가 자연스럽게 3개만 주면 [3] 부재 → 영구 공백. 필드 오버로딩(fragile coupling)",
+      "fix": "전용 explains 필드 도입 — content.explains[0/1] → 7/27, 미제공 시 as_is[3]/to_be[3] fallback. zone_map slide36.body.explains=[7,27], 프롬프트 slide36 스펙에 explains 명시",
+      "verified": false
     }
   },
   "slide_layout_hints": {
@@ -360,19 +366,61 @@
       "success": false,
       "issue_count": 0,
       "patterns": []
+    },
+    {
+      "ts": "2026-06-10T00:53:46",
+      "topic": "Anthropic vs OpenAI 생성형LLM 비교",
+      "n_slides": 10,
+      "templates": [
+        "slide6.xml",
+        "slide7.xml",
+        "slide17.xml",
+        "slide16.xml",
+        "slide36.xml",
+        "slide26.xml",
+        "slide13.xml",
+        "slide14.xml",
+        "slide42.xml",
+        "slide46.xml"
+      ],
+      "vision_issues": 0,
+      "qa_done": true,
+      "qa_ok": true
+    },
+    {
+      "ts": "2026-06-10T01:49:07",
+      "topic": "Anthropic vs OpenAI 생성형LLM 비교",
+      "n_slides": 10,
+      "templates": [
+        "slide6.xml",
+        "slide7.xml",
+        "slide17.xml",
+        "slide16.xml",
+        "slide36.xml",
+        "slide26.xml",
+        "slide13.xml",
+        "slide14.xml",
+        "slide42.xml",
+        "slide46.xml"
+      ],
+      "vision_issues": 0,
+      "qa_done": false,
+      "qa_ok": null
     }
   ],
-  "total_runs": 17,
+  "total_runs": 19,
   "evolution_notes": "v0.4 — 2026-06-09: AHE 공식 원칙 명문화(AHE_PRINCIPLES.md) + 결정관찰성 원장(change_manifest.jsonl) 도입. slide_catalog verified 13→33 재분류(slide23 ban). slide31/33 하단 메타 데이터주도화. group_title(사이드 소제목=subtitle) 도입. 원칙: 생성≠판정 분리(확증편향 방지), stale scaffolding 제거(Opus 4.8 기준 stress test), falsifiable-contract 의무.",
   "qa_enforcement_note": "qa_ok=false인 실행은 issue_count=0이더라도 완료 조건 미검증으로 간주. verifier에서 qa_done 플래그를 반드시 확인하고, false인 경우 WARN 처리하여 다음 실행에서 QA 단계를 강제 수행할 것.",
   "last_evolved": "2026-06-02T06:14:48.197792",
-  "success_rate": 0.12,
-  "last_updated": "2026-06-09",
+  "success_rate": 1.0,
+  "last_updated": "2026-06-10",
   "planning_constraints": [
     "텍스트 간결화: 본문제목 25자·항목 30자 이내 권장. 엔진이 _truncate_to_lines로 자동 절단하고 텍스트박스 cy를 자동 확장하므로, 가독성을 위해 plan 단계에서 핵심만 간결하게 작성한다.",
     "콘텐츠 양 적합: 텍스트박스 대비 콘텐츠가 많으면 자동 폰트축소/크기조정이 적용된다 — 레이아웃 용량에 맞게 항목 수·문장 길이를 조절한다.",
     "플레이스홀더 잔여 금지: 모든 zone을 실제 콘텐츠로 채운다 ('작성해주세요'/lorem/TODO 금지).",
-    "slide30(steps) 사용 시 step_meta 4개 dict 필수(각 1~3쌍, 키는 내용에 따라 자유). 없으면 하단 4×4 grid가 빈칸으로 남는다."
+    "slide30(steps) 사용 시 step_meta 4개 dict 필수(각 1~3쌍, 키는 내용에 따라 자유). 없으면 하단 4×4 grid가 빈칸으로 남는다.",
+    "소제목(sub_heading): '키워드·키워드 — 명사형 종결 요약구' 형식, 대시 뒤는 명사·명사형으로 종결(서술형 '~다/~합니다' 금지)",
+    "본문제목 설명글(section_desc): 완결 문장 1~3개를 '~합니다/~입니다' 정중체로 서술(개조식·대시 나열 금지)"
   ],
   "content_limits": {
     "_note": "LLM plan 생성 시 각 필드 글자 수 상한. 초과 시 코드가 자르지 않고 LLM이 처음부터 제한 내로 작성해야 함.",

@@ -15,7 +15,7 @@
     "keys": ["image_descriptions", "images"],
     "cx": 2800000,
     "pt": 11,
-    "lines": 4,
+    "lines": 6,
     "prefix": "🖼 ",
     "inject_style": {
       "sz": 1100,

@@ -40,7 +40,7 @@
         "content_key": "image_descriptions",
         "width_emu": 2400000,
         "font_pt": 11,
-        "max_lines": 3
+        "max_lines": 5
       }
     ]
   },
@@ -80,7 +80,7 @@
         "content_key": "image_descriptions",
         "width_emu": 2400000,
         "font_pt": 11,
-        "max_lines": 3
+        "max_lines": 5
       },
       {
         "type": "insight",
@@ -130,7 +130,7 @@
         "content_key": "image_descriptions",
         "width_emu": 2400000,
         "font_pt": 11,
-        "max_lines": 3
+        "max_lines": 5
       }
     ]
   },
@@ -170,7 +170,7 @@
         "content_key": "image_descriptions",
         "width_emu": 2400000,
         "font_pt": 11,
-        "max_lines": 3
+        "max_lines": 5
       },
       {
         "type": "sub_heading",
@@ -220,7 +220,7 @@
         "content_key": "image_descriptions",
         "width_emu": 2000000,
         "font_pt": 11,
-        "max_lines": 4
+        "max_lines": 5
       },
       {
         "type": "insight",
@@ -272,7 +272,7 @@
         "content_key": "image_descriptions",
         "width_emu": 2000000,
         "font_pt": 11,
-        "max_lines": 4
+        "max_lines": 5
       }
     ]
   },
@@ -315,7 +315,7 @@
         "content_key": "image_descriptions",
         "width_emu": 2300000,
         "font_pt": 11,
-        "max_lines": 3
+        "max_lines": 5
       },
       {
         "type": "insight",
@@ -371,7 +371,7 @@
         "content_key": "image_descriptions",
         "width_emu": 2300000,
         "font_pt": 11,
-        "max_lines": 3
+        "max_lines": 5
       },
       {
         "type": "sub_heading",
@@ -424,7 +424,7 @@
         "content_key": "image_descriptions",
         "width_emu": 2400000,
         "font_pt": 11,
-        "max_lines": 4
+        "max_lines": 5
       },
       {
         "type": "sub_heading",
@@ -564,9 +564,18 @@
   },
   "slide31": {
     "quarter_meta_slots": [
-      {"label": "핵심 목표", "key": "kpi"},
-      {"label": "리스크", "key": "risk"},
-      {"label": "규모", "key": "effort"}
+      {
+        "label": "핵심 목표",
+        "key": "kpi"
+      },
+      {
+        "label": "리스크",
+        "key": "risk"
+      },
+      {
+        "label": "규모",
+        "key": "effort"
+      }
     ],
     "q_label_ids": [
       "23",
@@ -611,9 +620,18 @@
   },
   "slide33": {
     "quarter_meta_slots": [
-      {"label": "핵심 목표", "key": "kpi"},
-      {"label": "리스크", "key": "risk"},
-      {"label": "규모", "key": "effort"}
+      {
+        "label": "핵심 목표",
+        "key": "kpi"
+      },
+      {
+        "label": "리스크",
+        "key": "risk"
+      },
+      {
+        "label": "규모",
+        "key": "effort"
+      }
     ],
     "q_label_ids": [
       "35",
@@ -720,22 +738,29 @@
       "15",
       "16"
     ],
-    "asis_desc_id": "7",
+    "asis_desc_id": "29",
     "tobe_ids": [
       "21",
       "22",
       "23"
     ],
-    "tobe_desc_id": "27",
+    "tobe_desc_id": "30",
     "bubble": {
       "width_emu": 1500000,
       "font_pt": 16,
       "max_lines": 2
     },
     "desc": {
-      "width_emu": 1500000,
-      "font_pt": 16,
-      "max_lines": 3
+      "width_emu": 2667000,
+      "font_pt": 12,
+      "max_lines": 5
+    },
+    "asis_label_id": "7",
+    "tobe_label_id": "27",
+    "label": {
+      "width_emu": 2514600,
+      "font_pt": 14,
+      "max_lines": 1
     }
   },
   "slide37": {

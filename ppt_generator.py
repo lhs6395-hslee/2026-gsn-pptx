@@ -286,21 +286,21 @@ def generate_plan_with_claude(
         "periods(4개 — 각 항목: {label: '2026', period: 'Jan~Mar', items: ['□ 항목1', '□ 항목2'], "
         "kpi: '핵심지표', risk: '낮음/중간/높음', team: '담당팀'} 형식). "
         "⚠️ items는 문자열 배열 필수 — 누락 시 연도별 콘텐츠 박스 공백.\n"
-        "flow   : section_title(소제목), section_desc(2줄 이내), keywords(3개, 왼쪽 첫번째 컬럼 키워드), solutions(3개, 파란색 화살표 본문), details(3개, 두번째 컬럼 보조 설명), services(3개, 오른쪽 네번째 컬럼 세부 설명 — 누락 시 우측 박스 공백)\n"
-        "content(slide13/15): section_title, section_desc(2줄 이내), "
+        "flow   : section_title(소제목), section_desc(3~5줄 풍부하게), keywords(3개, 왼쪽 첫번째 컬럼 키워드), solutions(3개, 파란색 화살표 본문), details(3개, 두번째 컬럼 보조 설명), services(3개, 오른쪽 네번째 컬럼 세부 설명 — 누락 시 우측 박스 공백)\n"
+        "content(slide13/15): section_title, section_desc(3~5줄 풍부하게), "
         "items(3개, 각 16자 이내), descriptions(3개, 각 45자 이내), "
         "image_descriptions(이미지 영역에 넣어야 할 이미지 상세 설명 3개 — 실제 이미지 아님)\n"
-        "content(slide14/16): section_title, section_desc(2줄 이내), "
+        "content(slide14/16): section_title, section_desc(3~5줄 풍부하게), "
         "items(4개, 16자 이내), descriptions(4개, 40자 이내), "
         "image_descriptions(이미지 영역 상세 설명 4개)\n"
         "content(slide9/11/12): section_title, section_desc, items(3개), descriptions(3개), "
         "image_descriptions(각 칸 이미지 상세 설명 3개)\n"
         "content(slide10): section_title, section_desc, items/descriptions/image_descriptions(3개) + insights(배너 1개)\n"
         "content(slide11): section_title, section_desc, items(3개, 14자 이내), descriptions(3개, 45자 이내)\n"
-        "content(slide17): section_title, section_desc(2줄 이내), items(4개, 각 16자 이내), descriptions(4개, 각 40자 이내 — 초과 시 잘림), image_descriptions(이미지 영역 상세 설명 4개)\n"
-        "content(slide25/26): section_title, section_desc(2줄 이내), items(3개, 각 16자 이내), descriptions(4개 — 첫째=overview 40자 이내, 나머지 3개=항목별 설명 각 40자 이내 — 초과 시 잘림)\n"
-        "content(slide27): section_title, section_desc(2줄 이내), items(3개, 각 16자 이내), descriptions(4개 — 첫째=overview 40자 이내, 나머지 3개=항목별 설명 각 40자 이내), image_descriptions(이미지 상세 설명 1개)\n"
-        "content(slide28): section_title(45자 이내 — 초과 시 파란 배너에서 잘림), section_desc(2줄 이내 80자 이내), items(3개, 각 20자 이내), descriptions(3개, 각 55자 이내 4줄 이내 — 초과 시 잘림), image_descriptions(이미지 상세 설명 1개)\n"
+        "content(slide17): section_title, section_desc(3~5줄 풍부하게), items(4개, 각 16자 이내), descriptions(4개, 각 40자 이내 — 초과 시 잘림), image_descriptions(이미지 영역 상세 설명 4개)\n"
+        "content(slide25/26): section_title, section_desc(3~5줄 풍부하게), items(3개, 각 16자 이내), descriptions(4개 — 첫째=overview 40자 이내, 나머지 3개=항목별 설명 각 40자 이내 — 초과 시 잘림)\n"
+        "content(slide27): section_title, section_desc(3~5줄 풍부하게), items(3개, 각 16자 이내), descriptions(4개 — 첫째=overview 40자 이내, 나머지 3개=항목별 설명 각 40자 이내), image_descriptions(이미지 상세 설명 1개)\n"
+        "content(slide28): section_title(45자 이내 — 초과 시 파란 배너에서 잘림), section_desc(3~4줄 풍부하게, 80자 이내), items(3개, 각 20자 이내), descriptions(3개, 각 55자 이내 4줄 이내 — 초과 시 잘림), image_descriptions(이미지 상세 설명 1개)\n"
         "content(slide31/slide33): section_title, section_desc, "
         "quarters(4개 필수 — 각 항목: {period: 'Q1', kpi: '핵심지표', risk: '낮음/중간/높음', effort: '규모', "
         "items: ['□ 항목1', '□ 항목2', '□ 항목3']} 형식). "
@@ -313,13 +313,31 @@ def generate_plan_with_claude(
         "body(상단 본문설명글 3줄 이내), bullets(하단 3열 핵심 포인트 3개 필수), "
         "image_descriptions(하단 3열 이미지 상세 설명 3개)\n"
         "content(slide35): section_title, section_desc, before(3개 키워드), after(4개 키워드)\n"
-        "content(slide36): section_title, section_desc, as_is(4개 키워드), to_be(4개 키워드), body\n"
+        "content(slide36): section_title, section_desc, as_is(원형 키워드 3개, 각 8자 이내 — 길면 잘림), to_be(원형 키워드 3개, 각 8자 이내), explains(우측 설명 2개 — [좌측진영 설명, 우측진영 설명], 각 2~3줄), compare_labels(좌/우 라벨 2개, 예: ['Anthropic','OpenAI'])\n"
+        "content(slide21): section_title, section_desc, bullets(3개 — 첫째=하단 핵심 배너, 나머지 2개=좌측 텍스트블록), image_descriptions(이미지 영역 상세 설명 1개)\n"
+        "content(slide22/slide24): section_title, section_desc, bullets(2~3개), body, image_descriptions(이미지/영상 영역 상세 설명 1개)\n"
         "closing: 없음\n\n"
+        "★★ 콘텐츠 풍부도(모든 레이아웃 공통, 최우선): 모든 텍스트 필드는 빈약한 1줄·단순 명사구로 끝내지 말고, "
+        "해당 영역의 허용 분량을 충분히 활용해 '풍부해 보이게' 작성한다. 특히 section_desc(본문제목 설명글)는 3~5줄로 맥락·배경·요점을 담아 상세히, "
+        "overview/main_desc(상단 콘텐츠)는 2~3줄로 충분히, item descriptions는 핵심을 구체적으로 서술한다. "
+        "단 ⚠️ 과다 금지 — 각 필드의 허용 자수/줄수를 넘기면 '…'로 잘리거나 텍스트박스가 겹쳐 지저분해진다. "
+        "'한도 내에서 꽉 채워 풍부하게 보이되, 넘치지 않게' 가 핵심 (잘림·겹침 발생 시 분량을 줄여 재작성).\n"
+        "★ 이미지 영역 규칙: 이미지 슬롯이 있는 모든 레이아웃은 image_descriptions를 반드시 제공한다. "
+        "⚠️ 단순 명사구(예: '아키텍처 다이어그램') 금지 — 나중에 자동 이미지 생성의 프롬프트로 쓸 수 있도록 "
+        "'무엇을(핵심 객체·구성요소)+어떻게 표현(구도/관계)'를 담은 한 문장으로 구체 서술한다. "
+        "단 한 문장(약 40~70자)으로 간결하게 — 두세 문장·과도한 색상/좌표 나열은 박스에서 지저분하게 잘리니 금지 "
+        "(예: 'JobManager가 TaskManager 3개에 작업을 분배하는 분산 처리 구조도'). "
+        "누락 시 엔진이 자동 파생하나, 품질을 위해 plan 단계에서 한 문장으로 구체적으로 채울 것.\n"
+        "★ flow details 규칙: slide39 details의 각 항목은 문자열 또는 '여러 줄 문자열/리스트'로 줄 수 있다 — 한 칸에 2개 이상 보조 항목이 필요하면 줄바꿈(\\n)으로 구분하거나 리스트로 제공.\n"
         "★ subtitle(중제목) 필수 규칙: cover/toc/closing 제외 모든 슬라이드 top-level에 반드시 포함.\n"
         "  - 위 role별 content 목록에 없어도 항상 별도 top-level 필드로 작성\n"
         "  - 숫자(01, 02) 금지, 의미 있는 주제어만 (예: '학습 패러다임 진화', '아키텍처 구조')\n"
-        "★ section_desc(본문설명글) 필수 규칙: cover/toc/closing 제외 모든 슬라이드 content 내에 반드시 포함.\n"
-        "  - 1~2줄로 이 슬라이드가 다루는 내용을 요약. 비워두면 안 됨.\n"
+        "★ sub_heading(소제목 바) 규칙: 소제목 바의 '| 번호 키워드1·키워드2·키워드3 —'까지는 엔진이 items로 자동 생성한다.\n"
+        "  - plan은 대시(—) 뒤에 붙을 '명사형 요약구'를 sub_heading_tail 필드(content 내)로 제공한다.\n"
+        "  - ⭐ sub_heading_tail은 반드시 명사·명사형 어미로 종결('…차이점','…개요','…전략'). 서술형 종결('~다','~합니다') 금지\n"
+        "  - 예: items=['설립 배경','미션·철학','핵심 투자자'] + sub_heading_tail='두 회사의 출발점과 지향의 차이점'\n"
+        "★ section_desc(본문제목 설명글) 필수 규칙: cover/toc/closing 제외 모든 슬라이드 content 내에 반드시 포함.\n"
+        "  - ⭐ 문체: 완결 문장(1~3문장)을 '~합니다/~입니다' 정중체로 서술. 개조식·명사형 종결('…개요','A — B' 대시 나열) 금지. 비워두면 안 됨.\n"
         "  - 최대 60자 이내 — 사이드바 박스(cx≈173pt)에 맞게 작성. 초과 시 텍스트박스에서 잘림\n"
         "  - ⚠️ 슬라이드별 제한: slide30(steps) 40자 이내, slide36/37/42 60자 이내, 그 외 60자 이내\n"
         "★ 텍스트 길이 엄수: 위에 명시된 글자 수 제한은 절대 준수. 넘으면 화면에서 '…'로 잘려 보임.\n\n"
@@ -840,13 +858,15 @@ def _estimate_lines(text: str, cx_emu: int, font_pt: int,
 
 
 def _truncate_to_lines(text: str, cx_emu: int, font_pt: int, max_lines: int,
-                        font_name: str = "Pretendard SemiBold") -> str:
-    """실제 폰트 메트릭 기반으로 max_lines 초과 시 말줄임표로 자른다."""
+                        font_name: str = "Pretendard SemiBold", ellipsis: bool = True) -> str:
+    """실제 폰트 메트릭 기반으로 max_lines 초과 시 자른다.
+    ellipsis=True면 '…'를 붙이고, False면 '…' 없이 깔끔히 끊는다(이미지 캡션 등 — 지저분한 '…' 방지)."""
     if not text:
         return text
+    _ell = "…" if ellipsis else ""
     # 개행 문자도 줄 바꿈으로 계산
     text = text.replace('\r\n', '\n').replace('\r', '\n')
-    ellipsis_w = int(_char_width_emu("…", font_pt, font_name) * _RENDER_OVERHEAD)
+    ellipsis_w = int(_char_width_emu("…", font_pt, font_name) * _RENDER_OVERHEAD) if ellipsis else 0
     line_width = 0
     lines = 1
     for i, ch in enumerate(text):
@@ -854,7 +874,7 @@ def _truncate_to_lines(text: str, cx_emu: int, font_pt: int, max_lines: int,
             lines += 1
             if lines > max_lines:
                 cut = i
-                return text[:cut] + "…"
+                return text[:cut] + _ell
             line_width = 0
             continue
         cw = int(_char_width_emu(ch, font_pt, font_name) * _RENDER_OVERHEAD)
@@ -865,7 +885,7 @@ def _truncate_to_lines(text: str, cx_emu: int, font_pt: int, max_lines: int,
                 while cut > 0 and line_width > cx_emu - ellipsis_w:
                     cut -= 1
                     line_width -= int(_char_width_emu(text[cut], font_pt, font_name) * _RENDER_OVERHEAD)
-                return text[:cut] + "…"
+                return text[:cut] + _ell
             line_width = cw
         else:
             line_width += cw
@@ -3724,16 +3744,18 @@ def _insert_rich_quarter_content(
                      [(entries[0][0], 900, True, dk, "ctr"), (entries[0][1], 1100, False, "111111", "ctr")],
                      border=dk); sid += 1
             y += KPI_H + GAP
-        # 좌(entries[1])·우(entries[2]) 박스는 서로 독립 — 한쪽이 비어도 다른 쪽은 렌더 (F2)
+        # 좌(entries[1])·우(entries[2]) 박스는 서로 독립 (F2). 메타 2개면 좌측 박스를 full-width로
+        # 채워 우측 빈 공간을 없앤다 — 3개일 때만 좌(65%)/우(35%) 분할 (빈 슬롯 방지)
         if len(entries) >= 2:
-            risk_w = int(bw * RISK_WIDTH_RATIO)
-            eff_w  = bw - risk_w - 40_000
+            _has_third = len(entries) >= 3 and (entries[2][0] or entries[2][1])
+            risk_w = int(bw * RISK_WIDTH_RATIO) if _has_third else bw
+            eff_w  = bw - int(bw * RISK_WIDTH_RATIO) - 40_000
             if entries[1][0] or entries[1][1]:
                 rc = RISK_COLOR.get(entries[1][1], "888888")
                 _add_box(sid, bx, y, risk_w, RISK_H, lt,
                          [(entries[1][0], 900, True, dk, "ctr"), (entries[1][1], 1100, False, rc, "ctr")]); sid += 1
-            if len(entries) >= 3 and (entries[2][0] or entries[2][1]):
-                _add_box(sid, bx + risk_w + 40_000, y, eff_w, RISK_H, lt,
+            if _has_third:
+                _add_box(sid, bx + int(bw * RISK_WIDTH_RATIO) + 40_000, y, eff_w, RISK_H, lt,
                          [(entries[2][0], 900, True, dk, "ctr"), (entries[2][1], 1100, False, "333333", "ctr")]); sid += 1
 
 
@@ -3980,15 +4002,16 @@ def _apply_slots(root, content: dict, slots: list, slide_plan: dict | None = Non
             slot_fmt  = slot.get("format", img_fmt)
             for i, sid in enumerate(ids):
                 val  = values[i] if i < len(values) else ""
-                if val and val.strip().startswith("[이미지:"):
+                if val and str(val).strip().startswith("[이미지:"):
                     text = val
+                elif val and str(val).strip():
+                    text = slot_fmt.replace("{description}", str(val))
                 else:
-                    text = slot_fmt.replace("{description}", val) if val else ""
-                truncated = _truncate_to_lines(text, width_emu, font_pt, max_lines)
-                if truncated:
-                    _set_image_slot_text(root, sid, truncated)
-                else:
-                    _set(sid, "")
+                    # image_descriptions 누락 → 파생 캡션(빈 이미지영역 구조적 방지, 생성 로직)
+                    text = _image_caption(content, i)
+                # 이미지 캡션은 '…' 없이 깔끔히 끊는다(상세 설명 전체는 plan에 보존 — 이미지생성용)
+                truncated = _truncate_to_lines(text, width_emu, font_pt, max_lines, ellipsis=False)
+                _set_image_slot_text(root, sid, truncated)
                 # img_slot은 높이 고정 — spAutoFit 미적용
             body_id_groups.append(list(ids))
         elif stype == "insight":
@@ -4157,7 +4180,8 @@ def _edit_slide21(xml_path: Path, slide_plan: dict) -> None:
     _set(_b1_id, _truncate_to_lines(bullets[0] if bullets else body_text, _b1_21["width_emu"], _b1_21["font_pt"], _b1_21["max_lines"]))
     _set(_b2_id, _truncate_to_lines(bullets[1] if len(bullets) > 1 else body_text, _b2_21["width_emu"], _b2_21["font_pt"], _b2_21["max_lines"]))
     _set(_b3_id, _truncate_to_lines(bullets[2] if len(bullets) > 2 else "", _b3_21["width_emu"], _b3_21["font_pt"], _b3_21["max_lines"]))
-    _set(_im_id, "")
+    # 이미지 슬롯: 항상 "[이미지: …]" 가이드 주입 (plan 누락 시 section_title/items에서 파생) — 빈 이미지영역 구조적 방지
+    _set_image_slot_text(root, _im_id, _image_caption(content, 0))
     _clear_residual_placeholders(root); _write_xml(root, xml_path)
 
 
@@ -4328,8 +4352,8 @@ def _edit_slide35(xml_path: Path, slide_plan: dict) -> None:
 
 def _edit_slide36(xml_path: Path, slide_plan: dict) -> None:
     """slide36 (As-is/To-be 벤다이어그램): Zone1+2 공통 + Zone3 벤다이어그램 키워드.
-    As-is 원형: 13,15,16 / As-is 우측 설명: 7
-    To-be 원형: 21,22,23 / To-be 우측 설명: 27
+    As-is 원형: 13,15,16 / 라벨: 7(14pt 1행) / 설명 본문: 29(12pt 다행)
+    To-be 원형: 21,22,23 / 라벨: 27 / 설명 본문: 30
     """
     content = slide_plan.get("content", {})
     body    = content.get("body", {})
@@ -4344,17 +4368,39 @@ def _edit_slide36(xml_path: Path, slide_plan: dict) -> None:
     _bbl36 = _s36.get("bubble", {"width_emu":1500000,"font_pt":16,"max_lines":2})
     _dsc36 = _s36.get("desc",   {"width_emu":1500000,"font_pt":16,"max_lines":3})
     _asis_ids36 = _s36.get("asis_ids",     ["13","15","16"])
-    _asis_dsc36 = _s36.get("asis_desc_id", "7")
+    _asis_dsc36 = _s36.get("asis_desc_id", "29")   # 설명 본문(12pt 다행) — 라벨(7) 아님
+    _asis_lbl36 = _s36.get("asis_label_id", "7")    # 'explain' 라벨(14pt 1행)
     _tobe_ids36 = _s36.get("tobe_ids",     ["21","22","23"])
-    _tobe_dsc36 = _s36.get("tobe_desc_id", "27")
-    # As-is: 원형 3개 + 우측 설명
+    _tobe_dsc36 = _s36.get("tobe_desc_id", "30")
+    _tobe_lbl36 = _s36.get("tobe_label_id", "27")
+    _lbl36 = _s36.get("label", {"width_emu":2514600,"font_pt":14,"max_lines":1})
+    # 비교 라벨: compare_labels 제공 시 좌/우 라벨 교체(예: Anthropic/OpenAI), 없으면 템플릿 As-is/To-be 유지
+    _cmp_labels = content.get("compare_labels") or content.get("labels") or []
+    _cmp_ids = _zone("slide36.xml").get("body", {}).get("compare_label", ["11", "28"])
+    for i, sid in enumerate(_cmp_ids):
+        if i < len(_cmp_labels) and str(_cmp_labels[i]).strip():
+            _slide_set_helper(root, ns_p, ns_a, sid, str(_cmp_labels[i]).strip())
+    # 원형 키워드는 작아 '…'가 지저분 → ellipsis 없이 깔끔히(짧은 키워드 권장)
     for i, sid in enumerate(_asis_ids36):
-        _slide_set_helper(root, ns_p, ns_a, sid, _truncate_to_lines(as_is[i] if i<len(as_is) else "",_bbl36["width_emu"],_bbl36["font_pt"],_bbl36["max_lines"]))
-    _slide_set_helper(root, ns_p, ns_a, _asis_dsc36, _truncate_to_lines(as_is[3] if len(as_is)>3 else "",_dsc36["width_emu"],_dsc36["font_pt"],_dsc36["max_lines"]))
-    # To-be: 원형 3개 + 우측 설명
+        _slide_set_helper(root, ns_p, ns_a, sid, _truncate_to_lines(as_is[i] if i<len(as_is) else "",_bbl36["width_emu"],_bbl36["font_pt"],_bbl36["max_lines"], ellipsis=False))
     for i, sid in enumerate(_tobe_ids36):
-        _slide_set_helper(root, ns_p, ns_a, sid, _truncate_to_lines(to_be[i] if i<len(to_be) else "",_bbl36["width_emu"],_bbl36["font_pt"],_bbl36["max_lines"]))
-    _slide_set_helper(root, ns_p, ns_a, _tobe_dsc36, _truncate_to_lines(to_be[3] if len(to_be)>3 else "",_dsc36["width_emu"],_dsc36["font_pt"],_dsc36["max_lines"]))
+        _slide_set_helper(root, ns_p, ns_a, sid, _truncate_to_lines(to_be[i] if i<len(to_be) else "",_bbl36["width_emu"],_bbl36["font_pt"],_bbl36["max_lines"], ellipsis=False))
+    # 우측 설명 본문(29/30, 12pt 다행): explains[0/1] 우선 → 없으면 as_is[3]/to_be[3] fallback.
+    # ⚠ 과거 버그: explain을 as_is[3]→shape7(작은 'explain' 라벨)에 써서, 콘텐츠가 원형 키워드 3개만 주면
+    #   실제 본문(29/30)은 영구 공백이 됐다(엔진이 29/30을 아예 안 건드림). 본문=29/30, 라벨=7/27로 분리.
+    _explains36 = _coerce_list(content.get("explains") or (body.get("explains") if isinstance(body, dict) else None) or [])
+    _asis_ex = _explains36[0] if len(_explains36) > 0 else (as_is[3] if len(as_is) > 3 else "")
+    _tobe_ex = _explains36[1] if len(_explains36) > 1 else (to_be[3] if len(to_be) > 3 else "")
+    _slide_set_helper(root, ns_p, ns_a, _asis_dsc36, _truncate_to_lines(_asis_ex, _dsc36["width_emu"], _dsc36["font_pt"], _dsc36["max_lines"]))
+    _slide_set_helper(root, ns_p, ns_a, _tobe_dsc36, _truncate_to_lines(_tobe_ex, _dsc36["width_emu"], _dsc36["font_pt"], _dsc36["max_lines"]))
+    # 라벨(7/27, 1행): explain_labels 우선 → compare_labels+' 접근' → 둘 다 없으면 빈 값('explain' 영문 placeholder 제거)
+    _ex_labels = content.get("explain_labels") or []
+    def _ex_label36(i):
+        if i < len(_ex_labels) and str(_ex_labels[i]).strip(): return str(_ex_labels[i]).strip()
+        if i < len(_cmp_labels) and str(_cmp_labels[i]).strip(): return f"{str(_cmp_labels[i]).strip()} 접근"
+        return ""
+    _slide_set_helper(root, ns_p, ns_a, _asis_lbl36, _truncate_to_lines(_ex_label36(0), _lbl36["width_emu"], _lbl36["font_pt"], _lbl36["max_lines"], ellipsis=False))
+    _slide_set_helper(root, ns_p, ns_a, _tobe_lbl36, _truncate_to_lines(_ex_label36(1), _lbl36["width_emu"], _lbl36["font_pt"], _lbl36["max_lines"], ellipsis=False))
     _clear_residual_placeholders(root); _write_xml(root, xml_path)
 
 
@@ -4385,18 +4431,38 @@ def _edit_slide39(xml_path: Path, slide_plan: dict) -> None:
         _slide_set_helper(root, ns_p, ns_a, sid, _truncate_to_lines(keywords[i] if i<len(keywords) else "",_kw39["width_emu"],_kw39["font_pt"],_kw39["max_lines"]))
     for i, sid in enumerate(_sol_ids39):
         _slide_set_helper(root, ns_p, ns_a, sid, _truncate_to_lines(solutions[i] if i<len(solutions) else "",_sol39["width_emu"],_sol39["font_pt"],_sol39["max_lines"]))
+    import copy as _copy_d
     for i, sid in enumerate(_det_ids39):
-        txt = _truncate_to_lines(details[i] if i<len(details) else "", _det39["width_emu"], _det39["font_pt"], _det39["max_lines"])
-        _slide_set_helper(root, ns_p, ns_a, sid, txt)
-        # detail 박스는 template에 6개 paragraph가 있어서 para[0]에 텍스트를 넣은 후
-        # 나머지 paragraph(항목 02~05 placeholder)를 제거해야 박스 높이가 올바르게 표시됨
+        raw = details[i] if i < len(details) else ""
+        # 다중 항목 지원: list 또는 줄바꿈 문자열 → 여러 단락 렌더 (p32 — 항목 2개 이상 가능)
+        if isinstance(raw, list):
+            sub = [str(s).strip() for s in raw if str(s).strip()]
+        else:
+            sub = [s.strip() for s in str(raw).split("\n") if s.strip()]
+        sub = [_truncate_to_lines(s, _det39["width_emu"], _det39["font_pt"], 2)
+               for s in sub[:_det39.get("max_lines", 3)]] or [""]
         sp_det = _find_shape_by_id(root, sid)
-        if sp_det is not None:
-            txBody = sp_det.find(f"{{{ns_p}}}txBody")
-            if txBody is not None:
-                paras = txBody.findall(f"{{{ns_a}}}p")
-                for extra_p in paras[1:]:  # para[0] 이후 모두 제거
-                    txBody.remove(extra_p)
+        if sp_det is None: continue
+        txBody = sp_det.find(f"{{{ns_p}}}txBody")
+        if txBody is None: continue
+        paras = txBody.findall(f"{{{ns_a}}}p")
+        orig_rPr = next((_copy_d.deepcopy(r.find(f"{{{ns_a}}}rPr"))
+                         for p in paras for r in p.findall(f"{{{ns_a}}}r")
+                         if r.find(f"{{{ns_a}}}rPr") is not None), None)
+        if orig_rPr is not None:
+            orig_rPr.set("lang", _ppt_lang()); orig_rPr.set("dirty", "0")
+        # 항목 수만큼 단락 채우고(서식 보존) 나머지 단락 제거 — 빈 줄·placeholder 잔여 방지
+        for k, para in enumerate(paras):
+            if k < len(sub):
+                for r in para.findall(f"{{{ns_a}}}r"): para.remove(r)
+                end = para.find(f"{{{ns_a}}}endParaRPr")
+                idx = list(para).index(end) if end is not None else len(para)
+                r_new = ET.Element(f"{{{ns_a}}}r")
+                if orig_rPr is not None: r_new.append(_copy_d.deepcopy(orig_rPr))
+                ET.SubElement(r_new, f"{{{ns_a}}}t").text = sub[k]
+                para.insert(idx, r_new)
+            else:
+                txBody.remove(para)
     for i, sid in enumerate(_svc_ids39):
         _slide_set_helper(root, ns_p, ns_a, sid, _truncate_to_lines(services[i] if i<len(services) else "",_svc39["width_emu"],_svc39["font_pt"],_svc39["max_lines"]))
     _clear_residual_placeholders(root); _write_xml(root, xml_path)
@@ -4477,6 +4543,10 @@ def _edit_slide24(xml_path: Path, slide_plan: dict) -> None:
         _set_text(sp7, body)
     if body and sp10:
         _set_text(sp10, body)
+
+    # 이미지 슬롯(zone_map image_slots)에 가이드 캡션 주입 — slide22 등 (slide24는 image_slots 없음 → 미적용)
+    for _img_sid in _zone(tmpl).get("body", {}).get("image_slots", []):
+        _set_image_slot_text(root, _img_sid, _image_caption(content, 0))
 
     _clear_residual_placeholders(root)
     _write_xml(root, xml_path)
@@ -4986,14 +5056,15 @@ _ZONE_FILL_RULES: dict[str, dict] = {
 
 
 def _make_sub_heading(content: dict) -> str:
-    """plan content에서 sub_heading 자동 생성 (plan에 sub_heading 필드 없을 때).
-    형식: | {section_ref} {item1·item2·item3} — {section_desc}
+    """plan content에서 sub_heading 자동 생성.
+    형식: | {section_ref} {item1·item2·item3} — {sub_heading_tail}
     section_ref: section_title 앞 번호 + '.1' (예: '4.2.' → '4.2.1')
+    꼬리(대시 뒤)는 plan의 sub_heading_tail(명사형 종결 요약구)에서만 가져온다.
+    section_desc(=~합니다 완결문)에서 파생하지 않는다 — 파생하면 소제목이 서술형 종결이 되어 '명사형' 규칙 위반.
     """
     import re
     sec_title = content.get("section_title", "")
     items = _coerce_list(content.get("items") or content.get("item_titles") or [])
-    desc  = content.get("section_desc", "")
 
     if not items:
         return ""
@@ -5003,7 +5074,11 @@ def _make_sub_heading(content: dict) -> str:
     items_str = "·".join(str(x) for x in items[:3])
 
     head = f"| {section_ref} {items_str}".strip() if section_ref else f"| {items_str}"
-    return f"{head} — {desc}" if desc else head
+    # 명사형 종결 요약구(tail)는 plan이 sub_heading_tail로 명시 제공. 미제공 시 head(키워드)만 반환.
+    tail = str(content.get("sub_heading_tail") or "").strip()
+    if tail:
+        return f"{head} — {tail}"
+    return head
 
 
 def _coerce_list(val) -> list[str]:
@@ -5020,6 +5095,27 @@ def _coerce_list(val) -> list[str]:
                 out.append(str(v))
         return out
     return [str(val)]
+
+
+def _image_caption(content: dict, idx: int = 0) -> str:
+    """이미지 슬롯 가이드 캡션 생성 (생성 로직 — 빈 이미지영역 구조적 방지).
+    plan의 image_descriptions[idx]가 있으면 그것을, 없으면 section_title/items에서 파생한다.
+    항상 '[이미지: …]' 포맷으로 반환. AHE_PRINCIPLES §1(verify/correct) — plan 누락에도 가이드 보장."""
+    fmt = _load_common_formatting().get("image_slot_format", "[이미지: {description}]")
+    descs = content.get("image_descriptions") or content.get("images") or []
+    if idx < len(descs) and str(descs[idx]).strip():
+        return fmt.format(description=str(descs[idx]).strip())
+    # fallback: 같은 열의 item/keyword(열별 distinct) → section_title → 범용. 이미지생성 프롬프트로 쓸 수 있게 서술형으로
+    items = content.get("items") or content.get("keywords") or []
+    if idx < len(items) and str(items[idx]).strip():
+        return fmt.format(description=f"{str(items[idx]).strip()}의 핵심 구조와 구성요소를 노드·화살표로 도식화한 다이어그램")
+    sec = content.get("section_title", "")
+    bare = re.sub(r'^\d+(\.\d+)*[\s.。]*', '', sec).strip() if sec else ""
+    if bare:
+        return fmt.format(description=f"{bare}의 전체 흐름과 핵심 요소·관계를 시각화한 다이어그램")
+    if items:
+        return fmt.format(description=f"{str(items[0]).strip()}의 핵심 구조를 도식화한 다이어그램")
+    return fmt.format(description="핵심 개념과 구성요소·관계를 나타낸 설명용 다이어그램")
 
 
 def _set_image_slot_text(root, sid: str, text: str) -> None:
@@ -5130,7 +5226,8 @@ def _edit_zonemap_slide(xml_path: Path, slide_plan: dict) -> None:
                         ext = xfrm.find(f"{{{ns_a}}}ext")
                         if ext is not None:
                             actual_cx = int(ext.get("cx", rule["cx"]))
-                txt = _truncate_to_lines(txt, actual_cx, rule["pt"], rule["lines"])
+                # 이미지 슬롯은 '…' 없이 깔끔히 끊는다(전체 상세는 plan 보존), 그 외는 기존대로 말줄임
+                txt = _truncate_to_lines(txt, actual_cx, rule["pt"], rule["lines"], ellipsis=not is_image_slot)
                 # … 말줄임 발생 시 자동 요약 재시도
                 if txt.endswith("…"):
                     short = _shorten_toc_item(str(raw_val))
