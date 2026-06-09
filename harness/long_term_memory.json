@@ -65,20 +65,51 @@
     }
   },
   "known_failure_fixes": {
-    "pattern": "slide22 편집 시 동일 텍스트가 여러 shape에 중복 삽입되고 사이드바(ID=14)에 긴 제목이 들어가 overflow 발생",
-    "cause": "slide22 편집 코드가 shape을 Y좌표 순으로 순회하거나 shape 역할(ID)을 명확히 구분하지 않아, 제목 텍스트를 ID=8(헤더)와 ID=14(사이드바 키워드) 두 곳 모두에 삽입하거나, 본문 bullet을 사이드바에 덮어씌움. 또한 중앙 콘텐츠 박스(회색 박스)에 콘텐츠를 삽입하지 못해 빈 상태로 방치됨",
-    "fix": "slide22 편집 시 반드시 shape ID 기반으로 역할을 고정: ID=8(슬라이드 제목, 30자 이내), ID=11(본문 bullet 3개, 각 항목 50자 이내), ID=14(사이드바 키워드, 10자 이내 단어/약어만 허용), ID=16(사이드바 설명, 60자 이내). ID=14에는 절대 문장형 텍스트나 긴 제목을 삽입하지 말 것. 동일 텍스트를 두 개 이상의 shape에 삽입하는 것은 버그이므로 각 shape에 고유한 내용만 배정. 중앙 회색 박스(ID=11 또는 콘텐츠 영역)는 반드시 실제 bullet 텍스트로 채울 것 — 빈 상태 금지"
+    "slide22_multi_shape_duplicate": {
+      "pattern": "slide22 편집 시 동일 텍스트가 여러 shape에 중복 삽입되고 사이드바(ID=14)에 긴 제목이 들어가 overflow 발생",
+      "cause": "shape을 Y좌표 순 순회로 역할 구분 실패",
+      "fix": "ID 기반 고정: ID=8(제목 30자), ID=11(bullet 3개 50자), ID=14(키워드 10자), ID=16(설명 60자). 동일 텍스트 두 shape 동시 삽입 금지"
+    },
+    "slide15_id69_overflow": {
+      "pattern": "slide15 3열 item_body(ID=69) 텍스트박스가 슬라이드 오른쪽 경계를 20,001 EMU 초과",
+      "cause": "템플릿 좌표 오기입: ID=69 x=9,087,922이 3열 배경(ID=25, x=9,071,044)보다 16,878 EMU 오른쪽에서 시작해 right=12,212,001 > 슬라이드폭 12,192,000",
+      "fix": "template/2026_PPT Template.pptx slide15.xml ID=69: x=9,067,922 / cx=3,120,956으로 수정 완료 (right=12,188,878, 여백 3,122 EMU)"
+    },
+    "subtitle_prefix_missing": {
+      "pattern": "본문 슬라이드 ID=9(중제목)에 01/02/03 번호 접두사가 없이 텍스트만 출력",
+      "cause": "plan 생성 시 LLM이 slide index를 0 또는 2로 잘못 기록 → content_idx=max(0,idx-2)=0 → prefix 조건 불충족",
+      "fix": "_apply_common_zones에서 content_idx=0이면 접두사 생략. LLM이 올바른 index를 생성하도록 plan 검증 필요"
+    },
+    "subtitle_empty": {
+      "pattern": "본문 슬라이드 ID=9(중제목) 텍스트박스가 비어있음",
+      "cause": "plan의 role별 content 필드 목록(slide9 등)에 subtitle이 명시되지 않아 LLM이 누락",
+      "fix": "(1) 프롬프트에 subtitle 필수 규칙 추가. (2) _apply_common_zones에 fallback: subtitle 없으면 section_title 숫자 접두사 제거 후 사용"
+    },
+    "section_desc_empty": {
+      "pattern": "사이드바 body_desc(ID=17 등) 텍스트박스가 비어있음 — 템플릿 placeholder도 _clear_residual_placeholders가 삭제",
+      "cause": "LLM이 section_desc를 plan에 미포함 → _apply_common_zones가 body_desc 미적용 → 잔여 placeholder 패턴 감지 후 삭제",
+      "fix": "(1) 프롬프트에 section_desc 필수 규칙 추가. (2) _apply_common_zones에 fallback: section_desc 없으면 section_title 기반 1줄 자동 생성"
+    },
+    "toc_title_wrong": {
+      "pattern": "목차 슬라이드(slide7) ID=42에 전체 발표 제목 대신 '목차' 텍스트가 삽입됨",
+      "cause": "edit_toc_slide 호출 시 slide_plan['title']('목차')을 prs_title로 전달. 전체 발표 제목(plan['title'])을 써야 함",
+      "fix": "편집 루프에서 role=toc 슬라이드에 prs_title=plan['title'] 주입 후 edit_toc_slide에 전달"
+    }
   },
   "slide_layout_hints": {
     "cover": "slide6. 날짜는 YYYY.MM.DD 형식. 부제목은 subtitle shape(두 번째 텍스트박스).",
-    "toc": "slide7. 번호 shape과 내용 shape이 1:1 대응. anchor=ctr 필수.",
+    "toc": "slide7. 번호 shape과 내용 shape이 1:1 대응. anchor=ctr 필수. ID=42에는 전체 발표 제목(plan.title)을 넣어야 함 — slide_plan.title('목차') 사용 금지.",
     "section": "slide8. 다크 배경 유지. 서브아이템은 anchorCtr=0.",
     "three_col": "slide14. 3열 각각 아이콘(이미지) + 제목 + 설명 구조. 텍스트만 교체.",
     "closing": "slide9 또는 slide46. 텍스트 최소화.",
     "cover_shape_ids": "slide6: ID=12(대제목 48pt), ID=6(소제목 32pt), ID=15(날짜). 반드시 ID로 찾을 것",
     "toc_text_cx": "slide7 ID=10 원본 cx=3735955은 너무 좁음. 편집 시 cx=6790297로 확장 필수",
     "toc_line_x": "밑줄 x는 가장 긴 항목 폭 기준으로 동적 계산: TOC_TEXT_X + max_text_emu + 200000",
-    "section_count": "생성 PPT 섹션은 반드시 4개: 표지/목차·간지/본문/마무리"
+    "section_count": "생성 PPT 섹션은 반드시 4개: 표지/목차·간지/본문/마무리",
+    "zone1_subtitle_rule": "본문 슬라이드 ID=9(중제목): '{content_idx:02d} {subtitle}' 형식. subtitle은 plan 최상위 필드(content 밖). LLM 누락 시 section_title 숫자 접두사 제거 fallback 적용.",
+    "zone2_desc_rule": "사이드바 body_desc: plan content.section_desc 사용. 누락 시 '{section_title 제목어}의 개념과 주요 내용을 다룬다.' fallback 적용.",
+    "plan_required_fields": "cover/toc/closing 제외 모든 슬라이드: (1) subtitle — top-level 필드, 의미 있는 주제어, (2) content.section_desc — 1~2줄 요약. 두 필드 누락 시 fallback 자동 생성되나 LLM이 직접 생성하는 것이 품질 우수.",
+    "slide31_slide33_required": "slide31/slide33: quarters 배열 필수. 각 quarter에 items 리스트 필수(핵심목표/리스크/규모 또는 유사 항목 3개 이상). items 누락 시 하단 콘텐츠 박스 전체 공백 발생."
   },
   "runs": [
     {
@@ -210,7 +241,13 @@
     "슬라이드 4(flow) 오버플로우 방지: 각 단계 열의 텍스트가 '...'으로 잘림 (예: 'Gol...', 'Export/Import...', '프 — 제목 25자 이내, 항목 30자 이내로 제한",
     "슬라이드 4(flow) 오버플로우 방지: 4단계 'Cutover 전환' 열이 슬라이드 우측 경계 밖으로 잘려 나가고 있음 — 제목 25자 이내, 항목 30자 이내로 제한",
     "슬라이드 5(steps): 플레이스홀더 미교체 발생 — 반드시 실제 콘텐츠로 채울 것 (작성해주세요 금지)",
-    "슬라이드 5(steps) 오버플로우 방지: 하단 콘텐츠 박스 영역이 슬라이드 하단 경계 밖으로 잘려 나가고 있음 — 제목 25자 이내, 항목 30자 이내로 제한"
+    "슬라이드 5(steps) 오버플로우 방지: 하단 콘텐츠 박스 영역이 슬라이드 하단 경계 밖으로 잘려 나가고 있음 — 제목 25자 이내, 항목 30자 이내로 제한",
+    {
+      "slide": "slide30",
+      "rule": "step_meta 4개 필수",
+      "format": "step_meta: [{'키': '값', ...}, ...] — 키는 내용에 따라 자유롭게, 각 dict 1~3쌍 권장"
+    },
+    "slide30(steps 레이아웃) 사용 시 반드시 step_meta 필드 포함: 4개 dict, 각 dict는 단계·방법·기준·결과 키를 가짐. 없으면 하단 4×4 grid가 비어있게 됨."
   ],
   "known_failure_fixes_v2": {
     "sidebar_text_overflow_and_logo_overlap": {
@@ -268,8 +305,8 @@
     "multi_column_right_cutoff": {
       "pattern": "슬라이드 4의 다열(3열) 레이아웃에서 오른쪽 열 박스들이 슬라이드 우측 경계 밖으로 잘려 콘텐츠 미표시. 중앙 열 텍스트도 박스 너비 초과로 말줄임 발생.",
       "cause": "3열 배치 시 각 열의 x + width 합산이 슬라이드 너비(9144000 EMU)를 초과하도록 좌표가 설정됨. 열 간격(gap) 없이 빽빽하게 배치하거나, 우측 열 x값이 슬라이드 경계에 근접하여 width 부여 후 초과 발생. 텍스트가 박스 width에 비해 길어 말줄임 처리됨.",
-      "fix": "다열 레이아웃 생성 시: (1) 모든 열의 right_edge(x+width) ≤ 슬라이드 너비 - 200000 EMU(우측 여백) 조건 강제. (2) 3열 배치 기준: slide_width=9144000, left_margin=300000, right_margin=300000, col_gap=100000 → 각 열 width = (9144000-600000-200000)/3 = 약 2781333 EMU. (3) 각 열 텍스트는 해당 width 기준 최대 20자/줄, 폰트 10~12pt로 제한. (4) 중앙 열 텍스트는 50자 이내로 요약.",
-      "enforcement": "SLIDE_WIDTH = 9144000\nRIGHT_MARGIN = 200000\nfor col_shape in column_shapes:\n    assert col_shape.left + col_shape.width <= SLIDE_WIDTH - RIGHT_MARGIN, f'Column shape {col_shape.shape_id} exceeds slide right boundary'\nassert mid_col_text_len <= 50, 'Middle column text too long (>50 chars)'"
+      "fix": "다열 레이아웃 생성 시: (1) 모든 열의 right_edge(x+width) ≤ 슬라이드 너비 - 200000 EMU(우측 여백) 조건 강제. (2) 3열 배치 기준: slide_width=12192000, left_margin=300000, right_margin=300000, col_gap=100000 → 각 열 width = (12192000-600000-200000)/3 = 약 3797333 EMU. (3) 각 열 텍스트는 해당 width 기준 최대 20자/줄, 폰트 10~12pt로 제한. (4) 중앙 열 텍스트는 50자 이내로 요약.",
+      "enforcement": "SLIDE_WIDTH = 12192000\nRIGHT_MARGIN = 200000\nfor col_shape in column_shapes:\n    assert col_shape.left + col_shape.width <= SLIDE_WIDTH - RIGHT_MARGIN, f'Column shape {col_shape.shape_id} exceeds slide right boundary'\nassert mid_col_text_len <= 50, 'Middle column text too long (>50 chars)'"
     },
     "slide4_title_text_truncated": {
       "pattern": "슬라이드 4 좌측 상단 제목 텍스트가 박스 경계 밖으로 넘쳐 잘리고 마지막 글자가 'ㄱ' 등 불완전한 상태로 렌더링됨.",
@@ -314,8 +351,8 @@
     "flow_card_right_cutoff_slide5": {
       "pattern": "슬라이드 5의 4단계 플로우 카드 레이아웃에서 마지막 카드(Step 4)가 슬라이드 오른쪽 경계를 벗어나 잘림. 하단 콘텐츠도 슬라이드 하단 경계 초과.",
       "cause": "4개 카드의 x+width 합산 및 카드 간 gap이 슬라이드 너비(9144000 EMU)를 초과하도록 계산됨. 하단 카드의 y+height가 슬라이드 높이(6858000 EMU)를 초과.",
-      "fix": "(1) 4열 카드 배치: slide_width=9144000, left_margin=200000, right_margin=200000, col_gap=80000 → 각 카드 width=(9144000-400000-240000)/4=2126000 EMU 이하. (2) 각 카드 right_edge(x+width) <= slide_width-200000 조건 강제. (3) 카드 하단 bottom(y+height) <= slide_height-200000(=6658000 EMU) 조건 강제. (4) 카드 내 텍스트는 최대 12자/줄, 폰트 10pt 이하.",
-      "enforcement": "SLIDE_WIDTH = 9144000\nSLIDE_HEIGHT = 6858000\nfor card in flow_cards:\n    assert card.left + card.width <= SLIDE_WIDTH - 200000, f'Flow card {card.shape_id} exceeds right boundary'\n    assert card.top + card.height <= SLIDE_HEIGHT - 200000, f'Flow card {card.shape_id} exceeds bottom boundary'"
+      "fix": "(1) 4열 카드 배치: slide_width=12192000, left_margin=200000, right_margin=200000, col_gap=80000 → 각 카드 width=(12192000-400000-240000)/4=2888000 EMU 이하. (2) 각 카드 right_edge(x+width) <= slide_width-200000 조건 강제. (3) 카드 하단 bottom(y+height) <= slide_height-200000(=6658000 EMU) 조건 강제. (4) 카드 내 텍스트는 최대 12자/줄, 폰트 10pt 이하.",
+      "enforcement": "SLIDE_WIDTH = 12192000\nSLIDE_HEIGHT = 6858000\nfor card in flow_cards:\n    assert card.left + card.width <= SLIDE_WIDTH - 200000, f'Flow card {card.shape_id} exceeds right boundary'\n    assert card.top + card.height <= SLIDE_HEIGHT - 200000, f'Flow card {card.shape_id} exceeds bottom boundary'"
     },
     "as_is_tobe_diagram_text_overlap_slide6": {
       "pattern": "슬라이드 6(As-Is/To-Be 비교)에서 설명 텍스트 블록이 원형 다이어그램 shape과 심하게 겹쳐 가독성이 크게 저하됨. '아래 확장/최대 3줄로' 템플릿 안내 문구가 실제 슬라이드에 그대로 노출됨.",
@@ -328,6 +365,168 @@
       "cause": "콘텐츠 배정 dict 생성 시 왼쪽·중앙 열만 처리하고 오른쪽 열 shape들이 식별되지 않거나 배정 로직에서 제외됨. 또는 shape ID 매핑이 부정확하여 오른쪽 열 shape에 콘텐츠가 주입되지 않음.",
       "fix": "(1) 슬라이드 7 편집 전 모든 회색 박스 shape(배경색 기준 또는 크기 기준)을 열 순서대로 정렬하여 리스트 구성. (2) 각 shape에 콘텐츠 배정 후 shape.text.strip() != '' 검증 필수. (3) 오른쪽 열 shape 3개 포함 전체 박스에 Target DB 관련 실제 텍스트 삽입 강제. (4) 삽입 후 빈 shape 존재 시 AssertionError.",
       "enforcement": "for shape in slide7_grid_shapes:\n    assert shape.text_frame.text.strip() != '', f'Slide7 grid box shape {shape.shape_id} is empty — must insert Target DB content'"
+    },
+    "slide31_slide33_quarters_items_missing": {
+      "pattern": "slide31/slide33(분기별 타임라인/흐름 레이아웃) 생성 시 Q1~Q4 아래 하단 영역(핵심 목표·리스크·규모 등)이 비어 있음.",
+      "cause": "_insert_rich_quarter_content()가 quarters[i].get('items')가 있을 때만 실행됨. 플랜 생성 시 quarters 배열 안에 items 키가 누락되면 하단 콘텐츠 박스 전체가 생성되지 않음.",
+      "fix": "slide31/slide33 플랜 생성 시 quarters 배열의 각 항목에 반드시 items 문자열 배열을 포함해야 함. 형식: quarters: [{period: 'Q1', kpi: '...', risk: '...', effort: '...', items: ['□ 항목1', '□ 항목2', '□ 항목3']}, ...]. items는 반드시 문자열 배열(dict 금지), 3개 이상 필수. kpi·risk·effort 값은 주제와 내용에 맞게 실제로 채워야 함 — 예시값('핵심지표', '낮음/중간/높음', '규모')은 참고용이며 내용에 따라 다른 표현으로 바꿔 써도 됨. items 내용도 핵심목표·리스크·규모에 국한하지 않고 주제에 맞게 자유롭게 구성.",
+      "enforcement": "for q in slide_plan['content']['quarters']:\n    assert isinstance(q.get('items'), list) and all(isinstance(i, str) for i in q['items']), f'slide31/33 quarters.items must be string list — e.g. [\"□ 항목1\", \"□ 항목2\"]'"
+    },
+    "slide29_periods_items_missing": {
+      "pattern": "slide29(연도별/월별 타임라인) 생성 시 연도 아래 콘텐츠 박스(items/kpi/team 등)가 비어 있음.",
+      "cause": "_edit_slide29()가 periods[i].get('items')가 없으면 desc_lines에 항목을 추가하지 않아 빈 텍스트박스만 삽입됨.",
+      "fix": "slide29 플랜 생성 시 periods 배열의 각 항목에 items(문자열 배열), kpi, risk, team을 포함해야 함. 형식: periods: [{label: '2026', period: 'Jan~Jun', items: ['□ 항목1', '□ 항목2'], kpi: '...', risk: '...', team: '...'}]. items는 문자열 배열 필수. kpi·risk·team 값은 주제와 내용에 맞게 실제로 채워야 함 — 예시값('핵심지표', '낮음', '담당팀')은 참고용이며 내용에 따라 다른 값으로 바꿔 써야 함.",
+      "enforcement": "for p in slide_plan['content']['periods']:\n    assert isinstance(p.get('items'), list), f'slide29 periods.items must be string list'"
+    },
+    "slide30_layout_spec": {
+      "pattern": "slide30 레이아웃 구조 정의 — 상단 개조식 + 하단 4×4 grid",
+      "spec": "상단(zone_upper): Step1~4 헤더(ID=28~31) + 좌측 소제목(ID=17) + 개조식 bullet 최소 5개(동적 sp ID=500~). 하단(zone_lower_grid): 4열×4행=16개 박스(동적 sp ID=600~), 배경색 열별 흰색(FFFFFF)/회색(F0F0F0) 교대, 테두리 #3C41E6.",
+      "plan_keys": {
+        "steps": "Step1~4 헤더 텍스트 (12자 이내)",
+        "step_descs": "상단 개조식 bullet 항목 — 최소 5개, 각 항목 40자 이내",
+        "step_meta": "하단 grid 데이터 — 4개 dict, 각 dict 키=행 레이블·값=내용 (4키 권장)"
+      },
+      "enforcement": "assert len(slide_plan['content'].get('step_descs', [])) >= 5, 'slide30 step_descs 최소 5개 필수'\nassert len(slide_plan['content'].get('step_meta', [])) >= 4, 'slide30 step_meta 4개 필수'\nfor m in slide_plan['content']['step_meta']:\n    assert isinstance(m, dict) and len(m) >= 1"
+    },
+    "slide30_step_descs_missing": {
+      "pattern": "slide30(4단계 스텝) 생성 시 상단 개조식 bullet이 비어 있음.",
+      "cause": "_edit_slide30()이 step_descs가 없으면 동적 sp를 추가하지 않아 bullet 영역이 빔.",
+      "fix": "slide30 플랜 생성 시 step_descs(최소 5개, 각 항목 40자 이내 bullet 텍스트)를 포함해야 함.",
+      "enforcement": "assert len(slide_plan['content'].get('step_descs', [])) >= 5, 'slide30 step_descs 최소 5개 필수'"
+    },
+    "slide30_step_meta": {
+      "pattern": "slide30(4단계 스텝) 하단 grid 영역(4열×4행=16개 박스)이 비어 있음.",
+      "cause": "플랜에 step_meta 키가 없거나 빈 값이면 _edit_slide30()이 grid 박스를 생성하지 않음.",
+      "fix": "slide30 플랜 생성 시 step_meta(4개, 각 4키 dict)를 포함해야 함. 각 dict의 키가 행 레이블, 값이 셀 내용. 예: [{'출시': '2023.03', '특징': '텍스트전용', '성능': '...', '비고': '...'}, ...]. 4열×4행이므로 각 dict는 정확히 4키 권장.",
+      "enforcement": "assert len(slide_plan['content'].get('step_meta', [])) >= 4, 'slide30 step_meta 4개 필수'\nfor m in slide_plan['content']['step_meta']:\n    assert isinstance(m, dict) and len(m) >= 1, 'step_meta 각 항목은 dict(키-값 1개 이상)'",
+      "harness_params": {
+        "geometry": "slide_shape_ids.json slide30: grid_x/y/total_cx/total_cy/col_gap/row_gap/bg_colors",
+        "dynamic_ids": "grid 박스: id=600~ (row*4+col 순서)"
+      }
+    }
+  },
+  "content_limits": {
+    "_note": "LLM plan 생성 시 각 필드 글자 수 상한. 초과 시 코드가 자르지 않고 LLM이 처음부터 제한 내로 작성해야 함.",
+    "common": {
+      "section_title": 30,
+      "section_desc": 60,
+      "title": 30,
+      "subtitle": 40
+    },
+    "slide17": {
+      "items": {
+        "count": 4,
+        "chars_each": 12
+      },
+      "descriptions": {
+        "count": 4,
+        "chars_each": 40
+      },
+      "image_descriptions": {
+        "count": 4,
+        "chars_each": 50
+      }
+    },
+    "slide25": {
+      "items": {
+        "count": 3,
+        "chars_each": 12
+      },
+      "descriptions": {
+        "count": 4,
+        "chars_each": 50
+      }
+    },
+    "slide26": {
+      "items": {
+        "count": 3,
+        "chars_each": 12
+      },
+      "descriptions": {
+        "count": 4,
+        "chars_each": 50
+      }
+    },
+    "slide27": {
+      "items": {
+        "count": 3,
+        "chars_each": 12
+      },
+      "descriptions": {
+        "count": 4,
+        "chars_each": 50
+      }
+    },
+    "slide30": {
+      "steps": {
+        "count": 4,
+        "chars_each": 12
+      },
+      "step_descs": {
+        "count": 4,
+        "bullets_each": "3~5개",
+        "chars_per_bullet": 20
+      },
+      "step_meta": {
+        "count": 4,
+        "keys": 4,
+        "chars_per_value": 12
+      }
+    },
+    "slide34": {
+      "keywords": {
+        "count": 4,
+        "chars_each": 10
+      },
+      "descriptions": {
+        "count": 1,
+        "chars_each": 80
+      }
+    },
+    "slide36": {
+      "as_is": {
+        "count": 4,
+        "chars_each": 15
+      },
+      "to_be": {
+        "count": 4,
+        "chars_each": 15
+      },
+      "body": {
+        "chars": 80
+      }
+    },
+    "slide37": {
+      "bullets": {
+        "count": 3,
+        "chars_each": 60,
+        "_note": "bullets[0]=2025/as-is, bullets[1]=왼쪽 본문, bullets[2]=2026/to-be — 3개 필수"
+      }
+    },
+    "slide39": {
+      "keywords": {
+        "count": 3,
+        "chars_each": 10
+      },
+      "solutions": {
+        "count": 3,
+        "chars_each": 40
+      },
+      "details": {
+        "count": 3,
+        "chars_each": 30
+      },
+      "services": {
+        "count": 3,
+        "chars_each": 30
+      }
+    },
+    "slide42": {
+      "section_desc": 80,
+      "descriptions": {
+        "count": 3,
+        "chars_each": 40
+      }
     }
   }
 }

@@ -6,57 +6,229 @@
   },
   "slide9": {
     "slots": [
-      {"type": "item_title", "ids": ["33","44","47"], "content_key": "items",              "width_emu": 2400000, "font_pt": 14, "max_lines": 2},
-      {"type": "item_body",  "ids": ["27","42","46"], "content_key": "descriptions",       "width_emu": 2400000, "font_pt": 12, "max_lines": 4},
-      {"type": "img_slot",   "ids": ["24","31","25"], "content_key": "image_descriptions", "width_emu": 2400000, "font_pt": 11, "max_lines": 3}
+      {
+        "type": "item_title",
+        "ids": [
+          "33",
+          "44",
+          "47"
+        ],
+        "content_key": "items",
+        "width_emu": 2400000,
+        "font_pt": 14,
+        "max_lines": 2
+      },
+      {
+        "type": "item_body",
+        "ids": [
+          "27",
+          "42",
+          "46"
+        ],
+        "content_key": "descriptions",
+        "width_emu": 2400000,
+        "font_pt": 12,
+        "max_lines": 4
+      },
+      {
+        "type": "img_slot",
+        "ids": [
+          "24",
+          "31",
+          "25"
+        ],
+        "content_key": "image_descriptions",
+        "width_emu": 2400000,
+        "font_pt": 11,
+        "max_lines": 3
+      }
     ]
   },
   "slide10": {
     "slots": [
-      {"type": "item_title", "ids": ["44","33","47"], "content_key": "items",              "width_emu": 2400000, "font_pt": 14, "max_lines": 2},
-      {"type": "item_body",  "ids": ["42","27","46"], "content_key": "descriptions",       "width_emu": 2400000, "font_pt": 12, "max_lines": 4},
-      {"type": "img_slot",   "ids": ["20","26","23"], "content_key": "image_descriptions", "width_emu": 2400000, "font_pt": 11, "max_lines": 3},
-      {"type": "insight",    "ids": ["24"],           "content_key": "insights",           "width_emu": 7000000, "font_pt": 11, "max_lines": 2}
+      {
+        "type": "item_title",
+        "ids": [
+          "44",
+          "33",
+          "47"
+        ],
+        "content_key": "items",
+        "width_emu": 2400000,
+        "font_pt": 14,
+        "max_lines": 2
+      },
+      {
+        "type": "item_body",
+        "ids": [
+          "42",
+          "27",
+          "46"
+        ],
+        "content_key": "descriptions",
+        "width_emu": 2400000,
+        "font_pt": 12,
+        "max_lines": 4
+      },
+      {
+        "type": "img_slot",
+        "ids": [
+          "20",
+          "26",
+          "23"
+        ],
+        "content_key": "image_descriptions",
+        "width_emu": 2400000,
+        "font_pt": 11,
+        "max_lines": 3
+      },
+      {
+        "type": "insight",
+        "ids": [
+          "24"
+        ],
+        "content_key": "insights",
+        "width_emu": 7000000,
+        "font_pt": 11,
+        "max_lines": 2
+      }
     ]
   },
   "slide11": {
     "slots": [
-      {"type": "item_title", "ids": ["33","37","40"], "content_key": "items",              "width_emu": 2400000, "font_pt": 14, "max_lines": 2},
-      {"type": "item_body",  "ids": ["27","36","39"], "content_key": "descriptions",       "width_emu": 2400000, "font_pt": 12, "max_lines": 4},
-      {"type": "img_slot",   "ids": ["21","22","23"], "content_key": "image_descriptions", "width_emu": 2400000, "font_pt": 11, "max_lines": 3}
+      {
+        "type": "item_title",
+        "ids": [
+          "33",
+          "37",
+          "40"
+        ],
+        "content_key": "items",
+        "width_emu": 2400000,
+        "font_pt": 14,
+        "max_lines": 2
+      },
+      {
+        "type": "item_body",
+        "ids": [
+          "27",
+          "36",
+          "39"
+        ],
+        "content_key": "descriptions",
+        "width_emu": 2400000,
+        "font_pt": 12,
+        "max_lines": 4
+      },
+      {
+        "type": "img_slot",
+        "ids": [
+          "21",
+          "22",
+          "23"
+        ],
+        "content_key": "image_descriptions",
+        "width_emu": 2400000,
+        "font_pt": 11,
+        "max_lines": 3
+      }
     ]
   },
   "slide12": {
     "slots": [
-      {"type": "item_title",  "ids": ["33","54","57"], "content_key": "items",              "width_emu": 2400000, "font_pt": 14, "max_lines": 2},
-      {"type": "item_body",   "ids": ["27","53","56"], "content_key": "descriptions",       "width_emu": 2400000, "font_pt": 12, "max_lines": 4},
-      {"type": "img_slot",    "ids": ["21","47","48"], "content_key": "image_descriptions", "width_emu": 2400000, "font_pt": 11, "max_lines": 3},
-      {"type": "sub_heading", "ids": ["28"],           "content_key": "sub_heading",        "width_emu": 9000000, "font_pt": 16, "max_lines": 2}
+      {
+        "type": "item_title",
+        "ids": [
+          "33",
+          "54",
+          "57"
+        ],
+        "content_key": "items",
+        "width_emu": 2400000,
+        "font_pt": 14,
+        "max_lines": 2
+      },
+      {
+        "type": "item_body",
+        "ids": [
+          "27",
+          "53",
+          "56"
+        ],
+        "content_key": "descriptions",
+        "width_emu": 2400000,
+        "font_pt": 12,
+        "max_lines": 4
+      },
+      {
+        "type": "img_slot",
+        "ids": [
+          "21",
+          "47",
+          "48"
+        ],
+        "content_key": "image_descriptions",
+        "width_emu": 2400000,
+        "font_pt": 11,
+        "max_lines": 3
+      },
+      {
+        "type": "sub_heading",
+        "ids": [
+          "28"
+        ],
+        "content_key": "sub_heading",
+        "width_emu": 9000000,
+        "font_pt": 16,
+        "max_lines": 2
+      }
     ]
   },
   "slide13": {
     "slots": [
       {
         "type": "item_title",
-        "ids": ["18", "19", "21"],
+        "ids": [
+          "18",
+          "19",
+          "21"
+        ],
         "content_key": "items",
-        "width_emu": 2000000, "font_pt": 14, "max_lines": 2
+        "width_emu": 2000000,
+        "font_pt": 14,
+        "max_lines": 2
       },
       {
         "type": "item_body",
-        "ids": ["62", "38", "69"],
+        "ids": [
+          "62",
+          "38",
+          "69"
+        ],
         "content_key": "descriptions",
-        "width_emu": 3000000, "font_pt": 12, "max_lines": 6
+        "width_emu": 3000000,
+        "font_pt": 12,
+        "max_lines": 6
       },
       {
         "type": "img_slot",
-        "ids": ["20", "24", "25"],
+        "ids": [
+          "20",
+          "24",
+          "25"
+        ],
         "content_key": "image_descriptions",
-        "width_emu": 2000000, "font_pt": 11, "max_lines": 4
+        "width_emu": 2000000,
+        "font_pt": 11,
+        "max_lines": 4
       },
       {
         "type": "insight",
-        "ids": ["27", "29", "30"],
+        "ids": [
+          "27",
+          "29",
+          "30"
+        ],
         "content_key": "insights",
         "width_emu": 2600000,
         "font_pt": 11,
@@ -64,157 +236,638 @@
       }
     ]
   },
+  "slide15": {
+    "slots": [
+      {
+        "type": "item_title",
+        "ids": [
+          "18",
+          "19",
+          "21"
+        ],
+        "content_key": "items",
+        "width_emu": 2000000,
+        "font_pt": 14,
+        "max_lines": 2
+      },
+      {
+        "type": "item_body",
+        "ids": [
+          "62",
+          "38",
+          "69"
+        ],
+        "content_key": "descriptions",
+        "width_emu": 3000000,
+        "font_pt": 12,
+        "max_lines": 6
+      },
+      {
+        "type": "img_slot",
+        "ids": [
+          "20",
+          "24",
+          "25"
+        ],
+        "content_key": "image_descriptions",
+        "width_emu": 2000000,
+        "font_pt": 11,
+        "max_lines": 4
+      }
+    ]
+  },
   "slide14": {
     "slots": [
-      {"type": "item_title", "ids": ["58","22","26","28"], "content_key": "items",              "width_emu": 2000000, "font_pt": 14, "max_lines": 2},
-      {"type": "item_body",  "ids": ["62","25","29","30"], "content_key": "descriptions",       "width_emu": 2050000, "font_pt": 12, "max_lines": 6},
-      {"type": "img_slot",   "ids": ["20","21","23","27"], "content_key": "image_descriptions", "width_emu": 2300000, "font_pt": 11, "max_lines": 3},
-      {"type": "insight",    "ids": ["33","35","37","39"], "content_key": "insights",           "width_emu": 2000000, "font_pt": 10, "max_lines": 2}
+      {
+        "type": "item_title",
+        "ids": [
+          "58",
+          "22",
+          "26",
+          "28"
+        ],
+        "content_key": "items",
+        "width_emu": 2000000,
+        "font_pt": 14,
+        "max_lines": 2
+      },
+      {
+        "type": "item_body",
+        "ids": [
+          "62",
+          "25",
+          "29",
+          "30"
+        ],
+        "content_key": "descriptions",
+        "width_emu": 2050000,
+        "font_pt": 12,
+        "max_lines": 6
+      },
+      {
+        "type": "img_slot",
+        "ids": [
+          "20",
+          "21",
+          "23",
+          "27"
+        ],
+        "content_key": "image_descriptions",
+        "width_emu": 2300000,
+        "font_pt": 11,
+        "max_lines": 3
+      },
+      {
+        "type": "insight",
+        "ids": [
+          "33",
+          "35",
+          "37",
+          "39"
+        ],
+        "content_key": "insights",
+        "width_emu": 2000000,
+        "font_pt": 10,
+        "max_lines": 2
+      }
     ]
   },
   "slide16": {
     "slots": [
-      {"type": "item_title",  "ids": ["58","22","26","28"], "content_key": "items",              "width_emu": 2000000, "font_pt": 14, "max_lines": 2},
-      {"type": "item_body",   "ids": ["62","25","29","30"], "content_key": "descriptions",       "width_emu": 2000000, "font_pt": 11, "max_lines": 3},
-      {"type": "img_slot",    "ids": ["20","21","23","27"], "content_key": "image_descriptions", "width_emu": 2300000, "font_pt": 11, "max_lines": 3},
-      {"type": "sub_heading", "ids": ["48"],               "content_key": "sub_heading",        "width_emu": 9000000, "font_pt": 16, "max_lines": 2}
+      {
+        "type": "item_title",
+        "ids": [
+          "58",
+          "22",
+          "26",
+          "28"
+        ],
+        "content_key": "items",
+        "width_emu": 2000000,
+        "font_pt": 14,
+        "max_lines": 2
+      },
+      {
+        "type": "item_body",
+        "ids": [
+          "62",
+          "25",
+          "29",
+          "30"
+        ],
+        "content_key": "descriptions",
+        "width_emu": 2000000,
+        "font_pt": 11,
+        "max_lines": 3
+      },
+      {
+        "type": "img_slot",
+        "ids": [
+          "20",
+          "21",
+          "23",
+          "27"
+        ],
+        "content_key": "image_descriptions",
+        "width_emu": 2300000,
+        "font_pt": 11,
+        "max_lines": 3
+      },
+      {
+        "type": "sub_heading",
+        "ids": [
+          "48"
+        ],
+        "content_key": "sub_heading",
+        "width_emu": 9000000,
+        "font_pt": 16,
+        "max_lines": 2
+      }
     ]
   },
   "slide17": {
     "slots": [
-      {"type": "item_title",  "ids": ["30","41","16","22"], "content_key": "items",              "width_emu": 2000000, "font_pt": 14, "max_lines": 2},
-      {"type": "item_body",   "ids": ["48","21","13","20"], "content_key": "descriptions",       "width_emu": 2000000, "font_pt": 11, "max_lines": 3},
-      {"type": "img_slot",    "ids": ["24","19","18","23"], "content_key": "image_descriptions", "width_emu": 2000000, "font_pt": 11, "max_lines": 3},
-      {"type": "sub_heading", "ids": ["15"],               "content_key": "sub_heading",        "width_emu": 9000000, "font_pt": 16, "max_lines": 2}
+      {
+        "type": "item_title",
+        "ids": [
+          "30",
+          "41",
+          "16",
+          "22"
+        ],
+        "content_key": "items",
+        "width_emu": 4659725,
+        "font_pt": 14,
+        "max_lines": 2
+      },
+      {
+        "type": "item_body",
+        "ids": [
+          "48",
+          "21",
+          "13",
+          "20"
+        ],
+        "content_key": "descriptions",
+        "width_emu": 1530350,
+        "font_pt": 11,
+        "max_lines": 8
+      },
+      {
+        "type": "img_slot",
+        "ids": [
+          "24",
+          "19",
+          "18",
+          "23"
+        ],
+        "content_key": "image_descriptions",
+        "width_emu": 2400000,
+        "font_pt": 11,
+        "max_lines": 4
+      },
+      {
+        "type": "sub_heading",
+        "ids": [
+          "15"
+        ],
+        "content_key": "sub_heading",
+        "width_emu": 9289092,
+        "font_pt": 16,
+        "max_lines": 2
+      }
     ]
   },
   "slide21": {
     "body1_id": "12",
     "body2_id": "14",
     "body3_id": "15",
-    "img_id":   "18",
-    "body1": {"width_emu": 3000000, "font_pt": 14, "max_lines": 2},
-    "body2": {"width_emu": 2500000, "font_pt": 12, "max_lines": 3},
-    "body3": {"width_emu": 2500000, "font_pt": 12, "max_lines": 3}
+    "img_id": "18",
+    "body1": {
+      "width_emu": 3000000,
+      "font_pt": 14,
+      "max_lines": 2
+    },
+    "body2": {
+      "width_emu": 2500000,
+      "font_pt": 12,
+      "max_lines": 3
+    },
+    "body3": {
+      "width_emu": 2500000,
+      "font_pt": 12,
+      "max_lines": 3
+    }
   },
   "slide24": {
     "body1_id": "7",
     "body2_id": "10"
   },
   "slide29": {
-    "slide_w":       12192000,
-    "sidebar_w":     2700000,
-    "bar_h":         350000,
-    "year_y_base":   [750000, 900000, 1050000, 1200000],
-    "_note": "period_label_ids는 layout_zone_map.json slide29.body.period_labels에서 로드"
+    "slide_w": 12192000,
+    "sidebar_w": 2700000,
+    "bar_h": 350000,
+    "year_y_base": [
+      780494,
+      1155654,
+      1452497,
+      1749340
+    ],
+    "content_box_cy": 2065000,
+    "content_box_margin": 80000,
+    "_note": "period_label_ids는 layout_zone_map.json slide29.body.period_labels에서 로드. content_box 크기는 파란 제목박스 좌표 기반으로 동적 계산(ML PPT 실측값)"
   },
   "slide30": {
-    "header_ids": ["28", "29", "30", "31"],
-    "col_xs":     [2657592, 5145661, 7445690, 9887657],
-    "col_cx":     2240346,
-    "body_y":     1575000,
-    "body_cy":    5100000,
-    "step_header":       {"width_emu": 1800000, "font_pt": 16, "max_lines": 2},
-    "step_body_font_sz": 1100
+    "header_ids": [
+      "28",
+      "29",
+      "30",
+      "31"
+    ],
+    "col_xs": [
+      2657592,
+      5145661,
+      7445690,
+      9887657
+    ],
+    "body_xs": [
+      2749032,
+      4989378,
+      7485160,
+      9787657
+    ],
+    "body_cxs": [
+      2057466,
+      2312902,
+      2119617,
+      2312902
+    ],
+    "col_cx": 2240346,
+    "body_y": 1575000,
+    "body_cy": 5100000,
+    "step_header": {
+      "width_emu": 1800000,
+      "font_pt": 16,
+      "max_lines": 2
+    },
+    "step_body_font_sz": 1100,
+    "desc_cy": 3360000,
+    "meta_y": 5025000,
+    "band1_h": 375000,
+    "band2_h": 375000,
+    "band3_h": 375000,
+    "band4_h": 375000,
+    "band_gap": 50000,
+    "band_bg": "F4F6FE",
+    "band_border": "3C41E6",
+    "band_label_sz": 900,
+    "band_value_sz": 1000,
+    "_layout_note": "상단: ID=17(소제목박스 좌측) + upper_bullets(동적 sp, ID 500~) 개조식 최소3개. 하단: 4열×4행 grid(동적 sp, ID 600~), 배경색 흰색/회색 교대",
+    "_col_desc_note": "각 컬럼 헤더(ID=28~31) 아래 개별 desc 박스(동적 sp, ID 500~503). step_descs[0~3] 각각 배치",
+    "col_desc_id_start": 500,
+    "col_desc_y": 1280000,
+    "col_desc_cy": 2750000,
+    "col_desc_font_sz": 1200,
+    "grid_start_id": 600,
+    "grid_cols": 4,
+    "grid_rows": 4,
+    "grid_col_xs": [
+      2749032,
+      4989378,
+      7485160,
+      9787657
+    ],
+    "grid_col_cxs": [
+      2057466,
+      2312902,
+      2119617,
+      2312902
+    ],
+    "grid_y": 4100000,
+    "grid_total_cy": 2750000,
+    "grid_row_gap": 36000,
+    "_grid_bg_note": "배경색은 템플릿 고정 도형(ID=13 회색, ID=15 회색)이 담당. grid 박스는 noFill 투명 배경으로 그 위에 배치",
+    "grid_border": "3C41E6",
+    "grid_font_sz": 1200,
+    "grid_label_sz": 1400,
+    "grid_cell_lins": 91440,
+    "grid_cell_tins": 91440,
+    "grid_cell_rins": 91440,
+    "grid_cell_bins": 91440,
+    "body_title_max_lines": 2,
+    "body_title_font_pt": 16,
+    "col_desc_lnspc_pct": 150000
   },
   "slide31": {
-    "q_label_ids":   ["23", "24", "27", "28"],
-    "col_x_list":    [2657592, 4897938, 7393720, 9696217],
-    "col_cx_list":   [2240346, 2495782, 2302497, 2495782],
+    "q_label_ids": [
+      "23",
+      "24",
+      "27",
+      "28"
+    ],
+    "col_x_list": [
+      2657592,
+      4897938,
+      7393720,
+      9696217
+    ],
+    "col_cx_list": [
+      2240346,
+      2495782,
+      2302497,
+      2495782
+    ],
     "content_top_y": 1099874,
     "upper_top_pad": 400000,
     "sep_lower_pad": 1648141,
     "lower_start_gap": 261149,
     "_box_dims_comment": "아래 치수는 ML 8페이지 실측값 기반. Python 하드코딩 없이 이 값으로 박스 생성.",
-    "col_pad":   60000,
-    "line_h":    190500,
-    "logo_y":    6200000,
-    "kpi_h":     520000,
-    "risk_h":    380000,
+    "col_pad": 60000,
+    "line_h": 190500,
+    "logo_y": 6200000,
+    "kpi_h": 520000,
+    "risk_h": 490000,
     "lower_gap": 120000,
-    "sep_h":     6000,
-    "summ_gap":  30000,
-    "summ_h":    120000
+    "sep_h": 6000,
+    "summ_gap": 30000,
+    "summ_h": 120000
   },
   "slide32": {
     "main_desc_id": "26",
-    "main_desc": {"width_emu": 4000000, "font_pt": 12, "max_lines": 8}
+    "main_desc": {
+      "width_emu": 4000000,
+      "font_pt": 12,
+      "max_lines": 8
+    }
   },
   "slide33": {
-    "q_label_ids":   ["35", "36", "37", "38"],
-    "col_x_list":    [0, 3077029, 6084461, 9184568],
-    "col_cx_list":   [3077029, 3007432, 3100107, 3007432],
+    "q_label_ids": [
+      "35",
+      "36",
+      "37",
+      "38"
+    ],
+    "col_x_list": [
+      0,
+      3077029,
+      6084461,
+      9184568
+    ],
+    "col_cx_list": [
+      3077029,
+      3007432,
+      3100107,
+      3007432
+    ],
     "content_top_y": 1850000,
     "upper_top_pad": 400000,
     "sep_lower_pad": 1648141,
     "lower_start_gap": 261149,
     "_box_dims_comment": "아래 치수는 ML 11페이지 실측값 기반.",
-    "col_pad":   60000,
-    "line_h":    190500,
-    "logo_y":    6200000,
-    "kpi_h":     520000,
-    "risk_h":    380000,
+    "col_pad": 60000,
+    "line_h": 190500,
+    "logo_y": 6200000,
+    "kpi_h": 520000,
+    "risk_h": 490000,
     "lower_gap": 120000,
-    "sep_h":     6000,
-    "summ_gap":  30000,
-    "summ_h":    120000,
+    "sep_h": 6000,
+    "summ_gap": 30000,
+    "summ_h": 120000,
     "dynamic_layout": {
       "_comment": "body_title 확장 시 bar·Q레이블·삼각형·배경rect를 같은 delta_y로 이동. content_top_y도 동일하게 조정.",
-      "body_title_id":    "25",
-      "bar_id":           "31",
-      "bar_template_y":   1619072,
-      "gap_below_title":  69633,
-      "shift_shape_ids":  ["33","34","35","36","37","38","39","40","41"]
+      "body_title_id": "25",
+      "bar_id": "31",
+      "bar_template_y": 1619072,
+      "gap_below_title": 69633,
+      "shift_shape_ids": [
+        "33",
+        "34",
+        "35",
+        "36",
+        "37",
+        "38",
+        "39",
+        "40",
+        "41"
+      ]
     }
   },
   "slide34": {
-    "pics_ids":     ["26", "27"],
+    "pics_ids": [
+      "26",
+      "27"
+    ],
     "main_desc_id": "12",
-    "kw_ids":       ["19", "14", "13", "18"],
-    "keyword":   {"width_emu": 1800000, "font_pt": 12, "max_lines": 2},
-    "main_desc": {"width_emu": 7000000, "font_pt": 12, "max_lines": 4},
-    "img_slot":  {"width_emu": 2800000, "font_pt": 11, "max_lines": 4}
+    "kw_ids": [
+      "19",
+      "14",
+      "13",
+      "18"
+    ],
+    "keyword": {
+      "width_emu": 1800000,
+      "font_pt": 12,
+      "max_lines": 2
+    },
+    "main_desc": {
+      "width_emu": 7000000,
+      "font_pt": 12,
+      "max_lines": 4
+    },
+    "img_slot": {
+      "width_emu": 2800000,
+      "font_pt": 11,
+      "max_lines": 4
+    }
   },
   "slide35": {
     "before_label_id": "39",
     "after_label_id": "38",
-    "before_ids": ["17", "16", "35"],
-    "after_ids":  ["18", "21", "13", "19"],
-    "bubble": {"width_emu": 1500000, "font_pt": 16, "max_lines": 2}
+    "before_ids": [
+      "17",
+      "16",
+      "35"
+    ],
+    "after_ids": [
+      "18",
+      "21",
+      "13",
+      "19"
+    ],
+    "bubble": {
+      "width_emu": 1500000,
+      "font_pt": 16,
+      "max_lines": 2
+    }
   },
   "slide36": {
-    "asis_ids":    ["13", "15", "16"],
+    "asis_ids": [
+      "13",
+      "15",
+      "16"
+    ],
     "asis_desc_id": "7",
-    "tobe_ids":    ["21", "22", "23"],
+    "tobe_ids": [
+      "21",
+      "22",
+      "23"
+    ],
     "tobe_desc_id": "27",
-    "bubble": {"width_emu": 1500000, "font_pt": 16, "max_lines": 2},
-    "desc":   {"width_emu": 1500000, "font_pt": 16, "max_lines": 3}
+    "bubble": {
+      "width_emu": 1500000,
+      "font_pt": 16,
+      "max_lines": 2
+    },
+    "desc": {
+      "width_emu": 1500000,
+      "font_pt": 16,
+      "max_lines": 3
+    }
   },
   "slide37": {
-    "desc_ids": ["12", "48", "49"],
-    "desc_0":   {"width_emu": 7000000, "font_pt": 14, "max_lines": 3},
-    "desc_1_2": {"width_emu": 4000000, "font_pt": 12, "max_lines": 4}
+    "desc_ids": [
+      "12",
+      "48",
+      "49"
+    ],
+    "desc_0": {
+      "width_emu": 7000000,
+      "font_pt": 14,
+      "max_lines": 3
+    },
+    "desc_1_2": {
+      "width_emu": 4000000,
+      "font_pt": 12,
+      "max_lines": 4
+    }
   },
   "slide38": {
-    "keyword_ids":  ["13", "14", "15"],
-    "solution_ids": ["7",  "10", "11"],
-    "service_ids":  ["19", "24", "25"],
-    "keyword":  {"width_emu": 1500000, "font_pt": 12, "max_lines": 2},
-    "solution": {"width_emu": 2000000, "font_pt": 12, "max_lines": 3},
-    "service":  {"width_emu": 2000000, "font_pt": 12, "max_lines": 3}
+    "keyword_ids": [
+      "13",
+      "14",
+      "15"
+    ],
+    "solution_ids": [
+      "7",
+      "10",
+      "11"
+    ],
+    "service_ids": [
+      "19",
+      "24",
+      "25"
+    ],
+    "keyword": {
+      "width_emu": 1500000,
+      "font_pt": 12,
+      "max_lines": 2
+    },
+    "solution": {
+      "width_emu": 2000000,
+      "font_pt": 12,
+      "max_lines": 3
+    },
+    "service": {
+      "width_emu": 2000000,
+      "font_pt": 12,
+      "max_lines": 3
+    }
   },
   "slide39": {
-    "keyword_ids":  ["13", "14", "15"],
-    "solution_ids": ["7",  "10", "11"],
-    "detail_ids":   ["16", "17", "18"],
-    "service_ids":  ["19", "24", "25"],
-    "keyword":  {"width_emu": 1500000, "font_pt": 12, "max_lines": 2},
-    "solution": {"width_emu": 2000000, "font_pt": 12, "max_lines": 3},
-    "detail":   {"width_emu": 2000000, "font_pt": 12, "max_lines": 3},
-    "service":  {"width_emu": 2000000, "font_pt": 12, "max_lines": 3}
+    "keyword_ids": [
+      "13",
+      "14",
+      "15"
+    ],
+    "solution_ids": [
+      "7",
+      "10",
+      "11"
+    ],
+    "detail_ids": [
+      "16",
+      "17",
+      "18"
+    ],
+    "service_ids": [
+      "19",
+      "24",
+      "25"
+    ],
+    "keyword": {
+      "width_emu": 1500000,
+      "font_pt": 12,
+      "max_lines": 2
+    },
+    "solution": {
+      "width_emu": 2000000,
+      "font_pt": 12,
+      "max_lines": 3
+    },
+    "detail": {
+      "width_emu": 2000000,
+      "font_pt": 12,
+      "max_lines": 3
+    },
+    "service": {
+      "width_emu": 2000000,
+      "font_pt": 12,
+      "max_lines": 3
+    }
   },
   "slide42": {
     "main_desc_id": "28",
-    "main_desc": {"width_emu": 8000000, "font_pt": 12, "max_lines": 8}
+    "main_desc": {
+      "width_emu": 8000000,
+      "font_pt": 12,
+      "max_lines": 8
+    },
+    "main_desc_max_lines": 8
+  },
+  "slide27": {
+    "panel_label_id": "40",
+    "item_title": {
+      "width_emu": 2200000,
+      "font_pt": 16,
+      "max_lines": 2
+    },
+    "item_body": {
+      "width_emu": 2200000,
+      "font_pt": 12,
+      "max_lines": 3
+    },
+    "main_desc": {
+      "width_emu": 7000000,
+      "font_pt": 12,
+      "max_lines": 3
+    },
+    "img_slot": {
+      "width_emu": 2800000,
+      "font_pt": 11,
+      "max_lines": 4
+    }
+  },
+  "slide28": {
+    "panel_label_id": "26",
+    "item_title": {
+      "width_emu": 2200000,
+      "font_pt": 16,
+      "max_lines": 2
+    },
+    "item_body": {
+      "width_emu": 2200000,
+      "font_pt": 12,
+      "max_lines": 3
+    },
+    "main_desc": {
+      "width_emu": 7000000,
+      "font_pt": 12,
+      "max_lines": 3
+    },
+    "img_slot": {
+      "width_emu": 2800000,
+      "font_pt": 11,
+      "max_lines": 4
+    }
   }
 }

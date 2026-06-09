@@ -10,6 +10,14 @@ import subprocess
 import sys
 import xml.etree.ElementTree as ET
 import zipfile
+
+# namespace prefix 등록 — ET.tostring이 ns0/ns1 대신 올바른 prefix를 사용하도록
+ET.register_namespace('p', 'http://schemas.openxmlformats.org/presentationml/2006/main')
+ET.register_namespace('a', 'http://schemas.openxmlformats.org/drawingml/2006/main')
+ET.register_namespace('r', 'http://schemas.openxmlformats.org/officeDocument/2006/relationships')
+ET.register_namespace('p14', 'http://schemas.microsoft.com/office/powerpoint/2010/main')
+ET.register_namespace('a14', 'http://schemas.microsoft.com/office/drawing/2010/main')
+ET.register_namespace('a15', 'http://schemas.microsoft.com/office/drawing/2014/main')
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from pathlib import Path
 
@@ -76,6 +84,8 @@ LAYOUT_REGISTRY: dict[str, dict] = {
     "slide17.xml": {"label": "4열 이미지+서브헤딩",    "best_for": ["four_col", "roadmap", "phases"],         "editor": "_edit_slide17"},
     "slide25.xml": {"label": "이미지+우측3열",         "best_for": ["image_text", "overview", "content"],     "editor": "_edit_slide25"},
     "slide26.xml": {"label": "이미지+3항목",           "best_for": ["image_text", "detail", "content"],       "editor": "_edit_slide26"},
+    "slide27.xml": {"label": "이미지+우측3행(2줄)",    "best_for": ["image_text", "panel", "content"],        "editor": "_edit_slide27"},
+    "slide28.xml": {"label": "이미지+우측3행(3줄)",    "best_for": ["image_text", "panel", "content"],        "editor": "_edit_slide28"},
     "slide34.xml": {"label": "2이미지+키워드",         "best_for": ["keywords", "highlight", "comparison"],   "editor": "_edit_slide34"},
     "slide37.xml": {"label": "3구역 텍스트",           "best_for": ["text_heavy", "explanation", "detail"],   "editor": "_edit_slide37"},
     "slide42.xml": {"label": "대형 본문",              "best_for": ["body", "deep_dive", "content"],          "editor": "_edit_slide42"},
@@ -116,15 +126,31 @@ def analyze_template(work_dir: Path) -> list[dict]:
 
 # ── 2. 계획 수립 ──────────────────────────────────────────────
 
+def _extract_layout_order(pptx_path: Path) -> list[str]:
+    """PPTX에서 슬라이드 template_file 순서를 추출한다."""
+    import zipfile, re as _re
+    with zipfile.ZipFile(pptx_path, "r") as z:
+        xml = z.read("ppt/presentation.xml").decode("utf-8")
+    # sldIdLst 안의 r:id 순서대로 슬라이드 파일명 매핑
+    rels_xml = None
+    with zipfile.ZipFile(pptx_path, "r") as z:
+        rels_xml = z.read("ppt/_rels/presentation.xml.rels").decode("utf-8")
+    rid_to_file = dict(_re.findall(r'Id="(rId\d+)"[^>]*Target="slides/([^"]+)"', rels_xml))
+    rids = _re.findall(r'<p:sldId[^>]+r:id="(rId\d+)"', xml)
+    return [rid_to_file[r] for r in rids if r in rid_to_file]
+
+
 def generate_plan_with_claude(
     topic: str,
     audience: str,
     n_slides: int,
     slide_info: list[dict],
     memory: dict,
+    layout_order: list[str] | None = None,
 ) -> dict:
     """
     Claude API를 사용해 주제에 맞는 실제 콘텐츠 계획을 생성한다.
+    layout_order가 주어지면 template_file 순서를 고정하고 내용만 생성한다.
     ANTHROPIC_API_KEY 없으면 None을 반환해 폴백으로 넘긴다.
     """
     import os
@@ -135,17 +161,28 @@ def generate_plan_with_claude(
     vertex_region = os.environ.get("CLOUD_ML_REGION")
     aws_region = os.environ.get("AWS_REGION")
     explicit = os.environ.get("PPT_SKILL_BACKEND", "auto")  # auto|vertex|bedrock|anthropic
+    # switch-provider.sh가 쓰는 CLAUDE_CODE_USE_* 변수 반영
+    cc_bedrock = os.environ.get("CLAUDE_CODE_USE_BEDROCK", "0")
+    cc_vertex  = os.environ.get("CLAUDE_CODE_USE_VERTEX", "0")
 
-    # 백엔드 결정 — 명시 우선, 그 다음 자동 감지
+    # 백엔드 결정 — PPT_SKILL_BACKEND > CLAUDE_CODE_USE_* > 자동 감지
     if explicit == "vertex":
         use_vertex, use_bedrock = True, False
     elif explicit == "bedrock":
         use_vertex, use_bedrock = False, True
     elif explicit == "anthropic":
         use_vertex, use_bedrock = False, False
+    elif cc_bedrock == "1":
+        # switch-provider.sh bedrock
+        use_vertex, use_bedrock = False, True
+    elif cc_vertex == "1":
+        # switch-provider.sh vertex
+        use_vertex, use_bedrock = True, False
+    elif cc_bedrock == "0" and cc_vertex == "0":
+        # switch-provider.sh direct — 두 플래그가 명시적으로 0이면 직접 API
+        use_vertex, use_bedrock = False, False
     else:
-        # auto: Vertex > Bedrock > Anthropic
-        # CLOUD_ML_REGION과 AWS_REGION 둘 다 있으면 ANTHROPIC_VERTEX_PROJECT_ID 유무로 판단
+        # 환경 변수 미설정 시 자동 감지
         use_vertex = bool(vertex_project or (vertex_region and not aws_region))
         use_bedrock = bool(aws_region) and not use_vertex
 
@@ -181,6 +218,7 @@ def generate_plan_with_claude(
         "slide17.xml  → content  : 4가지 이미지+서브헤딩 (이미지+제목+설명 4열, 로드맵/단계)\n"
         "slide25.xml  → content  : 이미지+우측3열 (좌측 이미지, 우측 overview+3항목)\n"
         "slide26.xml  → content  : 이미지+3항목 상세 (좌측 이미지, 우측 overview+3항목+설명)\n"
+        "slide27.xml  → content  : 이미지+우측3행 패널 (좌측 이미지, 우측 overview+3행 — body_title 길이로 slide28 자동 전환)\n"
         "slide34.xml  → content  : 2이미지+키워드 (키워드 4개+설명+이미지 2개)\n"
         "slide37.xml  → content  : 3구역 텍스트 (대형 설명+보조 설명 2개, 텍스트 중심)\n"
         "slide42.xml  → content  : 대형 본문 (단일 대형 텍스트 박스, 심층 설명)\n"
@@ -239,8 +277,14 @@ def generate_plan_with_claude(
         "cover  : subtitle(30자 이내 1줄), date\n"
         "toc    : items(문자열 배열)\n"
         "steps  : section_title(소제목), section_desc(본문제목 설명 2줄 이내), "
-        "steps(4개, 각 25자 이내 짧은 한 줄 — 예 '1단계: PoC 검증'. 긴 설명 금지, 잘림)\n"
-        "flow   : section_title(소제목), section_desc(2줄 이내), keywords(3개), solutions(3개), details(3개)\n"
+        "steps(4개, 각 12자 이내 짧은 한 줄 — 예 '1단계: 평가', '4단계: 배포'. 15자 초과 금지, 잘림), "
+        "step_descs(정확히 4개 문자열 배열 — 각 문자열은 \\n으로 구분된 bullet 항목 3개 이상. 예: ['항목1\\n항목2\\n항목3', '항목A\\n항목B\\n항목C', ...]. ⚠️ \\n 없이 문장 1개만 쓰면 상단 구역에 bullet 1줄만 표시됨. 각 bullet 40자 이내), "
+        "step_meta(정확히 4개 dict, 각 dict는 정확히 4개 키-값 쌍 — 하단 4열×4행 grid에 표시. 예: [{'출시': '2023.03', '특징': '텍스트 전용', '성능': '...', '비고': '...'}, ...]. ⚠️ 4개 미만이면 하단 grid 공백).\n"
+        "timeline: section_title, section_desc, "
+        "periods(4개 — 각 항목: {label: '2026', period: 'Jan~Mar', items: ['□ 항목1', '□ 항목2'], "
+        "kpi: '핵심지표', risk: '낮음/중간/높음', team: '담당팀'} 형식). "
+        "⚠️ items는 문자열 배열 필수 — 누락 시 연도별 콘텐츠 박스 공백.\n"
+        "flow   : section_title(소제목), section_desc(2줄 이내), keywords(3개, 왼쪽 첫번째 컬럼 키워드), solutions(3개, 파란색 화살표 본문), details(3개, 두번째 컬럼 보조 설명), services(3개, 오른쪽 네번째 컬럼 세부 설명 — 누락 시 우측 박스 공백)\n"
         "content(slide13/15): section_title, section_desc(2줄 이내), "
         "items(3개, 각 16자 이내), descriptions(3개, 각 45자 이내), "
         "image_descriptions(이미지 영역에 넣어야 할 이미지 상세 설명 3개 — 실제 이미지 아님)\n"
@@ -251,17 +295,32 @@ def generate_plan_with_claude(
         "image_descriptions(각 칸 이미지 상세 설명 3개)\n"
         "content(slide10): section_title, section_desc, items/descriptions/image_descriptions(3개) + insights(배너 1개)\n"
         "content(slide11): section_title, section_desc, items(3개, 14자 이내), descriptions(3개, 45자 이내)\n"
-        "content(slide17): section_title, section_desc, items(4개), descriptions(4개)\n"
-        "content(slide25/26): section_title, section_desc, items(3개), descriptions(4개 — 첫째=overview, 나머지 3개=항목별 설명)\n"
+        "content(slide17): section_title, section_desc(2줄 이내), items(4개, 각 16자 이내), descriptions(4개, 각 40자 이내 — 초과 시 잘림), image_descriptions(이미지 영역 상세 설명 4개)\n"
+        "content(slide25/26): section_title, section_desc(2줄 이내), items(3개, 각 16자 이내), descriptions(4개 — 첫째=overview 40자 이내, 나머지 3개=항목별 설명 각 40자 이내 — 초과 시 잘림)\n"
+        "content(slide27): section_title, section_desc(2줄 이내), items(3개, 각 16자 이내), descriptions(4개 — 첫째=overview 40자 이내, 나머지 3개=항목별 설명 각 40자 이내), image_descriptions(이미지 상세 설명 1개)\n"
+        "content(slide28): section_title(45자 이내 — 초과 시 파란 배너에서 잘림), section_desc(2줄 이내 80자 이내), items(3개, 각 20자 이내), descriptions(3개, 각 55자 이내 4줄 이내 — 초과 시 잘림), image_descriptions(이미지 상세 설명 1개)\n"
+        "content(slide31/slide33): section_title, section_desc, "
+        "quarters(4개 필수 — 각 항목: {period: 'Q1', kpi: '핵심지표', risk: '낮음/중간/높음', effort: '규모', "
+        "items: ['□ 항목1', '□ 항목2', '□ 항목3']} 형식). "
+        "⚠️ items는 반드시 문자열 배열(3개 이상). items 누락 시 하단 콘텐츠 박스 전체 공백. "
+        "kpi/risk/effort/items 내용은 주제에 맞게 자유롭게 구성(핵심목표·리스크·규모에 국한되지 않음).\n"
         "content(slide34): section_title, section_desc, keywords(4개, 10자 이내), descriptions(1개, 본문 설명)\n"
-        "content(slide37): section_title, section_desc, bullets(3개 — 첫째=대형 설명, 나머지 2개=보조 설명)\n"
-        "content(slide42): section_title, section_desc, bullets(본문 줄 목록, 최대 8줄)\n"
+        "content(slide37): section_title, section_desc, bullets(3개 — 첫째=대형 설명 70자 이내, 나머지 2개=보조 설명 각 60자 이내 — 초과 시 잘림)\n"
+        "content(slide42): section_title, section_desc(본문 설명 3줄 이내 — 좌측 사이드바 ID=28 박스에 들어감), descriptions(3개 — 각 원형 아래 텍스트박스에 표시되는 핵심 포인트, 각 40자 이내)\n"
         "content(slide32): section_title, section_desc, "
         "body(상단 본문설명글 3줄 이내), bullets(하단 3열 핵심 포인트 3개 필수), "
         "image_descriptions(하단 3열 이미지 상세 설명 3개)\n"
         "content(slide35): section_title, section_desc, before(3개 키워드), after(4개 키워드)\n"
         "content(slide36): section_title, section_desc, as_is(4개 키워드), to_be(4개 키워드), body\n"
         "closing: 없음\n\n"
+        "★ subtitle(중제목) 필수 규칙: cover/toc/closing 제외 모든 슬라이드 top-level에 반드시 포함.\n"
+        "  - 위 role별 content 목록에 없어도 항상 별도 top-level 필드로 작성\n"
+        "  - 숫자(01, 02) 금지, 의미 있는 주제어만 (예: '학습 패러다임 진화', '아키텍처 구조')\n"
+        "★ section_desc(본문설명글) 필수 규칙: cover/toc/closing 제외 모든 슬라이드 content 내에 반드시 포함.\n"
+        "  - 1~2줄로 이 슬라이드가 다루는 내용을 요약. 비워두면 안 됨.\n"
+        "  - 최대 60자 이내 — 사이드바 박스(cx≈173pt)에 맞게 작성. 초과 시 텍스트박스에서 잘림\n"
+        "  - ⚠️ 슬라이드별 제한: slide30(steps) 40자 이내, slide36/37/42 60자 이내, 그 외 60자 이내\n"
+        "★ 텍스트 길이 엄수: 위에 명시된 글자 수 제한은 절대 준수. 넘으면 화면에서 '…'로 잘려 보임.\n\n"
         "출력 형식:\n"
         '{"title":"...","topic":"...","audience":"...","n_slides":N,'
         '"slides":[{"index":1,"template_file":"slideN.xml",'
@@ -272,30 +331,62 @@ def generate_plan_with_claude(
     layout_summary = "\n".join(f"  {f}: {t}" for f, t in list(available_layouts.items())[:15])
     hints_summary = "\n".join(f"  {k}: {v}" for k, v in layout_hints.items())
 
+    # content_limits: harness에서 읽어 LLM에게 전달 — 초과 시 코드가 자르지 않고 LLM이 처음부터 맞춰 작성
+    _cl = _load_ltm().get("content_limits", {})
+    def _fmt_limits(d, indent=0):
+        lines = []
+        prefix = "  " * indent
+        for k, v in d.items():
+            if k.startswith("_"): continue
+            if isinstance(v, dict):
+                lines.append(f"{prefix}{k}:")
+                lines.extend(_fmt_limits(v, indent+1))
+            else:
+                lines.append(f"{prefix}{k}: {v}")
+        return lines
+    content_limits_summary = "\n".join(_fmt_limits(_cl)) if _cl else ""
+
+    layout_lock_section = ""
+    if layout_order:
+        order_str = "\n".join(f"  {i+1}. {f}" for i, f in enumerate(layout_order))
+        layout_lock_section = (
+            f"\n\n⚠️ 레이아웃 고정 모드: 아래 template_file 순서를 반드시 그대로 사용하세요. "
+            f"template_file 변경 금지 — 내용(content)만 주제에 맞게 새로 작성하세요.\n"
+            f"{order_str}\n"
+            f"슬라이드 수는 위 목록 기준({len(layout_order)}장)으로 맞추세요."
+        )
+
     user_prompt = (
         f"주제: {topic}\n"
         f"대상 청중: {audience}\n"
-        f"슬라이드 수: {n_slides}\n\n"
+        f"슬라이드 수: {len(layout_order) if layout_order else n_slides}\n\n"
         f"사용 가능한 슬라이드 파일 (파일명: 샘플 텍스트):\n{layout_summary}\n\n"
         f"레이아웃 힌트:\n{hints_summary}\n\n"
-        f"주의할 이슈: {', '.join(known_issues) if known_issues else '없음'}\n\n"
-        f"위 조건에 맞는 {n_slides}장 슬라이드 계획을 JSON으로 작성하세요. "
+        + (f"=== 필드별 글자 수 제한 (반드시 준수 — 초과 시 코드가 자르지 않고 직접 잘려 보임) ===\n{content_limits_summary}\n\n" if content_limits_summary else "")
+        + f"주의할 이슈: {', '.join(known_issues) if known_issues else '없음'}"
+        f"{layout_lock_section}\n\n"
+        f"위 조건에 맞는 슬라이드 계획을 JSON으로 작성하세요. "
         f"각 슬라이드의 콘텐츠는 {topic} 전문 지식을 반영해 구체적으로 작성하세요."
     )
 
     messages = [{"role": "user", "content": user_prompt}]
     model = os.environ.get("ANTHROPIC_DEFAULT_SONNET_MODEL", "claude-sonnet-4-6")
+    # Vertex AI는 us.anthropic. 접두사 미지원 → 제거
+    if use_vertex and model.startswith("us.anthropic."):
+        model = model[len("us.anthropic."):]
 
     if use_bedrock:
         # project-steer 패턴: boto3 직접 사용
         import boto3 as _boto3
-        bedrock = _boto3.client("bedrock-runtime", region_name=aws_region or "us-east-1")
+        from botocore.config import Config as _BotoConfig
+        bedrock = _boto3.client("bedrock-runtime", region_name=aws_region or "us-east-1",
+                                config=_BotoConfig(read_timeout=300, connect_timeout=10))
         bedrock_model = model
         if not (bedrock_model.startswith("us.anthropic.") or bedrock_model.startswith("anthropic.")):
-            bedrock_model = "us.anthropic.claude-sonnet-4-5-20250929-v1:0"
+            bedrock_model = "us.anthropic.claude-sonnet-4-6"
         body = _json.dumps({
             "anthropic_version": "bedrock-2023-05-31",
-            "max_tokens": 4096,
+            "max_tokens": 8192,
             "system": system,
             "messages": messages,
         })
@@ -436,6 +527,24 @@ _SLIDE15_CONFIG_CACHE: dict | None = None
 _COLLISION_RULES_CACHE: dict | None = None
 _COMMON_FORMATTING_CACHE: dict | None = None
 _SLIDE_SHAPE_IDS_CACHE: dict | None = None
+_LTM_CACHE: dict | None = None
+
+
+def _load_ltm() -> dict:
+    """harness/long_term_memory.json 로드 (캐시). 없으면 빈 dict."""
+    global _LTM_CACHE
+    if _LTM_CACHE is not None:
+        return _LTM_CACHE
+    for p in (SKILL_DIR / "harness" / "long_term_memory.json",
+              Path(__file__).parent / "harness" / "long_term_memory.json"):
+        try:
+            if p.exists():
+                _LTM_CACHE = json.loads(p.read_text())
+                return _LTM_CACHE
+        except Exception:
+            pass
+    _LTM_CACHE = {}
+    return _LTM_CACHE
 
 
 def _load_zone_map() -> dict:
@@ -733,10 +842,19 @@ def _truncate_to_lines(text: str, cx_emu: int, font_pt: int, max_lines: int,
     """실제 폰트 메트릭 기반으로 max_lines 초과 시 말줄임표로 자른다."""
     if not text:
         return text
+    # 개행 문자도 줄 바꿈으로 계산
+    text = text.replace('\r\n', '\n').replace('\r', '\n')
     ellipsis_w = int(_char_width_emu("…", font_pt, font_name) * _RENDER_OVERHEAD)
     line_width = 0
     lines = 1
     for i, ch in enumerate(text):
+        if ch == '\n':
+            lines += 1
+            if lines > max_lines:
+                cut = i
+                return text[:cut] + "…"
+            line_width = 0
+            continue
         cw = int(_char_width_emu(ch, font_pt, font_name) * _RENDER_OVERHEAD)
         if line_width + cw > cx_emu:
             lines += 1
@@ -756,7 +874,7 @@ def _write_xml(root: ET.Element, xml_path: Path) -> None:
     """네임스페이스 처리를 안전하게 유지하며 XML을 저장한다."""
     xml_str = ET.tostring(root, encoding="unicode")
     with open(xml_path, "w", encoding="utf-8") as f:
-        f.write('<?xml version="1.0" encoding="utf-8"?>\n')
+        f.write('<?xml version="1.0" encoding="UTF-8" standalone="yes"?>\n')
         f.write(xml_str)
 
 
@@ -1079,6 +1197,19 @@ def _toc_row_xml(row_idx: int, row_y: int, number: str, item_text: str, page_num
   </p:sp>"""
 
 
+def _shorten_toc_item(text: str) -> str:
+    """TOC 항목 텍스트가 1줄을 초과할 때 핵심 키워드만 남겨 축약한다.
+    — 조사/접속어/설명구(em dash 이후, 괄호 내용) 제거 후 반환."""
+    import re as _re
+    # em dash(—) 또는 ': ' 이후 설명구 제거
+    shortened = _re.split(r'\s*[—:]\s*', text)[0].strip()
+    # 괄호 내용 제거
+    shortened = _re.sub(r'\([^)]*\)', '', shortened).strip()
+    # 마침표/쉼표 뒤 부연 제거
+    shortened = _re.split(r'[,，]', shortened)[0].strip()
+    return shortened if shortened else text
+
+
 def edit_toc_slide(xml_path: Path, prs_title: str, items: list[str],
                    page_nums: list[str]) -> None:
     """
@@ -1202,8 +1333,26 @@ def edit_toc_slide(xml_path: Path, prs_title: str, items: list[str],
         paras = txBody.findall(f"{{{ns_a}}}p")
         for i, para in enumerate(paras):
             raw_text = items_padded[i] if i < MAX_ROWS else ""
-            # 1줄 수렴 보장: 넓어진 cx 기준으로 자름 (font_pt=30)
-            safe = _truncate_to_lines(raw_text, TOC_TEXT_CX, 30, max_lines=1) if raw_text else ""
+            if raw_text:
+                # 1줄 수렴 보장: 넓어진 cx 기준으로 자름 (font_pt=30)
+                safe = _truncate_to_lines(raw_text, TOC_TEXT_CX, TOC_FONT_PT, max_lines=1)
+                # 잘린 경우 → 핵심 키워드만 남겨 재시도 (조사·접속어·설명구 제거)
+                if safe.endswith("…"):
+                    shortened = _shorten_toc_item(raw_text)
+                    safe2 = _truncate_to_lines(shortened, TOC_TEXT_CX, TOC_FONT_PT, max_lines=1)
+                    if not safe2.endswith("…"):
+                        safe = safe2
+                    # 그래도 잘리면 더 공격적으로 축약
+                    else:
+                        words = shortened.split()
+                        for cut in range(len(words) - 1, 0, -1):
+                            candidate = " ".join(words[:cut])
+                            t = _truncate_to_lines(candidate, TOC_TEXT_CX, TOC_FONT_PT, max_lines=1)
+                            if not t.endswith("…"):
+                                safe = t
+                                break
+            else:
+                safe = ""
             set_para_text(para, safe)
         break
 
@@ -1396,6 +1545,16 @@ def edit_slide15(xml_path: Path, content: dict) -> None:
     cfg = _load_slide15_config()
     zone = _zone("slide15.xml")
 
+    # items/descriptions/image_descriptions → item1_title/item1_desc/item1_image_desc 변환
+    for _idx, _val in enumerate(content.get("items", []), 1):
+        content.setdefault(f"item{_idx}_title", _val)
+    for _idx, _val in enumerate(content.get("descriptions", []), 1):
+        content.setdefault(f"item{_idx}_desc", _val)
+    for _idx, _val in enumerate(content.get("image_descriptions", []), 1):
+        content.setdefault(f"item{_idx}_image_desc", _val)
+    content.setdefault("body_title", content.get("section_title", ""))
+    content.setdefault("body_desc",  content.get("section_desc", ""))
+
     # 번호 체계
     chapter = int(content.get("chapter", "1"))
     section = int(content.get("section", "1"))
@@ -1497,7 +1656,7 @@ def edit_slide15(xml_path: Path, content: dict) -> None:
     for i, slot_id in enumerate(img_slot_ids, 1):
         img_desc = content.get(f"item{i}_image_desc", "")
         if img_desc:
-            text = img_format.format(description=img_desc)
+            text = img_desc if img_desc.strip().startswith("[이미지:") else img_format.format(description=img_desc)
             sp = _find_shape_by_id(slot_id)
             _set_shape_text(sp, [text])
             if sp is not None and "image_slots" in fmt_cfg:
@@ -1602,7 +1761,9 @@ def edit_slide(work_dir: Path, slide_plan: dict) -> bool:
                 or []
             )
             page_nums = content.get("page_nums", [])
-            edit_toc_slide(xml_path, slide_plan["title"], items, page_nums)
+            # prs_title: 전체 발표 제목 (TOC ID=42용). slide_plan.title은 "목차"로 잘못됨
+            prs_title_for_toc = slide_plan.get("prs_title") or slide_plan["title"]
+            edit_toc_slide(xml_path, prs_title_for_toc, items, page_nums)
         elif role == "closing":
             # 마무리 슬라이드(slide46): 일체 편집하지 않음
             # slide46은 레이아웃에서 "감사합니다." 텍스트를 제공
@@ -2173,8 +2334,8 @@ _BANNED_SLIDES: set[str] = {
     # 이미지가 화면 대부분을 차지해 텍스트 설명으로 대체가 어려운 레이아웃
     "slide18.xml", "slide19.xml", "slide20.xml", "slide23.xml",
     "slide21.xml", "slide22.xml",
-    # 영상(media) placeholder 미처리 슬라이드 (▶ 아이콘 노출 위험)
-    "slide27.xml", "slide28.xml",
+    # layout_variants 자동 선택 전용 (LLM 직접 지정 금지)
+    "slide28.xml",
     # 차트 고정 (Excel 데이터 임베딩 미완성 — 추후 과제)
     "slide40.xml", "slide41.xml", "slide43.xml",
 }
@@ -2207,13 +2368,14 @@ _ALLOWED_CONTENT_SLIDES: list[str] = [
     "slide24.xml",  # ✅ 2블록 텍스트 (bullets + body)
     "slide25.xml",  # ✅ 이미지+우측3열
     "slide26.xml",  # ✅ 이미지+3항목
+    "slide27.xml",  # ✅ 이미지+우측3행 (body_title ≤2줄; slide28로 자동 전환 가능)
     "slide35.xml",  # ✅ Before→After 비교
     "slide34.xml",  # ✅ 2이미지+키워드×4 버블 개념도
     "slide37.xml",  # ✅ 3구역 텍스트 비교
     "slide39.xml",  # ✅ 4열 흐름도 (keyword/solution/detail/service)
     "slide42.xml",  # ✅ 대형 본문 텍스트 박스
-    # slide27~28(영상 placeholder), slide40~41/43(차트)
-    # 는 _BANNED — 추후 전용 처리 후 활성화
+    # slide28: layout_variants로 자동 선택 (LLM 직접 지정 금지)
+    # slide40~41/43(차트)는 _BANNED — Excel 임베딩 미완성
 ]
 
 # 레이아웃별 필수 콘텐츠 필드 — 하나도 없으면 텍스트 배너(slide32)로 리맵.
@@ -2244,6 +2406,53 @@ def _has_content_field(content: dict, fields: list[str]) -> bool:
 _CLOSING_SLIDES: list[str] = ["slide46.xml", "slide44.xml", "slide45.xml"]
 _CONTENT_TITLE_ID   = "8"
 _CONTENT_BULLETS_ID = "11"  # 호환성 유지
+
+
+def _resolve_layout_variants(plan: dict) -> list[str]:
+    """slide_catalog.json layout_variants 규칙에 따라 plan의 template_file을 자동 교체.
+    예: slide27.xml + section_title ≥3줄 → slide28.xml 자동 전환.
+    반환: 변경 로그"""
+    import math as _math
+    cat = _load_slide_catalog()
+    variants = cat.get("layout_variants", {})
+    if not variants:
+        return []
+
+    changes: list[str] = []
+    for slide in plan.get("slides", []):
+        tmpl = slide.get("template_file", "")
+        rule = variants.get(tmpl)
+        if not rule:
+            continue
+
+        content = slide.get("content", {})
+        body = content.get("body", {})
+        field = rule.get("selection_field", "section_title")
+        text = (content.get(field)
+                or (body.get(field) if isinstance(body, dict) else "")
+                or "")
+
+        method = rule.get("selection_method", "line_count")
+        if method == "line_count":
+            chars_per_line = rule.get("chars_per_line", 15)
+            n_lines = _math.ceil(len(str(text)) / chars_per_line) if chars_per_line > 0 and text else 1
+
+            selected = tmpl
+            for threshold in rule.get("thresholds", []):
+                min_l = threshold.get("min_lines", 0)
+                max_l = threshold.get("max_lines", 9999)
+                if min_l <= n_lines <= max_l:
+                    selected = threshold.get("use", tmpl)
+                    break
+
+            if selected != tmpl:
+                changes.append(
+                    f"slide {slide['index']}: {tmpl} → {selected} "
+                    f"(section_title {n_lines}줄)"
+                )
+                slide["template_file"] = selected
+
+    return changes
 
 
 def enforce_plan_constraints(plan: dict, slide_info: list[dict]) -> tuple[dict, list[str]]:
@@ -2967,16 +3176,19 @@ def _load_chapter_map() -> dict:
 
 
 def _infer_chapter_title(slide_plan: dict) -> str:
-    """section_title의 앞자리 번호로 목차 챕터 대제목을 추론. 추론 불가 시 plan.title 반환."""
-    content = slide_plan.get("content", {})
-    sec_title = content.get("section_title", "")
-    if sec_title:
-        parts = sec_title.split(".")
-        if parts and parts[0].strip().isdigit():
-            ch = _load_chapter_map().get(parts[0].strip())
-            if ch:
-                return ch
-    return slide_plan.get("title", "")
+    """plan.title을 대제목으로 반환. 캐시된 챕터맵이 있으면 section_title 번호 기준 보정."""
+    plan_title = slide_plan.get("title", "")
+    # _CHAPTER_MAP_CACHE가 실행 중 주입된 경우에만 추론 시도 (chapter_map.json 정적 파일 금지)
+    if _CHAPTER_MAP_CACHE:
+        content = slide_plan.get("content", {})
+        sec_title = content.get("section_title", "")
+        if sec_title:
+            parts = sec_title.split(".")
+            if parts and parts[0].strip().isdigit():
+                ch = _CHAPTER_MAP_CACHE.get(parts[0].strip())
+                if ch:
+                    return ch
+    return plan_title
 
 
 def _apply_common_zones(root, slide_plan: dict, template_file: str) -> None:
@@ -2991,10 +3203,14 @@ def _apply_common_zones(root, slide_plan: dict, template_file: str) -> None:
 
     # ID=8 대제목: section_title 번호로 챕터 추론. 추론 불가 시 plan.title 사용
     chapter_title = _infer_chapter_title(slide_plan)
-    subtitle = slide_plan.get("subtitle", "")    # 중제목: 챕터 번호 ('01','02'...)
-    content  = slide_plan.get("content", {})
-    sec_title = content.get("section_title", "") # 본문제목: 'N. 소제목' 또는 'N.M 소제목'
-    sec_desc  = content.get("section_desc", "")  # 본문설명글
+    subtitle  = slide_plan.get("subtitle", "")
+    content   = slide_plan.get("content", {})
+    sec_title = content.get("section_title", "")
+    sec_desc  = content.get("section_desc", "")
+
+    # subtitle fallback: LLM 누락 시 section_title에서 숫자 접두사 제거해 도출
+    if not subtitle and sec_title:
+        subtitle = re.sub(r'^\d+(\.\d+)*[\s.]*', '', sec_title).strip()
 
     _BODY_TITLE_SEMIBOLD = "Pretendard SemiBold"
 
@@ -3025,15 +3241,18 @@ def _apply_common_zones(root, slide_plan: dict, template_file: str) -> None:
             orig_rPr = ET.Element(f"{{{ns_a}}}rPr", dirty="0")
             for tag in ("latin", "ea", "cs"):
                 ET.SubElement(orig_rPr, f"{{{ns_a}}}{tag}", typeface=_BODY_TITLE_SEMIBOLD)
-        for p in txBody.findall(f"{{{ns_a}}}p"):
+        paras = txBody.findall(f"{{{ns_a}}}p")
+        for pi, p in enumerate(paras):
             for r in p.findall(f"{{{ns_a}}}r"): p.remove(r)
             end = p.find(f"{{{ns_a}}}endParaRPr")
             idx = list(p).index(end) if end is not None else len(p)
-            r_new = ET.Element(f"{{{ns_a}}}r")
-            if orig_rPr is not None:
-                r_new.append(_copy.deepcopy(orig_rPr))
-            ET.SubElement(r_new, f"{{{ns_a}}}t").text = text
-            p.insert(idx, r_new); break
+            if pi == 0:
+                r_new = ET.Element(f"{{{ns_a}}}r")
+                if orig_rPr is not None:
+                    r_new.append(_copy.deepcopy(orig_rPr))
+                ET.SubElement(r_new, f"{{{ns_a}}}t").text = text
+                p.insert(idx, r_new)
+            # 첫 번째 이후 paragraph는 run 제거만 (빈 paragraph 유지)
 
     # Zone 1: 헤더 바 — 챕터 대제목(추론값) 사용
     _set_shape("8", chapter_title)
@@ -3042,10 +3261,17 @@ def _apply_common_zones(root, slide_plan: dict, template_file: str) -> None:
         _enable_autofit(hdr)
 
     if subtitle:
-        # 중제목 앞에 슬라이드 순번 prefix 추가: "01 ML 패러다임" 형식
-        plan_idx = slide_plan.get("index", 0)
-        content_idx = max(0, plan_idx - 2)  # cover(idx=1)+toc(idx=2) 이후 컨텐츠 순번
-        subtitle_labeled = f"{content_idx:02d} {subtitle}" if content_idx > 0 else subtitle
+        # 중제목 앞에 대제목 내 순번 prefix: "01 창립 비전..." / "02 안전 배포..." 형식
+        # generate_pptx가 주입한 subtitle_seq 우선 사용, 없으면 section_title 번호 fallback
+        seq = slide_plan.get("subtitle_seq", 0)
+        if seq == 0:
+            if sec_title:
+                parts = sec_title.split(".")
+                if len(parts) >= 2 and parts[1].strip().split()[0].isdigit():
+                    seq = int(parts[1].strip().split()[0])
+            if seq == 0:
+                seq = 1
+        subtitle_labeled = f"{seq:02d} {subtitle}"
         _set_shape("9", _truncate_to_lines(subtitle_labeled, 8_000_000, 14, 1))
 
     # Zone 2: 사이드바 — 존 맵(body_title/body_desc) 우선, 없으면 레거시 dict
@@ -3054,14 +3280,54 @@ def _apply_common_zones(root, slide_plan: dict, template_file: str) -> None:
     desc_id  = z.get("body_desc")
     if label_id:
         label_text = sec_title or chapter_title
+        # 슬라이드별 body_title truncate 파라미터 읽기 (하네스 우선)
+        _sids_label = _load_slide_shape_ids().get(template_file.replace(".xml",""), {})
+        _bt_max_lines = _sids_label.get("body_title_max_lines", 3)
+        _bt_font_pt   = _sids_label.get("body_title_font_pt", 16)
+        _sp_label = _find_shape_by_id(root, label_id)
+        _bt_cx = 2_200_000
+        if _sp_label is not None:
+            _xfrm = _sp_label.find(f".//{{{ns_a}}}xfrm")
+            if _xfrm is not None:
+                _ext = _xfrm.find(f"{{{ns_a}}}ext")
+                if _ext is not None:
+                    _bt_cx = int(_ext.get("cx", _bt_cx))
+        label_text = _truncate_to_lines(label_text, _bt_cx, _bt_font_pt, _bt_max_lines)
+        # … 발생 시 숫자 prefix 제거 후 재시도
+        if label_text.endswith("…"):
+            bare_label = re.sub(r'^\d+(\.\d+)*[\s.]*', '', sec_title or chapter_title).strip()
+            bare_trunc = _truncate_to_lines(bare_label, _bt_cx, _bt_font_pt, _bt_max_lines)
+            if not bare_trunc.endswith("…"):
+                label_text = bare_trunc
         # body_title은 Pretendard SemiBold 강제 (템플릿마다 typeface 상태가 달라도 통일)
         _set_shape(label_id, label_text, force_semibold=True)
         # 1) 텍스트박스 cy 동적 확장 (줄바꿈 발생 시)
         _auto_resize_textbox(root, label_id, label_text)
         # 2) 확장된 body_title 기준으로 body_desc 위치 재조정 (겹침 방지)
         _resize_sidebar_and_reposition_desc(root, label_id, desc_id, label_text)
+    # section_desc fallback: LLM 누락 시 section_title 기반 1줄 desc 생성
+    if not sec_desc and sec_title:
+        bare = re.sub(r'^\d+(\.\d+)*[\s.]*', '', sec_title).strip()
+        sec_desc = f"{bare}의 개념과 주요 내용을 다룬다." if bare else ""
     if desc_id and sec_desc:
-        _set_shape(desc_id, _truncate_to_lines(sec_desc, 2_200_000, 12, 5))
+        # 실제 shape cx 읽기
+        sp_desc = _find_shape_by_id(root, desc_id)
+        desc_cx = 2_200_000
+        if sp_desc is not None:
+            xfrm = sp_desc.find(f".//{{{ns_a}}}xfrm")
+            if xfrm is not None:
+                ext = xfrm.find(f"{{{ns_a}}}ext")
+                if ext is not None:
+                    desc_cx = int(ext.get("cx", desc_cx))
+        desc_txt = _truncate_to_lines(sec_desc, desc_cx, 12, 5)
+        # … 말줄임 발생 시 자동 요약 (em dash 이후 설명구 제거)
+        if desc_txt.endswith("…"):
+            import re as _re
+            short = _re.split(r'\s*[—.]\s*', sec_desc)[0].strip()
+            desc_txt2 = _truncate_to_lines(short, desc_cx, 12, 5)
+            if not desc_txt2.endswith("…"):
+                desc_txt = desc_txt2
+        _set_shape(desc_id, desc_txt)
 
 
 def _edit_slide29(xml_path: Path, slide_plan: dict) -> None:
@@ -3125,7 +3391,7 @@ def _edit_slide29(xml_path: Path, slide_plan: dict) -> None:
     CONTENT_W = SLIDE_W - SIDEBAR_W
     COL_W     = CONTENT_W // 4
     _y_base   = _s29.get("year_y_base", [750_000, 900_000, 1_050_000, 1_200_000])
-    YEAR_Y    = [_y_base[0], _y_base[1] + BAR_H, _y_base[2] + BAR_H*2, _y_base[3] + BAR_H*3]
+    YEAR_Y    = list(_y_base)  # 실제 템플릿 bar y 위치 (slide_shape_ids.json 실측값)
     YEAR_X    = [SIDEBAR_W, SIDEBAR_W + COL_W, SIDEBAR_W + COL_W*2, SIDEBAR_W + COL_W*3]
     YEAR_CX   = [CONTENT_W, CONTENT_W - COL_W, CONTENT_W - COL_W*2, CONTENT_W - COL_W*3]
 
@@ -3166,6 +3432,9 @@ def _edit_slide29(xml_path: Path, slide_plan: dict) -> None:
             r2.append(_mk_rPr(sz, bold, col))
             ET.SubElement(r2, f"{{{ns_a}}}t").text = txt
 
+    CONTENT_CY = _s29.get("content_box_cy", 2_065_000)
+    MARGIN     = _s29.get("content_box_margin", 80_000)
+
     sid = 400
     for i, period in enumerate(periods[:4]):
         if not isinstance(period, dict): continue
@@ -3175,10 +3444,27 @@ def _edit_slide29(xml_path: Path, slide_plan: dict) -> None:
         team     = period.get("team", "")
         risk     = period.get("risk", "낮음")
         p_period = period.get("period", "")
-        # 콘텐츠 영역: 연도 바 바로 아래
-        cx   = min(YEAR_CX[i], YEAR_CX[0]) - 80_000
-        x    = YEAR_X[i] + 60_000
-        y    = YEAR_Y[i] + BAR_H + 80_000
+
+        # 파란 제목박스 좌표를 직접 읽어 content box 위치·크기 계산 (ML PPT 패턴)
+        lbl_id = label_ids[i] if i < len(label_ids) else None
+        sp_lbl = _find_shape_by_id(root, lbl_id) if lbl_id else None
+        if sp_lbl is not None:
+            spPr_l = sp_lbl.find(f"{{{ns_p}}}spPr")
+            xf_l   = spPr_l.find(f"{{{ns_a}}}xfrm") if spPr_l is not None else None
+            off_l  = xf_l.find(f"{{{ns_a}}}off") if xf_l is not None else None
+            ext_l  = xf_l.find(f"{{{ns_a}}}ext") if xf_l is not None else None
+            lbl_x  = int(off_l.get("x", YEAR_X[i])) if off_l is not None else YEAR_X[i]
+            lbl_y  = int(off_l.get("y", YEAR_Y[i])) if off_l is not None else YEAR_Y[i]
+            lbl_cx = int(ext_l.get("cx", COL_W))     if ext_l is not None else COL_W
+            lbl_cy = int(ext_l.get("cy", BAR_H))     if ext_l is not None else BAR_H
+            x  = lbl_x + MARGIN
+            y  = lbl_y + lbl_cy + MARGIN
+            cx = lbl_cx - MARGIN * 2
+        else:
+            x  = YEAR_X[i] + MARGIN
+            y  = YEAR_Y[i] + BAR_H + MARGIN
+            cx = COL_W - MARGIN * 2
+
         lines = [(f"▷ {p_period}", 1100, True, dk), ("", 500, False, None)]
         lines += [(item, 1100, False, "444444") for item in items[:3]]
         if team: lines += [("", 400, False, None), (f"● {team}", 1000, False, "888888")]
@@ -3187,7 +3473,7 @@ def _edit_slide29(xml_path: Path, slide_plan: dict) -> None:
             rc = RISK_COLOR.get(risk, "888888")
             lines += [(f"리스크: {risk}", 900, False, rc)]
         if items or kpi or team or p_period:
-            _add_desc_box(sid, x, y, cx, 3_500_000, lines)
+            _add_desc_box(sid, x, y, cx, CONTENT_CY, lines)
         sid += 1
 
     _clear_residual_placeholders(root)
@@ -3329,6 +3615,35 @@ def _insert_rich_quarter_content(
     # col_cx는 int(균등) 또는 list(컬럼별 개별 폭) 모두 허용
     _col_cx = col_cx if isinstance(col_cx, list) else [col_cx] * len(col_x_list)
 
+    # ── KPI·Risk 높이 동적 계산 (4열 통일) ─────────────────────────
+    # 텍스트 줄 수 추정: sz는 100분의 1 포인트 단위(1100=11pt), 1pt=12700 EMU
+    _V_PAD = 91_440  # bodyPr tIns(45720) + bIns(45720)
+
+    def _box_h(text: str, bw: int, sz: int = 1100, header_lines: int = 1) -> int:
+        """배경 도형 최소 높이 = (헤더+내용 줄 수) × LINE_H + 위아래 여백"""
+        char_w = sz * 127        # sz 단위 → EMU (1pt=12700, sz=100분의1pt → ×127)
+        inner_w = max(1, bw - 120_000)  # lIns(91440)+rIns(91440) 여백 제외
+        cpp = max(1, inner_w // char_w)
+        content_lines = _math.ceil(len(text) / cpp) if text else 1
+        return (header_lines + content_lines) * LINE_H + _V_PAD
+
+    max_kpi_h  = KPI_H
+    max_risk_h = RISK_H
+    for i_q, q in enumerate(quarters[:4]):
+        if not isinstance(q, dict) or i_q >= len(_col_cx):
+            continue
+        bw_i      = _col_cx[i_q] - PAD * 2
+        risk_w_i  = int(bw_i * RISK_WIDTH_RATIO)
+        eff_w_i   = bw_i - risk_w_i - 40_000
+        max_kpi_h  = max(max_kpi_h,
+                         _box_h(q.get("kpi", ""),    bw_i))
+        max_risk_h = max(max_risk_h,
+                         _box_h(q.get("risk", ""),   risk_w_i),
+                         _box_h(q.get("effort", ""), eff_w_i))
+    KPI_H  = max_kpi_h
+    RISK_H = max_risk_h
+    # ────────────────────────────────────────────────────────────────
+
     all_x = col_x_list[0] + PAD
     all_w = col_x_list[-1] + _col_cx[-1] - PAD - all_x
 
@@ -3400,6 +3715,14 @@ def _edit_slide31(xml_path: Path, slide_plan: dict) -> None:
     _qlabel_ids31 = _s31.get("q_label_ids", ["23","24","27","28"])
     for i, (lid, q) in enumerate(zip(_qlabel_ids31, quarters)):
         _set(lid, q.get("label", f"Q{i+1}") if isinstance(q, dict) else str(q))
+        # Q-레이블 1줄 강제: bodyPr wrap="none"
+        _sp_ql = _find_shape_by_id(root, lid)
+        if _sp_ql is not None:
+            _tb_ql = _sp_ql.find(f"{{{ns_p}}}txBody")
+            if _tb_ql is not None:
+                _bpr_ql = _tb_ql.find(f"{{{ns_a}}}bodyPr")
+                if _bpr_ql is not None:
+                    _bpr_ql.set("wrap", "none")
     # rich content 삽입 — items가 있을 때만
     has_items = any(q.get("items") for q in quarters if isinstance(q, dict))
     if quarters and has_items:
@@ -3444,6 +3767,14 @@ def _edit_slide33(xml_path: Path, slide_plan: dict) -> None:
     _qlabel_ids33 = _s33.get("q_label_ids", ["35","36","37","38"])
     for i, (lid, q) in enumerate(zip(_qlabel_ids33, quarters)):
         _set(lid, q.get("label", f"Q{i+1}") if isinstance(q, dict) else str(q))
+        # Q-레이블 1줄 강제: bodyPr wrap="none"
+        _sp_ql33 = _find_shape_by_id(root, lid)
+        if _sp_ql33 is not None:
+            _tb_ql33 = _sp_ql33.find(f"{{{ns_p}}}txBody")
+            if _tb_ql33 is not None:
+                _bpr_ql33 = _tb_ql33.find(f"{{{ns_a}}}bodyPr")
+                if _bpr_ql33 is not None:
+                    _bpr_ql33.set("wrap", "none")
 
     # dynamic_layout: body_title 높이 확장 시 bar·Q레이블 등 delta_y로 이동, content_top_y 자동 조정
     content_top_y = _s33.get("content_top_y", 1_850_000)
@@ -3485,17 +3816,81 @@ def _edit_slide33(xml_path: Path, slide_plan: dict) -> None:
     _clear_residual_placeholders(root); _write_xml(root, xml_path)
 
 
-def _apply_slots(root, content: dict, slots: list) -> None:
+def _apply_spAutoFit(root, sid: str) -> None:
+    """shape의 bodyPr에 spAutoFit을 설정해 텍스트에 맞게 높이가 자동 확장되도록 한다."""
+    ns_p, ns_a = _NS_P, _NS_A
+    sp = _find_shape_by_id(root, sid)
+    if sp is None: return
+    txBody = sp.find(f"{{{ns_p}}}txBody")
+    if txBody is None: return
+    bodyPr = txBody.find(f"{{{ns_a}}}bodyPr")
+    if bodyPr is None: return
+    for child in list(bodyPr):
+        if child.tag.split("}")[-1] in ("noAutofit", "spAutoFit", "normAutofit"):
+            bodyPr.remove(child)
+    ET.SubElement(bodyPr, f"{{{ns_a}}}spAutoFit")
+
+
+def _equalize_row_heights(root, id_groups: list[list[str]]) -> None:
+    """같은 행(컬럼)에 속하는 shape 그룹들의 cy를 그룹 내 최댓값으로 통일한다.
+    id_groups: [[col0_shape_a, col1_shape_a, ...], [col0_shape_b, col1_shape_b, ...]]
+    → 같은 인덱스(열)끼리 묶어 최대 cy를 구한 뒤 모두 같은 값으로 맞춘다.
+    실제로는 슬롯 타입별로 같은 열 인덱스를 묶어야 하므로,
+    id_groups는 [[row_type_a_ids...], [row_type_b_ids...]] 형태로 전달된다.
+    같은 index 위치의 shape들을 한 열로 취급한다."""
+    ns_p, ns_a = _NS_P, _NS_A
+    if not id_groups: return
+    n_cols = max(len(g) for g in id_groups)
+    for col_i in range(n_cols):
+        # 이 열에 속하는 모든 shape 수집
+        col_ids = [g[col_i] for g in id_groups if col_i < len(g)]
+        max_cy = 0
+        shape_exts = []
+        for sid in col_ids:
+            sp = _find_shape_by_id(root, sid)
+            if sp is None: continue
+            spPr = sp.find(f"{{{ns_p}}}spPr")
+            if spPr is None: continue
+            xfrm = spPr.find(f"{{{ns_a}}}xfrm")
+            if xfrm is None: continue
+            ext = xfrm.find(f"{{{ns_a}}}ext")
+            if ext is None: continue
+            try:
+                cy = int(ext.get("cy", "0"))
+                max_cy = max(max_cy, cy)
+                shape_exts.append(ext)
+            except ValueError:
+                pass
+        if max_cy > 0:
+            for ext in shape_exts:
+                ext.set("cy", str(max_cy))
+
+
+def _apply_slots(root, content: dict, slots: list, slide_plan: dict | None = None) -> None:
     """JSON slots 선언 기반 범용 슬롯 채우기 엔진.
 
     slot types:
       item_title / item_body : content_key 리스트 → 각 id에 순서대로 기록
       img_slot               : content_key 리스트 → "[이미지: {description}]" 포맷으로 기록
+      sub_heading            : | {major}.{minor}.{sub} prefix 자동 부착
       clear                  : ids를 빈 문자열로 초기화
+
+    item_body / img_slot 슬롯에는 spAutoFit 적용 후 같은 열 기준 최대 cy로 높이 통일.
     """
     import copy as _copy
     ns_p, ns_a = _NS_P, _NS_A
     img_fmt = _load_common_formatting().get("image_slot_format", "[이미지: {description}]")
+
+    # sub_heading prefix 계산 (slide_plan에서 챕터/섹션 추론)
+    _chapter  = 1
+    _section  = 1
+    _subsect  = 1
+    if slide_plan:
+        sec_title = slide_plan.get("content", {}).get("section_title", "")
+        m = re.match(r"(\d+)\.?(\d*)", sec_title.strip())
+        if m:
+            _chapter = int(m.group(1)) if m.group(1) else 1
+            _section = int(m.group(2)) if m.group(2) else 1
 
     def _set(sid, text):
         sp = _find_shape_by_id(root, sid)
@@ -3519,6 +3914,9 @@ def _apply_slots(root, content: dict, slots: list) -> None:
             ET.SubElement(r_new, f"{{{ns_a}}}t").text = text
             p.insert(idx, r_new); break
 
+    # item_body / img_slot id 그룹 수집 (열 높이 통일용)
+    body_id_groups: list[list[str]] = []
+
     for slot in slots:
         stype      = slot.get("type", "")
         ids        = slot.get("ids", [])
@@ -3534,13 +3932,17 @@ def _apply_slots(root, content: dict, slots: list) -> None:
             slot_fmt  = slot.get("format", img_fmt)
             for i, sid in enumerate(ids):
                 val  = values[i] if i < len(values) else ""
-                text = slot_fmt.replace("{description}", val) if val else ""
+                if val and val.strip().startswith("[이미지:"):
+                    text = val
+                else:
+                    text = slot_fmt.replace("{description}", val) if val else ""
                 truncated = _truncate_to_lines(text, width_emu, font_pt, max_lines)
-                # 맑은 고딕 11pt 파란색(#3C41E6) 서식 적용 — _set_image_slot_text 사용
                 if truncated:
                     _set_image_slot_text(root, sid, truncated)
                 else:
                     _set(sid, "")
+                # img_slot은 높이 고정 — spAutoFit 미적용
+            body_id_groups.append(list(ids))
         elif stype == "insight":
             values = content.get(slot.get("content_key", "insights"), [])
             for i, sid in enumerate(ids):
@@ -3548,12 +3950,29 @@ def _apply_slots(root, content: dict, slots: list) -> None:
                 _set(sid, _truncate_to_lines(val, width_emu, font_pt, max_lines))
         elif stype == "sub_heading":
             val = content.get(slot.get("content_key", "sub_heading")) or _make_sub_heading(content)
-            _set(ids[0] if ids else "", _truncate_to_lines(val or "", width_emu, font_pt, max_lines))
-        else:  # item_title, item_body, …
+            # _apply_common_zones가 이미 prefix 붙인 경우 중복 방지
+            if val and not val.startswith("|"):
+                prefix = f"| {_chapter}.{_section}.{_subsect}"
+                full = f"{prefix} {val}"
+            else:
+                full = val or ""
+            _set(ids[0] if ids else "", _truncate_to_lines(full, width_emu, font_pt, max_lines))
+        elif stype == "item_body":
+            values = content.get(slot.get("content_key", "descriptions"), [])
+            for i, sid in enumerate(ids):
+                val = values[i] if i < len(values) else ""
+                _set(sid, _truncate_to_lines(val, width_emu, font_pt, max_lines))
+                _apply_spAutoFit(root, sid)  # 텍스트 맞게 높이 자동 확장
+            body_id_groups.append(list(ids))
+        else:  # item_title, …
             values = content.get(slot.get("content_key", "items"), [])
             for i, sid in enumerate(ids):
                 val = values[i] if i < len(values) else ""
                 _set(sid, _truncate_to_lines(val, width_emu, font_pt, max_lines))
+
+    # item_body와 img_slot이 같은 열에 있을 때 최대 cy 기준으로 높이 통일
+    if len(body_id_groups) >= 2:
+        _equalize_row_heights(root, body_id_groups)
 
 
 def _edit_slide13(xml_path: Path, slide_plan: dict) -> None:
@@ -3604,6 +4023,52 @@ def _edit_slide13(xml_path: Path, slide_plan: dict) -> None:
             _set_local(b_id, _truncate_to_lines(descs[i] if i < len(descs) else "", bdy["width_emu"], bdy["font_pt"], bdy["max_lines"]))
         for sid in clear_ids:
             _set_local(sid, "")
+    _clear_residual_placeholders(root); _write_xml(root, xml_path)
+
+
+def _edit_slide15_v2(xml_path: Path, slide_plan: dict) -> None:
+    """slide15 (3열 아이콘카드): slide13과 동일 구조, _apply_slots 기반.
+    기존 edit_slide15()는 content/slide_plan 파라미터 혼용 버그로 교체."""
+    tmpl    = "slide15.xml"
+    content = slide_plan.get("content", {})
+    body    = content.get("body", {})
+    if isinstance(body, dict):
+        for k, v in body.items():
+            content.setdefault(k, v)
+    try:
+        tree = ET.parse(xml_path); root = tree.getroot()
+    except ET.ParseError: return
+    _apply_common_zones(root, slide_plan, tmpl)
+    import copy as _copy; ns_p, ns_a = _NS_P, _NS_A
+    def _set_local(sid, text):
+        sp = _find_shape_by_id(root, sid)
+        if sp is None: return
+        txBody = sp.find(f"{{{ns_p}}}txBody")
+        if txBody is None: return
+        orig_rPr = next((_copy.deepcopy(r.find(f"{{{ns_a}}}rPr")) for r in sp.findall(f".//{{{ns_a}}}r") if r.find(f"{{{ns_a}}}rPr") is not None), None)
+        if orig_rPr is not None: orig_rPr.set("lang", _ppt_lang()); orig_rPr.set("dirty", "0")
+        for p in txBody.findall(f"{{{ns_a}}}p"):
+            for r in p.findall(f"{{{ns_a}}}r"): p.remove(r)
+            end = p.find(f"{{{ns_a}}}endParaRPr"); idx = list(p).index(end) if end is not None else len(p)
+            r_new = ET.Element(f"{{{ns_a}}}r")
+            if orig_rPr: r_new.append(_copy.deepcopy(orig_rPr))
+            ET.SubElement(r_new, f"{{{ns_a}}}t").text = text; p.insert(idx, r_new); break
+    z = _zone(tmpl)
+    for sid in (z.get("body", {}).get("sub_heading") or []):
+        # ID=41 cx=9289092(거의 전체 폭) — 전체 sub_heading 텍스트 사용
+        sub_text = content.get("sub_heading") or _make_sub_heading(content)
+        _set_local(sid, sub_text)
+        # Vision Fix가 sub_heading 박스에 남긴 여분 단락 제거
+        sp = _find_shape_by_id(root, sid)
+        if sp is not None:
+            txb = sp.find(f"{{{ns_p}}}txBody")
+            if txb is not None:
+                for xp in txb.findall(f"{{{ns_a}}}p")[1:]:
+                    txb.remove(xp)
+    _s15  = _load_slide_shape_ids().get("slide15", {})
+    slots = _s15.get("slots", [])
+    if slots:
+        _apply_slots(root, content, slots)
     _clear_residual_placeholders(root); _write_xml(root, xml_path)
 
 
@@ -3849,8 +4314,8 @@ def _edit_slide39(xml_path: Path, slide_plan: dict) -> None:
     """slide39 (4열 상세 흐름도): Zone1+2 공통 + Zone3 keyword/solution/detail/service 4컬럼."""
     content   = slide_plan.get("content", {})
     body      = content.get("body", {})
-    keywords  = (content.get("keywords")  or (body.get("keywords")  if isinstance(body,dict) else None) or [])[:3]
-    solutions = (content.get("solutions") or (body.get("solutions") if isinstance(body,dict) else None) or [])[:3]
+    keywords  = (content.get("keywords")  or (body.get("keywords")  if isinstance(body,dict) else None) or content.get("items") or [])[:3]
+    solutions = (content.get("solutions") or (body.get("solutions") if isinstance(body,dict) else None) or content.get("descriptions") or [])[:3]
     details   = (content.get("details")   or (body.get("details")   if isinstance(body,dict) else None) or [])[:3]
     services  = (content.get("services")  or content.get("details2")
                  or (body.get("services") if isinstance(body,dict) else None) or [])[:3]
@@ -3873,7 +4338,17 @@ def _edit_slide39(xml_path: Path, slide_plan: dict) -> None:
     for i, sid in enumerate(_sol_ids39):
         _slide_set_helper(root, ns_p, ns_a, sid, _truncate_to_lines(solutions[i] if i<len(solutions) else "",_sol39["width_emu"],_sol39["font_pt"],_sol39["max_lines"]))
     for i, sid in enumerate(_det_ids39):
-        _slide_set_helper(root, ns_p, ns_a, sid, _truncate_to_lines(details[i] if i<len(details) else "",_det39["width_emu"],_det39["font_pt"],_det39["max_lines"]))
+        txt = _truncate_to_lines(details[i] if i<len(details) else "", _det39["width_emu"], _det39["font_pt"], _det39["max_lines"])
+        _slide_set_helper(root, ns_p, ns_a, sid, txt)
+        # detail 박스는 template에 6개 paragraph가 있어서 para[0]에 텍스트를 넣은 후
+        # 나머지 paragraph(항목 02~05 placeholder)를 제거해야 박스 높이가 올바르게 표시됨
+        sp_det = _find_shape_by_id(root, sid)
+        if sp_det is not None:
+            txBody = sp_det.find(f"{{{ns_p}}}txBody")
+            if txBody is not None:
+                paras = txBody.findall(f"{{{ns_a}}}p")
+                for extra_p in paras[1:]:  # para[0] 이후 모두 제거
+                    txBody.remove(extra_p)
     for i, sid in enumerate(_svc_ids39):
         _slide_set_helper(root, ns_p, ns_a, sid, _truncate_to_lines(services[i] if i<len(services) else "",_svc39["width_emu"],_svc39["font_pt"],_svc39["max_lines"]))
     _clear_residual_placeholders(root); _write_xml(root, xml_path)
@@ -3988,63 +4463,213 @@ def _edit_slide30(xml_path: Path, slide_plan: dict) -> None:
 
     _s30 = _load_slide_shape_ids().get("slide30", {})
     _hdr_ids30 = _s30.get("header_ids", ["28","29","30","31"])
-    col_xs  = _s30.get("col_xs",  [2_657_592, 5_145_661, 7_445_690, 9_887_657])
-    col_cx  = _s30.get("col_cx",  2_240_346)
-    body_y  = _s30.get("body_y",  1_575_000)
-    body_cy = _s30.get("body_cy", 5_100_000)
-    _sth30  = _s30.get("step_header", {"width_emu":1800000,"font_pt":16,"max_lines":2})
-    _sbfsz30 = _s30.get("step_body_font_sz", 1100)
+    col_xs    = _s30.get("col_xs",  [2_657_592, 5_145_661, 7_445_690, 9_887_657])
+    body_xs   = _s30.get("body_xs", col_xs)   # 본문/밴드 전용 x (배경도형 기준 중앙 정렬)
+    col_cx    = _s30.get("col_cx",  2_240_346)
+    body_cxs  = _s30.get("body_cxs", [col_cx] * 4)  # 컬럼별 본문/밴드 너비 (동일 여백 적용)
+    body_y    = _s30.get("body_y",  1_575_000)
+    body_cy   = _s30.get("body_cy", 5_100_000)
+    desc_cy   = _s30.get("desc_cy", body_cy)   # step_descs 영역 높이 (harness에 없으면 전체 사용)
+    meta_y    = _s30.get("meta_y",  None)       # band 시작 y
+    _b1h      = _s30.get("band1_h",  375_000)
+    _b2h      = _s30.get("band2_h",  375_000)
+    band_hs   = [_b1h, _b2h,
+                 _s30.get("band3_h", _b2h),
+                 _s30.get("band4_h", _b2h)]
+    band_gap  = _s30.get("band_gap",  50_000)
+    band_bg   = _s30.get("band_bg",   "F4F6FE")
+    band_bdr  = _s30.get("band_border","3C41E6")
+    band_lsz  = _s30.get("band_label_sz", 900)
+    band_vsz  = _s30.get("band_value_sz", 1000)
+    _sth30    = _s30.get("step_header", {"width_emu":1800000,"font_pt":16,"max_lines":2})
+    _sbfsz30  = _s30.get("step_body_font_sz", 1100)
+    step_meta = content.get("step_meta") or []
+
     for i, sid in enumerate(_hdr_ids30):
         _slide_set_helper(root, ns_p, ns_a, sid,
                           _truncate_to_lines(step_headers[i] if i<len(step_headers) else "", _sth30["width_emu"], _sth30["font_pt"], _sth30["max_lines"]))
+
+    # ID=19: 장식용 사각형 — Vision Fix가 임의로 채우는 것을 방지하기 위해 항상 비움
+    _slide_set_helper(root, ns_p, ns_a, "19", "")
 
     # spTree 직접 접근
     spTree = root.find(f"{{{ns_p}}}cSld/{{{ns_p}}}spTree")
     if spTree is None:
         spTree = root.find(f".//{{{ns_p}}}spTree")
 
-    # 기존 step_body 제거 (재편집 시 중복 방지)
+    # 기존 step_body / step_meta / band 제거 (재편집 시 중복 방지)
+    _dynamic_ids30 = (
+        {str(400+k) for k in range(4)} |
+        {str(410+k) for k in range(4)} |
+        {str(420+k) for k in range(4)} |
+        {str(430+k) for k in range(4)} |
+        {str(440+k) for k in range(4)} |
+        {str(450+k) for k in range(4)} |
+        {str(500+k) for k in range(10)} |
+        {str(600+k) for k in range(32)}
+    )
     if spTree is not None:
         for sp in list(spTree):
             cnvpr = sp.find(f".//{{{ns_p}}}cNvPr")
-            if cnvpr is not None and cnvpr.get("id", "") in [str(400+k) for k in range(4)]:
+            if cnvpr is not None and cnvpr.get("id", "") in _dynamic_ids30:
                 spTree.remove(sp)
 
-    for i, (col_x, desc) in enumerate(zip(col_xs, step_descs)):
-        if not desc:
-            continue
-        base_id = 400 + i
-        sp_xml = f"""<p:sp xmlns:p="{ns_p}" xmlns:a="{ns_a}">
-  <p:nvSpPr><p:cNvPr id="{base_id}" name="step_body_{i}"/><p:cNvSpPr txBox="1"/><p:nvPr/></p:nvSpPr>
+    lang = _ppt_lang()
+    _font_attrs = 'panose="02000703000000020004" pitchFamily="2" charset="-127"'
+
+    # ── 컬럼별 desc 박스 (ID 500~503) — 하네스: col_desc_* ──────────────
+    # step_descs[i] → 각 컬럼(1단계~4단계) 헤더 아래 개별 텍스트박스
+    _cd_id0  = int(_s30.get("col_desc_id_start", 500))
+    _cd_y    = _s30.get("col_desc_y",   1280000)
+    _cd_cy   = _s30.get("col_desc_cy",  2750000)
+    _cd_fsz  = _s30.get("col_desc_font_sz", 1000)
+    _cd_lnspc = _s30.get("col_desc_lnspc_pct", 100000)  # 기본 100%, 하네스에서 변경 가능
+    _cd_ppr  = f'<a:pPr><a:lnSpc><a:spcPct val="{_cd_lnspc}"/></a:lnSpc></a:pPr>'
+    _cd_rpr  = (f'<a:rPr lang="{lang}" altLang="en-US" sz="{_cd_fsz}" dirty="0">'
+                f'<a:solidFill><a:schemeClr val="tx1"><a:lumMod val="95000"/><a:lumOff val="5000"/></a:schemeClr></a:solidFill>'
+                f'<a:latin typeface="Pretendard" {_font_attrs}/>'
+                f'<a:ea typeface="Pretendard" {_font_attrs}/>'
+                f'<a:cs typeface="Pretendard" {_font_attrs}/></a:rPr>')
+    # ── 헤더(ID=28~31) spAutoFit 활성화 — 텍스트 넘치면 높이 자동 확장 ──
+    _hdr_max_cy = 0
+    for sid in _hdr_ids30:
+        sp_hdr = _find_shape_by_id(root, sid)
+        if sp_hdr is not None:
+            _apply_spAutoFit(root, sid)
+            # 실제 텍스트 길이 기반 예상 cy 계산 (2줄 기준)
+            txt_hdr = next((t.text for t in sp_hdr.findall(f".//{{{ns_a}}}t") if t.text), "")
+            est = _estimate_lines(txt_hdr, _sth30.get("width_emu", 1800000), _sth30.get("font_pt", 16))
+            est_cy = max(338554, est * 314603)
+            _hdr_max_cy = max(_hdr_max_cy, est_cy)
+    # 모든 헤더 높이를 최대값으로 통일
+    if _hdr_max_cy > 0:
+        _equalize_row_heights(root, [[sid] for sid in _hdr_ids30])
+
+    # ── 동적 bullet 계산 ──────────────────────────────────────────────────────
+    # col_desc 박스는 항상 grid 바로 위까지 꽉 채움 (grid_y는 harness 고정값)
+    _g_y_fixed   = _s30.get("grid_y", 4100000)
+    _g_gap       = _s30.get("grid_gap", 50000)
+    _unified_cy  = _g_y_fixed - _cd_y - _g_gap   # col_desc 박스 고정 높이
+    _unified_cy  = max(_unified_cy, _cd_cy)       # 최소값 보장
+    _cd_font_pt  = _cd_fsz / 100.0                # 1000 hundredths → 10 pt
+    _cd_line_h   = int(_cd_font_pt * 12700 * (_cd_lnspc / 100000))  # EMU/line
+    _cd_insets   = 91440 + 45720                  # tIns + bIns
+    _cd_max_fit  = max(2, (_unified_cy - _cd_insets) // max(1, _cd_line_h))  # 박스에 최대 들어가는 줄 수
+    _bullet_sym  = _s30.get("step_bullet", "▪ ")
+
+    # 각 컬럼 bullet 목록 구성 (min 3개, max _cd_max_fit 줄 이하)
+    _col_bullets = []
+    for ci in range(4):
+        _cx_ci   = body_cxs[ci] if ci < len(body_cxs) else col_cx
+        desc_txt = step_descs[ci] if ci < len(step_descs) else ""
+        raw      = [l.strip() for l in str(desc_txt).split('\n') if l.strip()] if desc_txt else []
+        while len(raw) < 3:
+            raw.append("")
+        # 렌더 줄 수 기준으로 최대치 이하 bullet만 유지
+        kept, used = [], 0
+        for b in raw:
+            btext    = _bullet_sym + b if b else ""
+            rendered = _estimate_lines(btext, _cx_ci, _cd_font_pt) if btext else 1
+            if used + rendered > _cd_max_fit:
+                break
+            kept.append(b)
+            used += rendered
+        _col_bullets.append(kept)
+
+    if spTree is not None:
+        for ci in range(4):
+            col_x  = body_xs[ci] if ci < len(body_xs) else col_xs[ci]
+            col_cx = body_cxs[ci] if ci < len(body_cxs) else col_cx
+            bullets = _col_bullets[ci]
+            if any(bullets):
+                _paras = "".join(
+                    f'<a:p>{_cd_ppr}<a:r>{_cd_rpr}<a:t>{_bullet_sym}{b}</a:t></a:r></a:p>'
+                    for b in bullets if b
+                )
+            else:
+                _paras = '<a:p/>'
+            sp_xml = f"""<p:sp xmlns:p="{ns_p}" xmlns:a="{ns_a}">
+  <p:nvSpPr><p:cNvPr id="{_cd_id0 + ci}" name="col_desc_{ci}"/><p:cNvSpPr txBox="1"/><p:nvPr/></p:nvSpPr>
   <p:spPr>
-    <a:xfrm><a:off x="{col_x}" y="{body_y}"/><a:ext cx="{col_cx}" cy="{body_cy}"/></a:xfrm>
+    <a:xfrm><a:off x="{col_x}" y="{_cd_y}"/><a:ext cx="{col_cx}" cy="{_unified_cy}"/></a:xfrm>
     <a:prstGeom prst="rect"><a:avLst/></a:prstGeom><a:noFill/>
   </p:spPr>
   <p:txBody>
-    <a:bodyPr wrap="square" lIns="91440" tIns="91440" rIns="91440" bIns="45720"><a:normAutofit/></a:bodyPr>
-    <a:lstStyle/>
-    <a:p>
-      <a:r>
-        <a:rPr lang="{_ppt_lang()}" altLang="en-US" sz="{_sbfsz30}" dirty="0">
-          <a:solidFill><a:schemeClr val="tx1"><a:lumMod val="95000"/><a:lumOff val="5000"/></a:schemeClr></a:solidFill>
-          <a:latin typeface="Pretendard" panose="02000703000000020004" pitchFamily="2" charset="-127"/>
-          <a:ea typeface="Pretendard" panose="02000703000000020004" pitchFamily="2" charset="-127"/>
-          <a:cs typeface="Pretendard" panose="02000703000000020004" pitchFamily="2" charset="-127"/>
-        </a:rPr>
-        <a:t>{desc}</a:t>
-      </a:r>
-    </a:p>
+    <a:bodyPr wrap="square" lIns="91440" tIns="91440" rIns="91440" bIns="45720"/>
+    <a:lstStyle/>{_paras}
   </p:txBody>
 </p:sp>"""
-        sp_el = ET.fromstring(sp_xml)
-        if spTree is not None:
-            spTree.append(sp_el)
+            spTree.append(ET.fromstring(sp_xml))
+
+    # ── 하단 grid 4열×4행 박스 (zone_lower_grid) — 하네스: grid_* ──────────
+    # 컬럼별 독립 x/cx: 배경 도형(흰/회색 교대) 기준 여백 적용값
+    _g_col_xs  = _s30.get("grid_col_xs",  body_xs)   # 컬럼별 x (배경 도형 여백 포함)
+    _g_col_cxs = _s30.get("grid_col_cxs", body_cxs)  # 컬럼별 cx
+    _g_y      = _g_y_fixed  # harness 고정값 (col_desc 박스가 여기까지 꽉 채움)
+    _g_tcy    = _s30.get("grid_total_cy", 2750000)
+    _g_rgap   = _s30.get("grid_row_gap",  36000)
+    _g_cols   = _s30.get("grid_cols",     4)
+    _g_rows   = _s30.get("grid_rows",     4)
+    _g_bgs    = _s30.get("grid_bg_colors", ["FFFFFF", "F0F0F0", "FFFFFF", "F0F0F0"])
+    _g_bdr    = _s30.get("grid_border",   "3C41E6")
+    _g_lsz    = _s30.get("grid_label_sz", 800)
+    _g_vsz    = _s30.get("grid_font_sz",  1000)
+    _g_sid0   = int(_s30.get("grid_start_id", 600))
+
+    _cell_cy = (_g_tcy - _g_rgap * (_g_rows - 1)) // _g_rows
+
+    if step_meta and spTree is not None:
+        # 행 레이블: 첫 번째 dict의 키 순서로 결정
+        _all_labels = []
+        for m in step_meta:
+            if isinstance(m, dict):
+                for k in m.keys():
+                    if k not in _all_labels:
+                        _all_labels.append(k)
+        row_labels = _all_labels[:_g_rows]
+
+        for col_i in range(_g_cols):
+            meta = step_meta[col_i] if col_i < len(step_meta) else {}
+            _bg = _g_bgs[col_i % len(_g_bgs)]
+            _bx = _g_col_xs[col_i] if col_i < len(_g_col_xs) else body_xs[col_i]
+            _cell_cx = _g_col_cxs[col_i] if col_i < len(_g_col_cxs) else body_cxs[col_i]
+            for row_i, label in enumerate(row_labels):
+                val = str(meta.get(label, "")) if isinstance(meta, dict) else ""
+                _cy_off = row_i * (_cell_cy + _g_rgap)
+                _by = _g_y + _cy_off
+                bid = _g_sid0 + row_i * _g_cols + col_i
+                _lrpr = (f'<a:rPr lang="{lang}" altLang="en-US" sz="{_g_lsz}" b="1" dirty="0">'
+                         f'<a:solidFill><a:srgbClr val="{_g_bdr}"/></a:solidFill>'
+                         f'<a:latin typeface="Pretendard" {_font_attrs}/>'
+                         f'<a:ea typeface="Pretendard" {_font_attrs}/>'
+                         f'<a:cs typeface="Pretendard" {_font_attrs}/></a:rPr>')
+                _vrpr = (f'<a:rPr lang="{lang}" altLang="en-US" sz="{_g_vsz}" dirty="0">'
+                         f'<a:solidFill><a:srgbClr val="111111"/></a:solidFill>'
+                         f'<a:latin typeface="Pretendard" {_font_attrs}/>'
+                         f'<a:ea typeface="Pretendard" {_font_attrs}/>'
+                         f'<a:cs typeface="Pretendard" {_font_attrs}/></a:rPr>')
+                sp_xml = f"""<p:sp xmlns:p="{ns_p}" xmlns:a="{ns_a}">
+  <p:nvSpPr><p:cNvPr id="{bid}" name="grid_{row_i}_{col_i}"/><p:cNvSpPr><a:spLocks noGrp="1"/></p:cNvSpPr><p:nvPr/></p:nvSpPr>
+  <p:spPr>
+    <a:xfrm><a:off x="{_bx}" y="{_by}"/><a:ext cx="{_cell_cx}" cy="{_cell_cy}"/></a:xfrm>
+    <a:prstGeom prst="rect"><a:avLst/></a:prstGeom>
+    <a:solidFill><a:srgbClr val="{_bg}"/></a:solidFill>
+    <a:ln w="12700"><a:solidFill><a:srgbClr val="{_g_bdr}"/></a:solidFill></a:ln>
+  </p:spPr>
+  <p:txBody>
+    <a:bodyPr wrap="square" lIns="{_s30.get('grid_cell_lins',91440)}" tIns="{_s30.get('grid_cell_tins',91440)}" rIns="{_s30.get('grid_cell_rins',91440)}" bIns="{_s30.get('grid_cell_bins',91440)}" anchor="ctr"/>
+    <a:lstStyle/>
+    <a:p><a:pPr algn="ctr"/><a:r>{_lrpr}<a:t>{label}</a:t></a:r></a:p>
+    <a:p><a:pPr algn="ctr"/><a:r>{_vrpr}<a:t>{val}</a:t></a:r></a:p>
+  </p:txBody>
+</p:sp>"""
+                spTree.append(ET.fromstring(sp_xml))
 
     _clear_residual_placeholders(root); _write_xml(root, xml_path)
 
 
 def _edit_slide32(xml_path: Path, slide_plan: dict) -> None:
-    """slide32 (상단텍스트+하단3열): Zone1+2 공통 + Zone3 본문설명글(#26) + 하단3열(#19,20,31) bullets/이미지."""
+    """slide32 (상단텍스트+하단3열): Zone1+2 공통 + Zone3 본문설명글(#26) + 하단3열(#19,20) bullets/이미지."""
     content = slide_plan.get("content", {})
     # body > bullets > section_desc 순서로 ID=26에 넣을 텍스트 결정
     body = (content.get("body")
@@ -4113,7 +4738,7 @@ def _edit_slots_slide(xml_path: Path, slide_plan: dict, tmpl_key: str) -> None:
     slide_key = tmpl_key.replace(".xml", "")
     slots = _load_slide_shape_ids().get(slide_key, {}).get("slots", [])
     if slots:
-        _apply_slots(root, content, slots)
+        _apply_slots(root, content, slots, slide_plan=slide_plan)
     _clear_residual_placeholders(root); _write_xml(root, xml_path)
 
 
@@ -4169,6 +4794,16 @@ def _edit_slide26(xml_path: Path, slide_plan: dict) -> None:
     if descs:
         content = {**content, "main_desc": descs[0], "descriptions": descs[1:]}
         slide_plan = {**slide_plan, "content": content}
+    _edit_zonemap_slide(xml_path, slide_plan)
+
+
+def _edit_slide27(xml_path: Path, slide_plan: dict) -> None:
+    """slide27 (이미지+우측3행, body_title ≤2줄 variant): zone map 기반 직접 편집."""
+    _edit_zonemap_slide(xml_path, slide_plan)
+
+
+def _edit_slide28(xml_path: Path, slide_plan: dict) -> None:
+    """slide28 (이미지+우측3행, body_title ≥3줄 variant): zone map 기반 직접 편집."""
     _edit_zonemap_slide(xml_path, slide_plan)
 
 
@@ -4237,24 +4872,24 @@ def _edit_slide37(xml_path: Path, slide_plan: dict) -> None:
 
 
 def _edit_slide42(xml_path: Path, slide_plan: dict) -> None:
-    """slide42 (대형 본문): Zone1+2 공통 + 대형 텍스트 박스."""
-    content   = slide_plan.get("content", {})
-    body      = content.get("body", {})
-    bullets   = _coerce_list(content.get("bullets") or content.get("items") or
-                (body.get("bullets") if isinstance(body, dict) else None) or [])
-    descs     = _coerce_list(content.get("descriptions") or
-                (body.get("descriptions") if isinstance(body, dict) else None) or [])
-    body_text = "\n".join(bullets) if bullets else (descs[0] if descs else "")
+    """slide42 (대형 본문): 템플릿 구조 그대로.
+    - ID=28(body_desc, cx=8.8M, cy≈3줄): section_desc — 상세 설명 3줄 이내
+    - ID=43/47/51(item_descs, cx=2.4M, cy≈3줄): descriptions 3개 — 각 원형 아래 content
+    zone_map: body_desc="28", body.item_descs=["43","47","51"]
+    """
+    content = slide_plan.get("content", {})
+    descs   = _coerce_list(content.get("descriptions") or [])
     try:
         tree = ET.parse(xml_path); root = tree.getroot()
     except ET.ParseError: return
     _apply_common_zones(root, slide_plan, "slide42.xml")
-    import copy as _copy; ns_p, ns_a = _NS_P, _NS_A
-    _s42 = _load_slide_shape_ids().get("slide42", {})
-    _md42_id = _s42.get("main_desc_id", "28")
-    _md42    = _s42.get("main_desc", {"width_emu":8000000,"font_pt":12,"max_lines":8})
-    _slide_set_helper(root, ns_p, ns_a, _md42_id,
-                      _truncate_to_lines(body_text, _md42["width_emu"], _md42["font_pt"], _md42["max_lines"]))
+    ns_p, ns_a = _NS_P, _NS_A
+    # ID=43/47/51: descriptions 3개 → 각 원형 아래 content 박스 (cx=2.4M, cy≈3줄)
+    for i, sid in enumerate(["43", "47", "51"]):
+        txt = descs[i] if i < len(descs) else ""
+        if txt:
+            _slide_set_helper(root, ns_p, ns_a, sid,
+                              _truncate_to_lines(txt, 2_435_125, 12, 3))
     _clear_residual_placeholders(root); _write_xml(root, xml_path)
 
 
@@ -4268,7 +4903,7 @@ for _fn_name, _fn_obj in list(globals().items()):
         _SLIDE_EDITORS[f"{_m.group(1)}.xml"] = _fn_obj
 # 예외: naming convention 밖의 케이스만 수동 등록
 _SLIDE_EDITORS["slide22.xml"] = _edit_slide24          # slide22는 slide24 함수 재사용
-_SLIDE_EDITORS["slide15.xml"] = lambda p, c: edit_slide15(p, c)  # 별도 하네스 함수
+_SLIDE_EDITORS["slide15.xml"] = _edit_slide15_v2      # slide13 패턴으로 재구현 (content/slide_plan 파라미터 버그 수정)
 del _fn_name, _fn_obj, _m
 
 
@@ -4416,6 +5051,14 @@ def _edit_zonemap_slide(xml_path: Path, slide_plan: dict) -> None:
             auto = _make_sub_heading(content)
             if auto:
                 values = [auto]
+        # image_caption: section_title에서 숫자 prefix + em dash 이후 제거해 짧은 제목 추출
+        if role == "image_caption" and not values:
+            sec_t = content.get("section_title", "")
+            if sec_t:
+                import re as _re2
+                bare = _re2.sub(r'^\d+(\.\d+)*[\s.]*', '', sec_t).strip()
+                short = _shorten_toc_item(bare)
+                values = [short] if short else [bare]
         prefix = rule.get("prefix", "")
         is_image_slot = (role == "image_slots")
         if is_image_slot:
@@ -4428,7 +5071,22 @@ def _edit_zonemap_slide(xml_path: Path, slide_plan: dict) -> None:
                     txt = _img_fmt.format(description=str(raw_val))
                 else:
                     txt = prefix + str(txt)
-                txt = _truncate_to_lines(txt, rule["cx"], rule["pt"], rule["lines"])
+                # 실제 shape cx 읽기 (rule 기본값 대신 shape 실측 우선)
+                sp_shape = _find_shape_by_id(root, sid)
+                actual_cx = rule["cx"]
+                if sp_shape is not None:
+                    xfrm = sp_shape.find(f".//{{{ns_a}}}xfrm")
+                    if xfrm is not None:
+                        ext = xfrm.find(f"{{{ns_a}}}ext")
+                        if ext is not None:
+                            actual_cx = int(ext.get("cx", rule["cx"]))
+                txt = _truncate_to_lines(txt, actual_cx, rule["pt"], rule["lines"])
+                # … 말줄임 발생 시 자동 요약 재시도
+                if txt.endswith("…"):
+                    short = _shorten_toc_item(str(raw_val))
+                    txt2 = _truncate_to_lines(prefix + short if prefix else short, actual_cx, rule["pt"], rule["lines"])
+                    if not txt2.endswith("…"):
+                        txt = txt2
             if is_image_slot and txt:
                 # image_slots: 원본 rPr이 없는 경우가 많아 서식을 직접 주입
                 _set_image_slot_text(root, sid, txt)
@@ -4768,6 +5426,8 @@ def _build_claude_client():
     aws_region    = os.environ.get("AWS_REGION")
     api_key       = os.environ.get("ANTHROPIC_API_KEY")
     explicit      = os.environ.get("PPT_SKILL_BACKEND", "auto")
+    cc_bedrock    = os.environ.get("CLAUDE_CODE_USE_BEDROCK", "0")
+    cc_vertex     = os.environ.get("CLAUDE_CODE_USE_VERTEX", "0")
 
     if explicit == "vertex":
         use_vertex, use_bedrock = True, False
@@ -4775,8 +5435,13 @@ def _build_claude_client():
         use_vertex, use_bedrock = False, True
     elif explicit == "anthropic":
         use_vertex, use_bedrock = False, False
+    elif cc_bedrock == "1":
+        use_vertex, use_bedrock = False, True
+    elif cc_vertex == "1":
+        use_vertex, use_bedrock = True, False
+    elif cc_bedrock == "0" and cc_vertex == "0":
+        use_vertex, use_bedrock = False, False
     else:
-        # generate_plan_with_claude와 동일한 auto 감지 로직
         use_vertex  = bool(vertex_proj or (vertex_region and not aws_region))
         use_bedrock = bool(aws_region) and not use_vertex
 
@@ -4788,7 +5453,9 @@ def _build_claude_client():
     if use_bedrock:
         try:
             import boto3
-            return None, boto3.client("bedrock-runtime", region_name=aws_region or "us-east-1")
+            from botocore.config import Config as _BotoConfig2
+            return None, boto3.client("bedrock-runtime", region_name=aws_region or "us-east-1",
+                                      config=_BotoConfig2(read_timeout=300, connect_timeout=10))
         except ImportError:
             pass  # boto3 없으면 Anthropic 폴백
     if api_key:
@@ -4805,8 +5472,12 @@ def _call_api(client, bedrock, system: str, user: str, max_tokens: int = 4096) -
         body = _json.dumps({"anthropic_version": "bedrock-2023-05-31",
                             "max_tokens": max_tokens, "system": system, "messages": messages})
         resp = bedrock.invoke_model(
-            modelId="us.anthropic.claude-sonnet-4-5-20250929-v1:0", body=body)
+            modelId="us.anthropic.claude-sonnet-4-6", body=body)
         return _json.loads(resp["body"].read())["content"][0]["text"].strip()
+    # Vertex AI는 us.anthropic. 접두사 미지원
+    if hasattr(client, "_client") or type(client).__name__ == "AnthropicVertex":
+        if model.startswith("us.anthropic."):
+            model = model[len("us.anthropic."):]
     resp = client.messages.create(model=model, max_tokens=max_tokens,
                                    system=system, messages=messages)
     return resp.content[0].text.strip()
@@ -5016,6 +5687,10 @@ def _call_vision_api(system: str, content: list) -> str | None:
         return None
     model = __import__("os").environ.get(
         "ANTHROPIC_DEFAULT_SONNET_MODEL", "claude-sonnet-4-6")
+    # Vertex AI는 us.anthropic. 접두사 미지원
+    if client is not None and type(client).__name__ == "AnthropicVertex":
+        if model.startswith("us.anthropic."):
+            model = model[len("us.anthropic."):]
     messages = [{"role": "user", "content": content}]
     try:
         if bedrock:
@@ -5025,7 +5700,7 @@ def _call_vision_api(system: str, content: list) -> str | None:
                 "max_tokens": 4096, "system": system, "messages": messages,
             })
             resp = bedrock.invoke_model(
-                modelId="us.anthropic.claude-sonnet-4-5-20250929-v1:0", body=body)
+                modelId="us.anthropic.claude-sonnet-4-6", body=body)
             return _j.loads(resp["body"].read())["content"][0]["text"].strip()
         resp = client.messages.create(
             model=model, max_tokens=4096, system=system, messages=messages)
@@ -5110,13 +5785,24 @@ def _run_vision_fix_agent(
 - shape_id는 반드시 제공된 shape 목록의 실제 ID 사용
 - ⛔ 폰트 크기(sz) 절대 변경 금지 — set_text/set_paragraphs에 sz 속성 포함 불가. 텍스트가 넘치면 resize_textbox(cy 확장)만 허용
 - ⛔ 텍스트 내용 임의 단축 금지 — plan에 있는 실제 텍스트를 줄이거나 생략하지 말 것
+  단, 텍스트가 "…"(말줄임표)로 끝나는 경우는 예외: 박스에 맞게 요약한 짧은 텍스트로 교체할 것 (아래 룰 참조)
+- ⛔ [이미지: ...] 형식 텍스트는 이미지 자리 설명 텍스트 — 의도적으로 작성된 콘텐츠이므로 절대 제거/수정/문제 보고 금지. 이 텍스트가 보이는 것은 정상이다
+- ⛔ 파란색 배경 헤더 박스(item_title)에 있는 한국어/영어 항목명(예: Transformer, RAG, Fine-tuning, Amazon Bedrock 등)은 실제 콘텐츠 — 절대 clear/set_text("")로 제거 금지. 번호·점·prefix 잔류 텍스트(예: "1.1 ", "01 ")만 제거 대상
+- ⛔ clear 및 set_text("") 지시 사용 금지 — 내용을 지워야 할 것 같은 경우 fixes에 포함하지 말고, issue_summary에 "삭제 검토 필요: shape_id=X (이유)" 형태로만 기록할 것. 실제 삭제는 사용자 확인 후 처리
+- ⛔ 비어있는 shape에 새 텍스트 임의 삽입 금지 — shape에 텍스트가 없는 경우, 그 shape이 이미지 슬롯(placeholder "이미지"/"image")이 아니라면 채우지 말 것. 의도적으로 비워둔 장식용 도형일 수 있음
+- ⛔ 제공된 shape 목록(shapes 필드)에 없는 shape ID로 수정 지시 생성 금지
 - shape ID=14(사이드바 레이블, 173pt 폭): 텍스트 overflow가 보여도 수정 금지 — 이미 너비에 맞게 요약됨
 - shape ID=16(사이드바 설명, 173pt 폭): 동일하게 수정 금지
-- 사이드바는 의도적으로 짧은 요약 텍스트를 담는 좁은 영역임
-- shape ID=9: "01 중제목 작성", "01 컨텐츠 작성" 같은 영문/숫자 placeholder만 비울 것. 한국어 실제 콘텐츠(예: "학습 패러다임 진화", "아키텍처 발전 계보")가 있으면 절대 수정 금지
-- shape ID=8: "PPT 대제목 작성"이 보이면 비울 것. 한국어 실제 챕터명(예: "ML 기술 기반", "엔터프라이즈 도입")이 있으면 수정 금지
+- shape ID=17(사이드바 소제목, 173pt 폭): 텍스트 overflow가 보여도 수정 금지 — 이미 자동 요약됨
+- shape ID=18(사이드바 설명, 173pt 폭): 텍스트 overflow가 보여도 수정 금지 — 이미 자동 요약됨
+- 사이드바는 의도적으로 짧은 요약 텍스트를 담는 좁은 영역임. ID=17,18은 사이드바 영역으로 overflow가 시각적으로 보여도 수정 대상이 아님
+- shape ID=9: "01 중제목 작성", "01 컨텐츠 작성" 같은 영문/숫자 placeholder만 비울 것. "01 Anthropic 창립 배경", "02 Claude 모델 계보" 같이 숫자 prefix + 한국어 실제 콘텐츠가 있으면 절대 수정 금지 — 이 숫자 prefix는 의도적으로 시스템이 붙인 슬라이드 번호
+- ⛔ shape ID=8 절대 수정 금지 — 시스템이 목차에서 자동 추출한 챕터 대제목. Vision Fix 대상이 아님
+- ⛔ shape ID=9 수정 시 주의 — "01 중제목 작성" 같은 순수 영문/숫자 placeholder만 비울 것. "01 Anthropic 창립 배경"처럼 숫자 + 실제 한국어 내용이 있으면 절대 수정 금지
 - shape ID=8은 대제목(목차 챕터명), ID=9는 중제목(세부 분류명)으로 의도적으로 설정된 콘텐츠임
 - "Solution 01", "keyword", "Sevice 01", "Step1"~"Step4" 등 템플릿 안내 텍스트는 placeholder — 비울 것
+- ⛔ [이미지: ...] 형식 텍스트는 이미지 슬롯 설명 — 절대 삭제/수정/비우기 금지. "image", "이미지" placeholder와 다름 — 이미 올바른 콘텐츠임
+- "| 1.1.1 ..." 형식 텍스트(파이프 기호로 시작하는 sub_heading)는 의도적으로 작성된 소제목 — 절대 수정 금지
 - 이미 실제 콘텐츠(한국어 설명문)가 있는 shape는 수정 금지
 
 가시성 검증 (시각적으로 판단):
@@ -5127,11 +5813,25 @@ def _run_vision_fix_agent(
 텍스트박스 크기 및 여백 검증 (시각적으로 판단):
 - 텍스트가 2줄 이상으로 넘어가는데 텍스트박스 높이가 1줄 크기로 보이면:
   action="resize_textbox", new_cy=629206(2줄) 또는 943809(3줄)로 높이 조정 지시
-  단, sideebar(ID=14,16,17,18,25) shape은 resize 금지
+  단, sidebar(ID=14,16,17,18,25) shape과 sub_heading(ID=41, cy=337169 고정) shape은 resize 금지
+- resize_textbox는 최대 1~2줄 초과(new_cy 최대 943809 = 3줄)만 허용. 그 이상(4줄 이상) 초과 시에는 resize 금지 — 텍스트가 너무 길어 구조적으로 박스에 맞지 않는 경우이므로 issue_summary에 기록만 할 것
 - 텍스트박스가 배경 도형(회색/컬러 사각형)을 벗어난 경우:
   action="resize_textbox"로 배경 도형 안으로 제한 지시
 - 텍스트박스는 배경 도형 안쪽에서 최소 50,000 EMU(약 4mm) 여백이 있어야 함
-  배경 도형 경계를 넘거나 딱 붙은 경우 issue로 보고"""
+  배경 도형 경계를 넘거나 딱 붙은 경우 issue로 보고
+
+말줄임표(…) 오버플로 감지 및 수정:
+- 텍스트가 "…"(말줄임표, U+2026 또는 "...")로 끝나는 shape을 발견하면 오버플로 상태임
+- 해당 shape의 텍스트를 박스 크기에 맞는 짧은 요약 텍스트로 교체하도록 set_text 지시 생성
+- 요약 시 핵심 키워드·개념을 유지하되 조사·접속어·부연설명을 제거해 1~2줄로 축약
+- "…"가 있는 shape은 반드시 issue로 보고하고 수정 지시를 생성할 것
+
+이미지 슬롯 비어있음 감지 및 채우기:
+- 이미지 슬롯이란: 슬라이드 내 회색/파란색 배경의 사각형 영역에 텍스트가 없거나 "image", "이미지" 같은 placeholder만 있는 박스
+- 이미지 슬롯이 비어 있거나 placeholder 텍스트만 있는 경우: "[이미지: {슬라이드 주제와 해당 항목에 맞는 구체적인 이미지 설명}]" 형식으로 set_text 지시 생성
+- 예시: "[이미지: LLM 학습 파이프라인 다이어그램 — 데이터 수집, 전처리, 파인튜닝, 평가 단계를 보여주는 플로우차트]"
+- ⛔ [이미지: ...] 형식 텍스트가 이미 있는 이미지 슬롯은 수정하지 말 것 (이미 처리된 슬롯)
+- 슬라이드별 이미지 슬롯 shape ID는 제공된 shape 구조에서 파악할 것"""
 
     # 슬라이드별 정보 구성
     content_parts = []
@@ -5153,13 +5853,25 @@ def _run_vision_fix_agent(
             "shapes":      shape_info,
         })
 
+        # img_slot IDs 추출 (이미지 슬롯 감지 힌트로 제공)
+        _sids_data = _load_slide_shape_ids()
+        _slide_key = slide_file.replace(".xml", "") if slide_file else ""
+        _slide_sids = _sids_data.get(_slide_key, {})
+        _img_slot_ids = []
+        if isinstance(_slide_sids, dict):
+            for _sl in _slide_sids.get("slots", []):
+                if _sl.get("type") == "img_slot":
+                    _img_slot_ids.extend(_sl.get("ids", []))
+
         b64 = base64.standard_b64encode(Path(img_path).read_bytes()).decode()
+        img_slot_hint = f"\n이미지 슬롯 shape IDs: {_img_slot_ids}" if _img_slot_ids else ""
         content_parts.append({
             "type": "text",
             "text": f"=== 슬라이드 {slide_idx} ({slide_plan.get('role','')}) ===\n"
                     f"의도 제목: {slide_plan.get('title','')}\n"
                     f"의도 콘텐츠: {json.dumps(slide_plan.get('content',{}), ensure_ascii=False)[:300]}\n"
-                    f"shape 구조: {json.dumps(shape_info, ensure_ascii=False)[:400]}",
+                    f"shape 구조: {json.dumps(shape_info, ensure_ascii=False)[:400]}"
+                    f"{img_slot_hint}",
         })
         content_parts.append({
             "type": "image",
@@ -5187,6 +5899,17 @@ def _run_vision_fix_agent(
         if not img_path or not Path(img_path).exists():
             continue
 
+        # 이 슬라이드의 img_slot IDs 추출
+        _sids_ctx = _load_slide_shape_ids()
+        _slide_key_ctx = ctx["slide_file"].replace(".xml", "") if ctx["slide_file"] else ""
+        _slide_sids_ctx = _sids_ctx.get(_slide_key_ctx, {})
+        _img_slot_ids_ctx = []
+        if isinstance(_slide_sids_ctx, dict):
+            for _sl in _slide_sids_ctx.get("slots", []):
+                if _sl.get("type") == "img_slot":
+                    _img_slot_ids_ctx.extend(_sl.get("ids", []))
+        _img_slot_hint_ctx = f"\n이미지 슬롯 shape IDs: {_img_slot_ids_ctx}" if _img_slot_ids_ctx else ""
+
         b64 = base64.standard_b64encode(Path(img_path).read_bytes()).decode()
         per_slide_content = [
             {
@@ -5196,6 +5919,7 @@ def _run_vision_fix_agent(
                     f"의도 제목: {ctx['title']}\n"
                     f"의도 콘텐츠: {json.dumps(ctx['content'], ensure_ascii=False)[:300]}\n"
                     f"shape 구조: {json.dumps(ctx['shapes'], ensure_ascii=False)[:400]}"
+                    f"{_img_slot_hint_ctx}"
                 ),
             },
             {
@@ -5250,6 +5974,7 @@ def _apply_fix_instructions(work_dir: Path, fix_instructions: list[dict]) -> boo
     """
     Vision Fix Agent의 수정 지시를 슬라이드 XML에 적용한다.
     수정이 일어나면 True 반환.
+    set_text로 수정된 텍스트는 instruction에 '_plan_updates' 키로 기록된다.
     """
     import copy as _copy
     ns_p = _NS_P
@@ -5276,11 +6001,22 @@ def _apply_fix_instructions(work_dir: Path, fix_instructions: list[dict]) -> boo
             continue
 
         modified = False
+        plan_updates: list[dict] = []  # set_text 수정 내용 추적 (plan.json 반영용)
         shape_map = {}
         for sp in root.findall(f".//{{{ns_p}}}sp"):
             cpr = sp.find(f"{{{ns_p}}}nvSpPr/{{{ns_p}}}cNvPr")
             if cpr is not None:
                 shape_map[cpr.get("id", "")] = sp
+
+        # 이미지 슬롯 shape ID 목록 (맑은고딕 파란색 서식 적용 대상)
+        _sids_data_fix = _load_slide_shape_ids()
+        _slide_key_fix = slide_file.replace(".xml", "")
+        _slide_sids_fix = _sids_data_fix.get(_slide_key_fix, {})
+        _img_slot_ids_fix: set = set()
+        if isinstance(_slide_sids_fix, dict):
+            for _sl in _slide_sids_fix.get("slots", []):
+                if _sl.get("type") == "img_slot":
+                    _img_slot_ids_fix.update(_sl.get("ids", []))
 
         for fix in fixes:
             shape_id = str(fix.get("shape_id", ""))
@@ -5293,19 +6029,30 @@ def _apply_fix_instructions(work_dir: Path, fix_instructions: list[dict]) -> boo
             if txBody is None:
                 continue
 
-            # 기존 rPr 보존용
+            # 기존 rPr·pPr 보존용 (정렬·색상 등 서식 유지)
             first_rPr = None
-            for r in sp.findall(f".//{{{ns_a}}}r"):
-                rPr_e = r.find(f"{{{ns_a}}}rPr")
-                if rPr_e is not None:
-                    first_rPr = _copy.deepcopy(rPr_e)
-                    first_rPr.set("lang", _ppt_lang())
-                    first_rPr.set("dirty", "0")
+            first_pPr = None
+            for p_elem in txBody.findall(f"{{{ns_a}}}p"):
+                if first_pPr is None:
+                    pPr_e = p_elem.find(f"{{{ns_a}}}pPr")
+                    if pPr_e is not None:
+                        first_pPr = _copy.deepcopy(pPr_e)
+                for r in p_elem.findall(f"{{{ns_a}}}r"):
+                    rPr_e = r.find(f"{{{ns_a}}}rPr")
+                    if rPr_e is not None and first_rPr is None:
+                        first_rPr = _copy.deepcopy(rPr_e)
+                        first_rPr.set("lang", _ppt_lang())
+                        first_rPr.set("dirty", "0")
+                if first_rPr and first_pPr:
                     break
 
             def _make_para(text_str: str) -> ET.Element:
                 p = ET.Element(f"{{{ns_a}}}p")
-                pPr = ET.SubElement(p, f"{{{ns_a}}}pPr")
+                # 원본 pPr(algn 등) 복사 — 없으면 빈 pPr
+                if first_pPr is not None:
+                    p.append(_copy.deepcopy(first_pPr))
+                else:
+                    ET.SubElement(p, f"{{{ns_a}}}pPr")
                 r_new = ET.SubElement(p, f"{{{ns_a}}}r")
                 if first_rPr is not None:
                     r_new.append(_copy.deepcopy(first_rPr))
@@ -5319,16 +6066,25 @@ def _apply_fix_instructions(work_dir: Path, fix_instructions: list[dict]) -> boo
                 return p
 
             if action == "clear":
-                for p in txBody.findall(f"{{{ns_a}}}p"):
-                    for t in p.findall(f".//{{{ns_a}}}t"):
-                        t.text = ""
-                modified = True
+                # 내용 삭제는 사용자 확인 없이 실행 금지 — 경고만 출력
+                print(f"  ⚠ [Vision Fix] 삭제 지시 차단: shape {shape_id} in {slide_file} "
+                      f"(이유: {fix.get('reason', instruction.get('issue_summary','')[:40])})")
+                continue
 
             elif action == "set_text":
                 text = fix.get("text", "")
-                for p in txBody.findall(f"{{{ns_a}}}p"):
-                    txBody.remove(p)
-                txBody.append(_make_para(text))
+                # 빈 텍스트로 내용 삭제 시도 차단
+                if not text.strip():
+                    print(f"  ⚠ [Vision Fix] 빈 텍스트 삭제 지시 차단: shape {shape_id} in {slide_file}")
+                    continue
+                # 이미지 슬롯이면 맑은고딕 파란색 서식 적용
+                if shape_id in _img_slot_ids_fix:
+                    _set_image_slot_text(root, shape_id, text)
+                else:
+                    for p in txBody.findall(f"{{{ns_a}}}p"):
+                        txBody.remove(p)
+                    txBody.append(_make_para(text))
+                plan_updates.append({"shape_id": shape_id, "text": text})
                 modified = True
 
             elif action == "set_paragraphs":
@@ -5365,9 +6121,66 @@ def _apply_fix_instructions(work_dir: Path, fix_instructions: list[dict]) -> boo
         if modified:
             _write_xml(root, xml_path)
             any_modified = True
+            if plan_updates:
+                instruction["_plan_updates"] = plan_updates
             print(f"  ✓ Vision Fix 적용: {slide_file} ({len(fixes)}개 지시)")
 
     return any_modified
+
+
+def _sync_plan_with_fixes(plan: dict, fix_instructions: list[dict], plan_path: Path) -> None:
+    """
+    Vision Fix에서 set_text로 수정된 텍스트를 plan.json의 content에 반영한다.
+    shape_id → content 필드 매핑은 slide_shape_ids.json 기반으로 추론한다.
+    """
+    sids_data = _load_slide_shape_ids()
+    plan_by_file = {s["template_file"]: s for s in plan.get("slides", [])}
+    changed = False
+
+    for instruction in fix_instructions:
+        updates = instruction.get("_plan_updates")
+        if not updates:
+            continue
+        slide_file = instruction.get("slide_file", "")
+        slide_plan = plan_by_file.get(slide_file)
+        if not slide_plan:
+            continue
+        content = slide_plan.setdefault("content", {})
+        slide_key = slide_file.replace(".xml", "")
+        slide_sids = sids_data.get(slide_key, {})
+        if not isinstance(slide_sids, dict):
+            continue
+
+        # shape_id → (slot_type, content_key, index) 매핑 구축
+        sid_map: dict[str, tuple[str, str, int]] = {}
+        for slot in slide_sids.get("slots", []):
+            stype = slot.get("type", "")
+            ckey  = slot.get("content_key", "")
+            for idx, sid in enumerate(slot.get("ids", [])):
+                sid_map[str(sid)] = (stype, ckey, idx)
+
+        for upd in updates:
+            sid  = str(upd.get("shape_id", ""))
+            text = upd.get("text", "")
+            if sid not in sid_map:
+                continue
+            stype, ckey, idx = sid_map[sid]
+            if stype in ("item_title", "item_body", "img_slot", "insight"):
+                # 리스트 필드 — 인덱스 위치 업데이트
+                lst = content.get(ckey, [])
+                if isinstance(lst, list):
+                    while len(lst) <= idx:
+                        lst.append("")
+                    lst[idx] = text
+                    content[ckey] = lst
+                    changed = True
+            elif stype in ("sub_heading", "section_title", "section_desc"):
+                content[ckey] = text
+                changed = True
+
+    if changed:
+        plan_path.write_text(json.dumps(plan, ensure_ascii=False, indent=2))
+        print("  ✓ plan.json 업데이트 (Vision Fix 반영)")
 
 
 # ── 메인 루프 ────────────────────────────────────────────────
@@ -5380,9 +6193,11 @@ def run_ppt_generation(
     n_slides: int = 10,
     plan_override: dict | None = None,
     cleanup_work_dir: bool = True,
+    layout_from_pptx: Path | None = None,
 ) -> Path:
     """
     analyze_template → generate_plan → edit_slide 루프 → pack → verify
+    layout_from_pptx가 지정되면 해당 PPTX의 슬라이드 순서를 그대로 사용한다.
     최종 output.pptx 경로를 반환한다.
     """
     print(f"\n[PPT Generator] topic={topic!r}, slides={n_slides}, audience={audience!r}")
@@ -5414,6 +6229,35 @@ def run_ppt_generation(
     if known_fixes:
         print(f"  ✓ known_failure_fixes {len(known_fixes)}개 로드")
 
+    # ── layout_from_pptx 처리: banned slide 감지 후 사용자 확인 ────────
+    _layout_order: list[str] | None = None
+    if layout_from_pptx is not None:
+        raw_order = _extract_layout_order(Path(layout_from_pptx))
+        cat = _load_slide_catalog()
+        banned = set(cat.get("banned_slides", {}).keys())
+        # 대체 후보: allowed_content_slides 중 banned가 아닌 것
+        allowed = [s for s in cat.get("allowed_content_slides", []) if s not in banned]
+        replaced: list[tuple[str, str]] = []
+        resolved: list[str] = []
+        for tmpl in raw_order:
+            if tmpl in banned:
+                # 같은 계열 추천 (슬라이드 번호 근접 순)
+                num = int(re.search(r"\d+", tmpl).group()) if re.search(r"\d+", tmpl) else 99
+                candidate = min(allowed, key=lambda x: abs(int(re.search(r"\d+", x).group()) - num) if re.search(r"\d+", x) else 99)
+                replaced.append((tmpl, candidate))
+                resolved.append(candidate)
+            else:
+                resolved.append(tmpl)
+        if replaced:
+            print("\n  ⚠️  참조 PPTX에 banned 슬라이드가 포함되어 있습니다:")
+            for orig, repl in replaced:
+                ban_reason = cat.get("banned_slides", {}).get(orig, "사용 금지")
+                print(f"    - {orig} ({ban_reason}) → 추천 대체: {repl}")
+            print("  계속 진행합니다 (추천 슬라이드로 자동 대체). 다른 슬라이드를 원하면 layout_from_pptx 없이 직접 plan을 지정하세요.")
+        print(f"  ✓ 레이아웃 고정 모드 ({len(resolved)}장): {resolved}")
+        _layout_order = resolved
+        n_slides = len(resolved)
+
     # ── 계획 생성 ─────────────────────────────────
     if plan_override is not None:
         plan = plan_override
@@ -5421,14 +6265,15 @@ def run_ppt_generation(
     else:
         # 15장 초과: 병렬 2-phase 생성 / 이하: 단일 호출
         plan = None
-        if n_slides > 14:
+        if n_slides > 14 and _layout_order is None:
             print(f"  [병렬 모드] {n_slides}장 → 2-phase 병렬 생성")
             plan = generate_plan_parallel(topic, audience, n_slides,
                                            slide_info, memory, constraints)
 
         if plan is None:
             plan = generate_plan_with_claude(topic, audience, n_slides,
-                                              slide_info, memory)
+                                              slide_info, memory,
+                                              layout_order=_layout_order)
             if plan:
                 print("  ✓ Claude API 단일 호출로 계획 생성")
             else:
@@ -5492,6 +6337,21 @@ def run_ppt_generation(
             ch = _dynamic_chapter_map.get(parts[0].strip())
             if ch and s.get("title") != ch:
                 s["title"] = ch
+
+    # ── 중제목 순번(subtitle_seq) 주입 — 대제목 기준 01/02/03 카운터 ──
+    _subtitle_counter: dict[str, int] = {}
+    for s in plan["slides"]:
+        if s.get("role") in ("cover", "toc", "closing"): continue
+        ch_title = s.get("title", "")
+        if not ch_title: continue
+        _subtitle_counter[ch_title] = _subtitle_counter.get(ch_title, 0) + 1
+        s["subtitle_seq"] = _subtitle_counter[ch_title]
+
+    # ── Layout variant 자동 선택 (JSON 규칙 기반) ──
+    # slide27 → slide28 등 body_title 길이에 따라 자동 전환
+    variant_changes = _resolve_layout_variants(plan)
+    for vc in variant_changes:
+        print(f"  ✓ variant 전환: {vc}")
 
     # ── Plan 제약 강제 (banned slides 자동 교체) ──
     plan, constraint_changes = enforce_plan_constraints(plan, slide_info)
@@ -5599,6 +6459,10 @@ def run_ppt_generation(
     for slide_plan in plan["slides"]:
         xml_path = slides_dir / slide_plan.get("template_file", "")
 
+        # TOC 슬라이드: slide_plan.title은 "목차" — 전체 발표 제목을 prs_title로 주입
+        if slide_plan.get("role") == "toc" and "prs_title" not in slide_plan:
+            slide_plan["prs_title"] = plan.get("title", slide_plan.get("title", ""))
+
         # known_fixes 자동 적용 (편집 전)
         if xml_path.exists():
             apply_known_fixes(xml_path, slide_plan, known_fixes)
@@ -5671,6 +6535,9 @@ def run_ppt_generation(
                 print("  ⚠ 적용 가능한 수정 없음 — 구조적 한계로 best-effort 종료")
                 break
 
+            # Vision Fix 결과를 plan.json에 반영 — 다음 라운드 덮어씌움 방지
+            _sync_plan_with_fixes(plan, fix_instructions, plan_path)
+
             print(f"  → 수정 적용 후 재패킹 (이터레이션 {vision_iter})...")
             _trim_to_plan_slides(work_dir, plan)
             pack_output(work_dir, output)
@@ -5688,6 +6555,17 @@ def run_ppt_generation(
 
             if vision_iter == MAX_VISION_ITER:
                 print(f"  ⚠ 최대 반복({MAX_VISION_ITER}회) 도달 — best-effort 출력")
+
+    # ── Vision QA 최종 결과 요약 (미통과 페이지 명시) ──────────
+    if "fix_instructions" in dir() and fix_instructions:
+        failed = [(f.get("slide_index"), f.get("slide_file"), f.get("issue_summary", ""))
+                  for f in fix_instructions if f.get("has_issues")]
+        if failed:
+            print(f"\n  ❌ QA 미통과 슬라이드 ({len(failed)}건):")
+            for idx, fname, summary in failed:
+                print(f"    - {idx}p ({fname}): {summary}")
+        else:
+            print("\n  ✅ 모든 슬라이드 Vision QA 통과")
 
     # ── 콘텐츠 검증 ──────────────────────────────
     issues = verify_content(output)
