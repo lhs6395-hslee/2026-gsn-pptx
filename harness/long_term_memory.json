@@ -406,9 +406,99 @@
       "vision_issues": 0,
       "qa_done": false,
       "qa_ok": null
+    },
+    {
+      "ts": "2026-06-10T09:54:39",
+      "topic": "차트 레이아웃 검증",
+      "n_slides": 5,
+      "templates": [
+        "slide6.xml",
+        "slide6.xml",
+        "slide6_c2.xml",
+        "slide6_c3.xml",
+        "slide46.xml"
+      ],
+      "vision_issues": 0,
+      "qa_done": false,
+      "qa_ok": null
+    },
+    {
+      "ts": "2026-06-10T10:02:32",
+      "topic": "차트 레이아웃 검증",
+      "n_slides": 5,
+      "templates": [
+        "slide6.xml",
+        "slide6.xml",
+        "slide6_c2.xml",
+        "slide6_c3.xml",
+        "slide46.xml"
+      ],
+      "vision_issues": 0,
+      "qa_done": false,
+      "qa_ok": null
+    },
+    {
+      "ts": "2026-06-10T10:06:04",
+      "topic": "차트 레이아웃 검증",
+      "n_slides": 5,
+      "templates": [
+        "slide6.xml",
+        "slide40.xml",
+        "slide41.xml",
+        "slide43.xml",
+        "slide46.xml"
+      ],
+      "vision_issues": 0,
+      "qa_done": false,
+      "qa_ok": null
+    },
+    {
+      "ts": "2026-06-10T10:17:33",
+      "topic": "차트 레이아웃 검증",
+      "n_slides": 5,
+      "templates": [
+        "slide6.xml",
+        "slide40.xml",
+        "slide41.xml",
+        "slide43.xml",
+        "slide46.xml"
+      ],
+      "vision_issues": 0,
+      "qa_done": false,
+      "qa_ok": null
+    },
+    {
+      "ts": "2026-06-10T10:31:43",
+      "topic": "차트 레이아웃 검증",
+      "n_slides": 5,
+      "templates": [
+        "slide6.xml",
+        "slide40.xml",
+        "slide41.xml",
+        "slide43.xml",
+        "slide46.xml"
+      ],
+      "vision_issues": 0,
+      "qa_done": false,
+      "qa_ok": null
+    },
+    {
+      "ts": "2026-06-10T10:35:25",
+      "topic": "차트 레이아웃 검증",
+      "n_slides": 5,
+      "templates": [
+        "slide6.xml",
+        "slide40.xml",
+        "slide41.xml",
+        "slide43.xml",
+        "slide46.xml"
+      ],
+      "vision_issues": 0,
+      "qa_done": false,
+      "qa_ok": null
     }
   ],
-  "total_runs": 19,
+  "total_runs": 25,
   "evolution_notes": "v0.4 — 2026-06-09: AHE 공식 원칙 명문화(AHE_PRINCIPLES.md) + 결정관찰성 원장(change_manifest.jsonl) 도입. slide_catalog verified 13→33 재분류(slide23 ban). slide31/33 하단 메타 데이터주도화. group_title(사이드 소제목=subtitle) 도입. 원칙: 생성≠판정 분리(확증편향 방지), stale scaffolding 제거(Opus 4.8 기준 stress test), falsifiable-contract 의무.",
   "qa_enforcement_note": "qa_ok=false인 실행은 issue_count=0이더라도 완료 조건 미검증으로 간주. verifier에서 qa_done 플래그를 반드시 확인하고, false인 경우 WARN 처리하여 다음 실행에서 QA 단계를 강제 수행할 것.",
   "last_evolved": "2026-06-02T06:14:48.197792",

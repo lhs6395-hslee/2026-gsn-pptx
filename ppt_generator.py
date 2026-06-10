@@ -222,6 +222,9 @@ def generate_plan_with_claude(
         "slide34.xml  → content  : 2이미지+키워드 (키워드 4개+설명+이미지 2개)\n"
         "slide37.xml  → content  : 3구역 텍스트 (대형 설명+보조 설명 2개, 텍스트 중심)\n"
         "slide42.xml  → content  : 대형 본문 (단일 대형 텍스트 박스, 심층 설명)\n"
+        "slide40.xml  → content  : 도넛 차트 3개 (비율·KPI 달성도 — chart_data 필수)\n"
+        "slide41.xml  → content  : 막대 차트 (항목별 다시리즈 수치 비교 — chart_data 필수)\n"
+        "slide43.xml  → content  : 막대 차트 (시계열 증감 추이, 음수 가능 — chart_data 필수)\n"
         "slide32.xml  → content  : 상단 텍스트+하단 3열 콘텐츠 (본문설명글+3가지 핵심 포인트/이미지)\n"
         "slide36.xml  → content  : As-is/To-be 벤다이어그램 (현황→목표 비교)\n"
         "slide38.xml  → flow     : 3행 흐름도 keyword→solution→service (아키텍처/파이프라인)\n"
@@ -239,6 +242,9 @@ def generate_plan_with_claude(
         "- 연도별 로드맵/연혁 → slide29 (periods=[{label,content}] 필수, 시계열일 때만)\n"
         "- 분기별 계획 → slide31/slide33 (quarters 필수, 시계열일 때만)\n"
         "- 챕터 시작 구분 → slide8 (사용자가 '섹션 구분' 명시 요청 시에만)\n"
+        "- 비율·KPI 달성도(원형 게이지 3개) → slide40 (chart_data 도넛 3개, 각 값 3개)\n"
+        "- 항목별 수치 막대 비교 → slide41 (chart_data 1개, 범주 4·시리즈 최대 3)\n"
+        "- 시계열 증감 막대 추이 → slide43 (chart_data 1개, 범주 6·시리즈 2)\n"
         "★ 중요: 실사진/아이콘 이미지는 제공되지 않는다. 이미지가 필수인 레이아웃은 쓰지 말 것.\n"
         "★ 중요: slide29/31/33(타임라인)은 연도·분기 등 '시간 흐름' 데이터일 때만. "
         "그 외 서술형+3포인트 구조는 slide32를 기본으로 사용.\n"
@@ -314,6 +320,9 @@ def generate_plan_with_claude(
         "image_descriptions(하단 3열 이미지 상세 설명 3개)\n"
         "content(slide35): section_title, section_desc, before(3개 키워드), after(4개 키워드)\n"
         "content(slide36): section_title, section_desc, as_is(원형 키워드 3개, 각 8자 이내 — 길면 잘림), to_be(원형 키워드 3개, 각 8자 이내), explains(우측 설명 2개 — [좌측진영 설명, 우측진영 설명], 각 2~3줄), compare_labels(좌/우 라벨 2개, 예: ['Anthropic','OpenAI'])\n"
+        "content(slide40): section_title, section_desc, chart_data(도넛 3개 = 리스트 3항목, 각 {title:'지표명(20자 이내)', values:[정확히 숫자 3개 — 세그먼트, 합 100 권장]}). ⚠️ 값은 정확히 3개(템플릿 고정·범주 라벨 미표시). 적게 주면 나머지 세그먼트는 0\n"
+        "content(slide41): section_title, section_desc, chart_data(리스트 1항목 = [{categories:[범주 정확히 4개, 각 10자 이내], series:[{name:'시리즈명', values:[숫자 4개]} — 최대 3시리즈]}]). 시리즈 적게 주면 나머지 막대는 0\n"
+        "content(slide43): section_title, section_desc, chart_data(리스트 1항목 = [{categories:[범주 정확히 6개, 각 10자 이내], series:[{name:'시리즈명', values:[숫자 6개, 음수 가능]} — 정확히 2시리즈]}])\n"
         "content(slide21): section_title, section_desc, bullets(3개 — 첫째=하단 핵심 배너, 나머지 2개=좌측 텍스트블록), image_descriptions(이미지 영역 상세 설명 1개)\n"
         "content(slide22/slide24): section_title, section_desc, bullets(2~3개), body, image_descriptions(이미지/영상 영역 상세 설명 1개)\n"
         "closing: 없음\n\n"
@@ -1861,9 +1870,22 @@ def generate_excel_for_charts(work_dir: Path, plan: dict, output_dir: Path) -> P
 
         # 기본 헤더
         ws.append(["항목", "값", "비고"])
-        if chart_data:
+        if isinstance(chart_data, dict) and chart_data:
             for k, v in chart_data.items():
                 ws.append([k, v, ""])
+        elif isinstance(chart_data, list) and chart_data:
+            # 새 스키마(list): 각 차트의 범주/시리즈를 표로 (임베디드 xlsx는 _update_chart_data가 갱신)
+            for ce in chart_data:
+                if not isinstance(ce, dict):
+                    continue
+                cats = ce.get("categories", [])
+                series = ce.get("series") or ([{"name": ce.get("title", ""), "values": ce.get("values", [])}]
+                                              if ce.get("values") is not None else [])
+                ws.append([ce.get("title", "")] + [sr.get("name", "") for sr in series])
+                _nr = max([len(cats)] + [len(sr.get("values", [])) for sr in series] + [0])
+                for ri in range(_nr):
+                    ws.append([(cats[ri] if ri < len(cats) else "")]
+                              + [(sr.get("values", [])[ri] if ri < len(sr.get("values", [])) else "") for sr in series])
         else:
             # 템플릿별 기본 데이터 예시
             if "40" in tmpl:
@@ -1887,6 +1909,142 @@ def generate_excel_for_charts(work_dir: Path, plan: dict, output_dir: Path) -> P
     wb.save(str(xlsx_path))
     print(f"  ✓ Excel 데이터 파일 생성: {xlsx_path.name}")
     return xlsx_path
+
+
+# ── 차트 데이터 주입 (slide40/41/43 Excel 연동 완성) ──────────────────
+# 차트 캐시(chartN.xml의 numCache/strCache) + 임베디드 xlsx를 plan content.chart_data로
+# 갱신해, 템플릿 더미값(도넛 5/20/75 등) 대신 실제 수치를 표시한다.
+# ⚠ 데이터포인트 '개수'는 절대 바꾸지 않는다 — c:pt 추가/삭제 시 PowerPoint가 PDF
+#    export에서 조용히 실패(차트 렌더 불가). 기존 c:pt의 c:v 텍스트만 제자리 덮어쓴다.
+_CHART_NS = "http://schemas.openxmlformats.org/drawingml/2006/chart"
+
+def _register_chart_ns(chart_path: Path) -> None:
+    """차트 XML 루트의 모든 xmlns 접두사를 등록 — 저장 시 prefix 보존(ns0 방지)."""
+    try:
+        head = chart_path.read_text(encoding="utf-8")[:2000]
+    except Exception:
+        return
+    for m in re.finditer(r'xmlns:(\w+)="([^"]+)"', head):
+        ET.register_namespace(m.group(1), m.group(2))
+
+def _chart_overwrite_cache(parent: ET.Element, values: list) -> None:
+    """c:cat/c:val/c:tx 아래 numCache|strCache의 기존 c:pt c:v 텍스트만 제자리 덮어쓴다.
+    개수·ptCount·dPt·공식 등 구조는 불변(개수 변경 시 PowerPoint PDF export 실패).
+    values가 적으면 남는 포인트는 0(숫자)/''(문자), 많으면 초과분은 버린다."""
+    C = _CHART_NS
+    def Q(t): return f"{{{C}}}{t}"
+    ref = parent.find(Q("numRef"))
+    if ref is None: ref = parent.find(Q("strRef"))
+    if ref is None: return
+    cache = ref.find(Q("numCache"))
+    if cache is None: cache = ref.find(Q("strCache"))
+    if cache is None: return
+    pts = cache.findall(Q("pt"))
+    if not pts: return  # 기존 포인트 없음(예: 도넛 cat) → 개수 변경 금지 위해 건너뜀
+    is_num = cache.tag == Q("numCache")
+    def _isnum(x):
+        try: float(str(x)); return True
+        except Exception: return False
+    # 숫자 캐시에 비숫자 문자열을 쓰면 타입 불일치로 PowerPoint가 손상 처리 →
+    # numRef/numCache를 strRef/strCache로 변환(개수·구조는 유지)
+    if is_num and values and not all(_isnum(x) for x in values):
+        ref.tag = Q("strRef"); cache.tag = Q("strCache")
+        fc = cache.find(Q("formatCode"))
+        if fc is not None: cache.remove(fc)  # strCache에는 formatCode 없음
+        is_num = False
+    for i, pt in enumerate(pts):
+        v = pt.find(Q("v"))
+        if v is None: continue
+        v.text = str(values[i]) if i < len(values) else ("0" if is_num else "")
+
+def _chart_embed_path(chart_path: Path, embed_dir: Path):
+    """차트 rels에서 연동된 embeddings/*.xlsx 경로 반환(없으면 None — 예: OLE 객체)."""
+    rels = chart_path.parent / "_rels" / (chart_path.name + ".rels")
+    if not rels.exists(): return None
+    m = re.search(r'Target="[^"]*embeddings/([^"]+\.xlsx)"', rels.read_text(encoding="utf-8"))
+    return (embed_dir / m.group(1)) if m else None
+
+def _update_chart_xlsx(embed_path: Path, cats: list, series: list) -> None:
+    """임베디드 워크북 갱신: A열=범주, B/C/…=시리즈 값, 1행=시리즈명(데이터 편집 일관성)."""
+    try:
+        import openpyxl
+        wb = openpyxl.load_workbook(str(embed_path))
+    except Exception:
+        return
+    ws = wb.worksheets[0]
+    for r in range(1, 40):
+        for c in range(1, 10):
+            ws.cell(row=r, column=c, value=None)
+    for j, s in enumerate(series):
+        ws.cell(row=1, column=2 + j, value=s.get("name", ""))
+    nrows = max([len(cats)] + [len(s.get("values", [])) for s in series] + [0])
+    for r in range(nrows):
+        if r < len(cats): ws.cell(row=2 + r, column=1, value=cats[r])
+        for j, s in enumerate(series):
+            vals = s.get("values", [])
+            if r < len(vals): ws.cell(row=2 + r, column=2 + j, value=vals[r])
+    try: wb.save(str(embed_path))
+    except Exception: pass
+
+def _update_one_chart(chart_path: Path, embed_path, entry: dict) -> None:
+    """chartN.xml 캐시 + 임베디드 xlsx를 entry로 갱신(개수 불변 제자리 덮어쓰기).
+    entry: {"categories":[...], "series":[{"name","values":[...]}], "title"?}
+           또는 단일시리즈 단축 {"categories":[...], "values":[...], "title"?}"""
+    C = _CHART_NS
+    def Q(t): return f"{{{C}}}{t}"
+    _register_chart_ns(chart_path)
+    try:
+        root = ET.parse(chart_path).getroot()
+    except Exception:
+        return
+    cats = [str(c) for c in (entry.get("categories") or [])]
+    series = entry.get("series")
+    if not series and entry.get("values") is not None:
+        series = [{"name": entry.get("title", ""), "values": entry.get("values")}]
+    series = series or []
+    for i, ser in enumerate(root.findall(f".//{Q('ser')}")):
+        sdata = series[i] if i < len(series) else None
+        tx = ser.find(Q("tx"))
+        if tx is not None:
+            if sdata and sdata.get("name"):
+                _chart_overwrite_cache(tx, [sdata["name"]])
+            elif sdata is None:
+                _chart_overwrite_cache(tx, [""])      # 미제공 시리즈 라벨 비움
+        cat = ser.find(Q("cat"))
+        if cat is not None and cats:
+            _chart_overwrite_cache(cat, cats)
+        val = ser.find(Q("val"))
+        if val is not None:
+            _chart_overwrite_cache(val, sdata.get("values", []) if sdata else [])
+    _write_xml(root, chart_path)
+    if embed_path is not None and embed_path.exists():
+        _update_chart_xlsx(embed_path, cats, series)
+
+def _update_chart_data(work_dir: Path, plan: dict) -> None:
+    """차트 레이아웃(slide40/41/43)의 차트 데이터를 plan content.chart_data로 주입.
+    harness/chart_map.json: 슬라이드→차트파일(시각 순서). chart_data[i] → charts[i].
+    각 차트 데이터포인트 개수는 템플릿 고정 — chart_map data_hint 개수에 맞춰 제공."""
+    cmap_path = Path(__file__).parent / "harness" / "chart_map.json"
+    if not cmap_path.exists(): return
+    try:
+        cmap = json.loads(cmap_path.read_text(encoding="utf-8"))
+    except Exception:
+        return
+    charts_dir = work_dir / "unpacked" / "ppt" / "charts"
+    embed_dir  = work_dir / "unpacked" / "ppt" / "embeddings"
+    updated = 0
+    for slide in plan.get("slides", []):
+        spec = cmap.get(slide.get("template_file", ""))
+        if not spec: continue
+        chart_data = slide.get("content", {}).get("chart_data") or []
+        for ci, cf in enumerate(spec.get("charts", [])):
+            entry = chart_data[ci] if ci < len(chart_data) else None
+            chart_path = charts_dir / cf
+            if not entry or not chart_path.exists(): continue
+            _update_one_chart(chart_path, _chart_embed_path(chart_path, embed_dir), entry)
+            updated += 1
+    if updated:
+        print(f"  ✓ 차트 데이터 주입: {updated}개 차트 (캐시 제자리 갱신+임베디드 xlsx)")
 
 
 def _add_slide_to_presentation(work_dir: Path, slide_filename: str,
@@ -2358,8 +2516,7 @@ _BANNED_SLIDES: set[str] = {
     "slide21.xml", "slide22.xml",
     # layout_variants 자동 선택 전용 (LLM 직접 지정 금지)
     "slide28.xml",
-    # 차트 고정 (Excel 데이터 임베딩 미완성 — 추후 과제)
-    "slide40.xml", "slide41.xml", "slide43.xml",
+    # (slide40/41/43 차트는 Excel 연동 완성으로 un-ban — _update_chart_data가 데이터 주입)
 }
 
 # ── 콘텐츠 유형별 슬라이드 카탈로그 ───────────────────────────────
@@ -2397,7 +2554,10 @@ _ALLOWED_CONTENT_SLIDES: list[str] = [
     "slide39.xml",  # ✅ 4열 흐름도 (keyword/solution/detail/service)
     "slide42.xml",  # ✅ 대형 본문 텍스트 박스
     # slide28: layout_variants로 자동 선택 (LLM 직접 지정 금지)
-    # slide40~41/43(차트)는 _BANNED — Excel 임베딩 미완성
+    # 차트 레이아웃 (Excel 연동 완성 — content.chart_data로 캐시+임베디드 xlsx 갱신)
+    "slide40.xml",  # ✅ 도넛 차트 3개 (KPI/비율)
+    "slide41.xml",  # ✅ 막대 차트 (다범주 비교)
+    "slide43.xml",  # ✅ 막대 차트 (시계열/증감)
 ]
 
 # 레이아웃별 필수 콘텐츠 필드 — 하나도 없으면 텍스트 배너(slide32)로 리맵.
@@ -2407,6 +2567,9 @@ _LAYOUT_CONTENT_REQ: dict[str, list[str]] = {
     "slide31.xml": ["quarters"],
     "slide33.xml": ["quarters"],
     "slide30.xml": ["steps"],
+    "slide40.xml": ["chart_data"],
+    "slide41.xml": ["chart_data"],
+    "slide43.xml": ["chart_data"],
     "slide38.xml": ["keywords"],
     "slide35.xml": ["before", "after"],
     "slide36.xml": ["as_is", "to_be"],
@@ -6730,6 +6893,9 @@ def run_ppt_generation(
 
     # ── 사용 슬라이드만 남기기 (plan에 없는 슬라이드 제거) ────
     _trim_to_plan_slides(work_dir, plan)
+
+    # ── 차트 데이터 주입 (slide40/41/43 Excel 연동) — 패킹 전 unpacked 차트에 적용 ──
+    _update_chart_data(work_dir, plan)
 
     # ── 패킹 ─────────────────────────────────────
     output = work_dir / "output.pptx"

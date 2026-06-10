@@ -1,0 +1,18 @@
+{
+  "_comment": "차트 레이아웃 → 차트 파일(시각 순서, 좌→우) + 타입. plan content.chart_data[i]가 charts[i]에 매핑된다. _update_chart_data가 chartN.xml 캐시 + 임베디드 xlsx를 갱신해 템플릿 더미값을 실제 수치로 교체.",
+  "slide40.xml": {
+    "type": "doughnut",
+    "charts": ["chart1.xml", "chart2.xml", "chart3.xml"],
+    "data_hint": "도넛 3개(좌→우). 각 chart_data 항목 = {title, values:[정확히 3개 세그먼트]}. 값 개수는 템플릿 고정(3) — 적게 주면 나머지 0. 범주 라벨 캐시 없음(미표시)."
+  },
+  "slide41.xml": {
+    "type": "bar",
+    "charts": ["chart4.xml"],
+    "data_hint": "막대(최대 3시리즈×범주). chart_data[0] = {categories:[…], series:[{name, values:[…]}…]}. 시리즈 적게 주면 나머지는 0."
+  },
+  "slide43.xml": {
+    "type": "bar",
+    "charts": ["chart5.xml"],
+    "data_hint": "막대(최대 2시리즈×범주, 음수 가능). chart_data[0] = {categories:[…], series:[{name, values:[…]}…]}. chart5는 OLE라 임베디드 xlsx 없음 → 캐시만 갱신."
+  }
+}

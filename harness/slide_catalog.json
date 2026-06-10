@@ -1,47 +1,155 @@
 {
   "verified_slides": {
-    "slide6.xml":  {"role": "cover",   "desc": "표지"},
-    "slide7.xml":  {"role": "toc",     "desc": "목차"},
-    "slide9.xml":  {"role": "content", "desc": "3열 이미지+제목+설명"},
-    "slide10.xml": {"role": "content", "desc": "3열 이미지+제목+설명 + 인사이트 배너"},
-    "slide11.xml": {"role": "content", "desc": "3행 이미지+제목+설명"},
-    "slide12.xml": {"role": "content", "desc": "3행 이미지+제목+설명 + 서브헤딩 바"},
-    "slide13.xml": {"role": "content", "desc": "3열 네이비헤더+이미지+설명+인사이트"},
-    "slide14.xml": {"role": "content", "desc": "4열 네이비헤더+설명+인사이트"},
-    "slide15.xml": {"role": "content", "desc": "3열 + 서브헤딩 바 (slide13 패턴)"},
-    "slide16.xml": {"role": "content", "desc": "4열 네이비헤더+이미지+설명 + 서브헤딩 바"},
-    "slide17.xml": {"role": "content", "desc": "4항목 + 이미지"},
-    "slide18.xml": {"role": "content", "desc": "2 이미지 슬롯 (좌우 대형)"},
-    "slide19.xml": {"role": "content", "desc": "3 이미지 슬롯"},
-    "slide20.xml": {"role": "content", "desc": "4 이미지 그리드 (2×2)"},
-    "slide21.xml": {"role": "content", "desc": "이미지 + 2 텍스트블록 + 하단 핵심 배너"},
-    "slide22.xml": {"role": "content", "desc": "이미지 + 본문설명 + 하단 3불릿 배너"},
-    "slide24.xml": {"role": "content", "desc": "미디어(영상)형 + 좌측 2 텍스트블록"},
-    "slide25.xml": {"role": "content", "desc": "이미지 + 3항목 overview+3행"},
-    "slide26.xml": {"role": "content", "desc": "이미지 + 3항목 상세"},
-    "slide27.xml": {"role": "content", "desc": "이미지(좌) + 우측 3행 패널"},
-    "slide28.xml": {"role": "content", "desc": "이미지(좌) + 우측 3행 패널 (본문제목 3줄↑ 변형)"},
-    "slide29.xml": {"role": "timeline","desc": "대각선 계단형 타임라인 (periods)"},
-    "slide30.xml": {"role": "steps",   "desc": "4열 step + 하단 4×4 grid"},
-    "slide31.xml": {"role": "quarterly","desc": "분기별 타임라인 Q1→Q4 (quarters)"},
-    "slide33.xml": {"role": "quarterly","desc": "분기별 타임라인 (slide31 변형)"},
-    "slide34.xml": {"role": "content", "desc": "2이미지 + 키워드 4개"},
-    "slide35.xml": {"role": "content", "desc": "Before / After 버블 키워드"},
-    "slide36.xml": {"role": "content", "desc": "As-is / To-be 벤다이어그램"},
-    "slide37.xml": {"role": "content", "desc": "3구역 텍스트 (2025→2026)"},
-    "slide38.xml": {"role": "flow",    "desc": "3행 흐름도 keyword→solution→service"},
-    "slide39.xml": {"role": "flow",    "desc": "4열 상세 흐름도"},
-    "slide42.xml": {"role": "content", "desc": "대형 본문 + 3원형"},
-    "slide46.xml": {"role": "closing", "desc": "감사합니다 — 편집 금지"}
+    "slide6.xml": {
+      "role": "cover",
+      "desc": "표지"
+    },
+    "slide7.xml": {
+      "role": "toc",
+      "desc": "목차"
+    },
+    "slide9.xml": {
+      "role": "content",
+      "desc": "3열 이미지+제목+설명"
+    },
+    "slide10.xml": {
+      "role": "content",
+      "desc": "3열 이미지+제목+설명 + 인사이트 배너"
+    },
+    "slide11.xml": {
+      "role": "content",
+      "desc": "3행 이미지+제목+설명"
+    },
+    "slide12.xml": {
+      "role": "content",
+      "desc": "3행 이미지+제목+설명 + 서브헤딩 바"
+    },
+    "slide13.xml": {
+      "role": "content",
+      "desc": "3열 네이비헤더+이미지+설명+인사이트"
+    },
+    "slide14.xml": {
+      "role": "content",
+      "desc": "4열 네이비헤더+설명+인사이트"
+    },
+    "slide15.xml": {
+      "role": "content",
+      "desc": "3열 + 서브헤딩 바 (slide13 패턴)"
+    },
+    "slide16.xml": {
+      "role": "content",
+      "desc": "4열 네이비헤더+이미지+설명 + 서브헤딩 바"
+    },
+    "slide17.xml": {
+      "role": "content",
+      "desc": "4항목 + 이미지"
+    },
+    "slide18.xml": {
+      "role": "content",
+      "desc": "2 이미지 슬롯 (좌우 대형)"
+    },
+    "slide19.xml": {
+      "role": "content",
+      "desc": "3 이미지 슬롯"
+    },
+    "slide20.xml": {
+      "role": "content",
+      "desc": "4 이미지 그리드 (2×2)"
+    },
+    "slide21.xml": {
+      "role": "content",
+      "desc": "이미지 + 2 텍스트블록 + 하단 핵심 배너"
+    },
+    "slide22.xml": {
+      "role": "content",
+      "desc": "이미지 + 본문설명 + 하단 3불릿 배너"
+    },
+    "slide24.xml": {
+      "role": "content",
+      "desc": "미디어(영상)형 + 좌측 2 텍스트블록"
+    },
+    "slide25.xml": {
+      "role": "content",
+      "desc": "이미지 + 3항목 overview+3행"
+    },
+    "slide26.xml": {
+      "role": "content",
+      "desc": "이미지 + 3항목 상세"
+    },
+    "slide27.xml": {
+      "role": "content",
+      "desc": "이미지(좌) + 우측 3행 패널"
+    },
+    "slide28.xml": {
+      "role": "content",
+      "desc": "이미지(좌) + 우측 3행 패널 (본문제목 3줄↑ 변형)"
+    },
+    "slide29.xml": {
+      "role": "timeline",
+      "desc": "대각선 계단형 타임라인 (periods)"
+    },
+    "slide30.xml": {
+      "role": "steps",
+      "desc": "4열 step + 하단 4×4 grid"
+    },
+    "slide31.xml": {
+      "role": "quarterly",
+      "desc": "분기별 타임라인 Q1→Q4 (quarters)"
+    },
+    "slide33.xml": {
+      "role": "quarterly",
+      "desc": "분기별 타임라인 (slide31 변형)"
+    },
+    "slide34.xml": {
+      "role": "content",
+      "desc": "2이미지 + 키워드 4개"
+    },
+    "slide35.xml": {
+      "role": "content",
+      "desc": "Before / After 버블 키워드"
+    },
+    "slide36.xml": {
+      "role": "content",
+      "desc": "As-is / To-be 벤다이어그램"
+    },
+    "slide37.xml": {
+      "role": "content",
+      "desc": "3구역 텍스트 (2025→2026)"
+    },
+    "slide38.xml": {
+      "role": "flow",
+      "desc": "3행 흐름도 keyword→solution→service"
+    },
+    "slide39.xml": {
+      "role": "flow",
+      "desc": "4열 상세 흐름도"
+    },
+    "slide42.xml": {
+      "role": "content",
+      "desc": "대형 본문 + 3원형"
+    },
+    "slide46.xml": {
+      "role": "closing",
+      "desc": "감사합니다 — 편집 금지"
+    },
+    "slide40.xml": {
+      "role": "charts",
+      "desc": "도넛 차트 3개 (KPI/달성률)"
+    },
+    "slide41.xml": {
+      "role": "charts",
+      "desc": "막대 차트 (다범주 비교)"
+    },
+    "slide43.xml": {
+      "role": "charts",
+      "desc": "막대 차트 (시계열/증감)"
+    }
   },
   "unverified_slides": {},
   "banned_slides": {
-    "slide8.xml":  "section 구분 — 명시 요청 시에만",
+    "slide8.xml": "section 구분 — 명시 요청 시에만",
     "slide23.xml": "복잡한 고정 인포그래픽 — 6 타이틀박스 vs 3설명 슬롯 불일치, 자동 채움 시 설명-박스 정렬 불가",
     "slide32.xml": "내부 콘텐츠 부족 — 실제 프레젠테이션 생성 시 사용 금지",
-    "slide40.xml": "차트 — Excel 임베딩 미완성",
-    "slide41.xml": "차트 — Excel 임베딩 미완성",
-    "slide43.xml": "차트 — Excel 임베딩 미완성",
     "slide44.xml": "closing 전용 — 미검증 변형",
     "slide45.xml": "closing 전용 — 미검증 변형"
   },
@@ -54,23 +162,60 @@
       "font_pt": 20,
       "chars_per_line": 15,
       "thresholds": [
-        {"max_lines": 2, "use": "slide27.xml"},
-        {"min_lines": 3, "use": "slide28.xml"}
+        {
+          "max_lines": 2,
+          "use": "slide27.xml"
+        },
+        {
+          "min_lines": 3,
+          "use": "slide28.xml"
+        }
       ]
     }
   },
   "layout_content_req": {
-    "slide29.xml": ["periods"],
-    "slide31.xml": ["quarters"],
-    "slide33.xml": ["quarters"],
-    "slide30.xml": ["steps"],
-    "slide38.xml": ["keywords"],
-    "slide35.xml": ["before", "after"],
-    "slide36.xml": ["as_is", "to_be"],
-    "slide13.xml": ["items"],
-    "slide15.xml": ["items"]
+    "slide29.xml": [
+      "periods"
+    ],
+    "slide31.xml": [
+      "quarters"
+    ],
+    "slide33.xml": [
+      "quarters"
+    ],
+    "slide30.xml": [
+      "steps"
+    ],
+    "slide38.xml": [
+      "keywords"
+    ],
+    "slide35.xml": [
+      "before",
+      "after"
+    ],
+    "slide36.xml": [
+      "as_is",
+      "to_be"
+    ],
+    "slide13.xml": [
+      "items"
+    ],
+    "slide15.xml": [
+      "items"
+    ],
+    "slide40.xml": [
+      "chart_data"
+    ],
+    "slide41.xml": [
+      "chart_data"
+    ],
+    "slide43.xml": [
+      "chart_data"
+    ]
   },
-  "closing_slides": ["slide46.xml"],
+  "closing_slides": [
+    "slide46.xml"
+  ],
   "cover_slide": {
     "title_id": "12",
     "subtitle_id": "6",
