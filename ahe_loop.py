@@ -200,7 +200,7 @@ def _call_claude_vision(system: str, content: list) -> str | None:
         print("  ⚠ Vision API 없음 — 이미지 분석 건너뜀")
         return None
 
-    model = os.environ.get("ANTHROPIC_DEFAULT_SONNET_MODEL", "us.anthropic.claude-sonnet-4-6")
+    model = os.environ.get("ANTHROPIC_DEFAULT_SONNET_MODEL", "claude-sonnet-4-6")
     messages = [{"role": "user", "content": content}]
 
     try:
@@ -220,13 +220,13 @@ def _call_claude_vision(system: str, content: list) -> str | None:
             return _json.loads(resp["body"].read())["content"][0]["text"].strip()
 
         import anthropic
-        vertex_model = model[len("us.anthropic."):] if model.startswith("us.anthropic.") else model
+        sdk_model = model[len("us.anthropic."):] if model.startswith("us.anthropic.") else model
         client = (
             anthropic.AnthropicVertex(project_id=vertex_proj or "", region=vertex_region or "us-east5")
             if use_vertex else anthropic.Anthropic(api_key=api_key)
         )
         resp = client.messages.create(
-            model=vertex_model if use_vertex else model,
+            model=sdk_model,
             max_tokens=4096,
             thinking={"type": "adaptive"},
             system=system, messages=messages,
@@ -301,7 +301,7 @@ def _call_claude(system: str, user: str) -> str | None:
     if not api_key and not use_vertex and not use_bedrock:
         return None
 
-    model = os.environ.get("ANTHROPIC_DEFAULT_SONNET_MODEL", "us.anthropic.claude-sonnet-4-6")
+    model = os.environ.get("ANTHROPIC_DEFAULT_SONNET_MODEL", "claude-sonnet-4-6")
     messages = [{"role": "user", "content": user}]
 
     try:
@@ -320,13 +320,13 @@ def _call_claude(system: str, user: str) -> str | None:
             return _json.loads(resp["body"].read())["content"][0]["text"].strip()
 
         import anthropic
-        vertex_model = model[len("us.anthropic."):] if model.startswith("us.anthropic.") else model
+        sdk_model = model[len("us.anthropic."):] if model.startswith("us.anthropic.") else model
         client = (
             anthropic.AnthropicVertex(project_id=vertex_proj or "", region=vertex_region or "us-east5")
             if use_vertex else anthropic.Anthropic(api_key=api_key)
         )
         resp = client.messages.create(
-            model=vertex_model if use_vertex else model,
+            model=sdk_model,
             max_tokens=4096,
             thinking={"type": "adaptive"},
             system=system, messages=messages,
