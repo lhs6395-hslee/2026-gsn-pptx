@@ -755,6 +755,128 @@ class TestRestructureSectionsIdempotent(unittest.TestCase):
                 self.assertIn(name, sections, f"표준 섹션 '{name}' 소실")
 
 
+import ahe_loop
+
+
+class TestManifestLedgerBridge(unittest.TestCase):
+    """change_manifest.jsonl 단방향 브리지 (manifest-ledger-split [D]).
+
+    검증 verdict(iteration_*_manifest.json) → authoritative 원장으로의
+    유일한 write 경로. 명시적 manifest_id 링크로만 pending을 해소하고,
+    기존 원장 데이터(필드)는 손실 없이 보존한다.
+    """
+
+    LEDGER_LINES = [
+        {"date": "2026-06-09", "id": "2026-06-09-09",
+         "change": "원장 도입", "files": ["harness/change_manifest.jsonl"],
+         "evidence": "ev", "root_cause": "rc", "fix": "fx",
+         "predicted_fixes": ["pf1"], "regression_risk": [],
+         "verification": "pending (다음 실행부터 자동 기록 연결 예정)"},
+        {"date": "2026-06-09", "id": "2026-06-09-01",
+         "change": "이미 검증됨", "files": ["x"],
+         "evidence": "ev", "root_cause": "rc", "fix": "fx",
+         "predicted_fixes": ["pf"], "regression_risk": [],
+         "verification": "verified (PDF 렌더 확인)"},
+        {"date": "2026-06-10", "id": "2026-06-10-08",
+         "change": "explain 분리", "files": ["y"],
+         "evidence": "ev", "root_cause": "rc", "fix": "fx",
+         "predicted_fixes": ["pf"], "regression_risk": [],
+         "verification": "pending"},
+    ]
+
+    def _write_ledger(self, harness_dir: Path) -> Path:
+        p = harness_dir / "change_manifest.jsonl"
+        p.write_text(
+            "\n".join(json.dumps(e, ensure_ascii=False) for e in self.LEDGER_LINES) + "\n",
+            encoding="utf-8",
+        )
+        return p
+
+    def _read_ledger(self, path: Path) -> list[dict]:
+        return [json.loads(ln) for ln in path.read_text(encoding="utf-8").splitlines() if ln.strip()]
+
+    def test_jsonl_roundtrip_preserves_fields(self):
+        """_load_jsonl/_save_jsonl 왕복: 모든 필드·줄 수 보존, 빈 줄/손상 줄 스킵."""
+        with tempfile.TemporaryDirectory() as td:
+            p = Path(td) / "m.jsonl"
+            raw = (
+                json.dumps(self.LEDGER_LINES[0], ensure_ascii=False) + "\n"
+                + "\n"  # 빈 줄
+                + "not-json{\n"  # 손상 줄
+                + json.dumps(self.LEDGER_LINES[2], ensure_ascii=False) + "\n"
+            )
+            p.write_text(raw, encoding="utf-8")
+
+            entries = ahe_loop._load_jsonl(p)
+            self.assertEqual(len(entries), 2, "유효 2줄만 로드되어야 함")
+            self.assertEqual(entries[0], self.LEDGER_LINES[0])
+
+            ahe_loop._save_jsonl(p, entries)
+            again = ahe_loop._load_jsonl(p)
+            self.assertEqual(again, entries, "왕복 후 동일해야 함")
+
+    def test_bridge_pass_marks_verified(self):
+        """manifest_id 링크 + PASS → 해당 pending 엔트리가 verified로 해소."""
+        with tempfile.TemporaryDirectory() as td:
+            harness = Path(td)
+            ledger = self._write_ledger(harness)
+            preds = [{"change": "c", "expected": "e", "metric": "m",
+                      "manifest_id": "2026-06-09-09", "verification": "PASS"}]
+            with patch.object(ahe_loop, "SKILL_DIR", harness.parent):
+                n = ahe_loop.bridge_verdicts_to_ledger(preds, harness)
+            self.assertEqual(n, 1)
+            entries = {e["id"]: e for e in self._read_ledger(ledger)}
+            self.assertTrue(entries["2026-06-09-09"]["verification"].startswith("verified"))
+            self.assertIn("verified_at", entries["2026-06-09-09"])
+            self.assertEqual(entries["2026-06-09-09"]["verified_by_run"], "verify_predictions")
+            # 기존 prose 꼬리말 보존
+            self.assertIn("자동 기록 연결", entries["2026-06-09-09"]["verification"])
+
+    def test_bridge_fail_marks_refuted(self):
+        """manifest_id 링크 + FAIL → pending 엔트리가 refuted로 해소."""
+        with tempfile.TemporaryDirectory() as td:
+            harness = Path(td)
+            ledger = self._write_ledger(harness)
+            preds = [{"manifest_id": "2026-06-10-08", "verification": "FAIL"}]
+            ahe_loop.bridge_verdicts_to_ledger(preds, harness)
+            entries = {e["id"]: e for e in self._read_ledger(ledger)}
+            self.assertTrue(entries["2026-06-10-08"]["verification"].startswith("refuted"))
+
+    def test_bridge_skips_already_resolved(self):
+        """이미 verified인 엔트리는 verdict가 와도 덮어쓰지 않는다(큐레이션 존중)."""
+        with tempfile.TemporaryDirectory() as td:
+            harness = Path(td)
+            ledger = self._write_ledger(harness)
+            preds = [{"manifest_id": "2026-06-09-01", "verification": "FAIL"}]
+            n = ahe_loop.bridge_verdicts_to_ledger(preds, harness)
+            self.assertEqual(n, 0, "이미 verified는 갱신 안 함")
+            entries = {e["id"]: e for e in self._read_ledger(ledger)}
+            self.assertEqual(entries["2026-06-09-01"]["verification"],
+                             "verified (PDF 렌더 확인)")
+
+    def test_bridge_no_match_no_write(self):
+        """manifest_id 없거나 UNVERIFIED면 원장 무변경 (단방향·보수적)."""
+        with tempfile.TemporaryDirectory() as td:
+            harness = Path(td)
+            ledger = self._write_ledger(harness)
+            before = ledger.read_bytes()
+            preds = [
+                {"change": "c", "metric": "m", "verification": "PASS"},          # manifest_id 없음
+                {"manifest_id": "2026-06-09-09", "verification": "UNVERIFIED"},  # 결정 불가
+                {"manifest_id": "9999-99-99", "verification": "PASS"},            # 매칭 id 없음
+            ]
+            n = ahe_loop.bridge_verdicts_to_ledger(preds, harness)
+            self.assertEqual(n, 0)
+            self.assertEqual(ledger.read_bytes(), before, "원장 바이트 불변")
+
+    def test_bridge_missing_ledger_safe(self):
+        """원장 파일이 없으면 0 반환·예외 없음."""
+        with tempfile.TemporaryDirectory() as td:
+            harness = Path(td)  # change_manifest.jsonl 없음
+            preds = [{"manifest_id": "x", "verification": "PASS"}]
+            self.assertEqual(ahe_loop.bridge_verdicts_to_ledger(preds, harness), 0)
+
+
 # ---------------------------------------------------------------------------
 # 글로벌 캐시 리셋 픽스처
 # ---------------------------------------------------------------------------

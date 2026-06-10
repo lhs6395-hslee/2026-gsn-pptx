@@ -25,6 +25,33 @@ def _save_json(path: Path, data: dict) -> None:
     path.write_text(json.dumps(data, ensure_ascii=False, indent=2))
 
 
+def _load_jsonl(path: Path) -> list[dict]:
+    """change_manifest.jsonl 원장을 1줄=1엔트리 리스트로 로드한다.
+
+    빈 줄·파싱 불가 줄은 건너뛴다(데이터 손실 방지: 원본은 그대로 둠).
+    """
+    if not path.exists():
+        return []
+    entries: list[dict] = []
+    for ln in path.read_text(encoding="utf-8").splitlines():
+        ln = ln.strip()
+        if not ln:
+            continue
+        try:
+            entries.append(json.loads(ln))
+        except json.JSONDecodeError:
+            # 손상 줄은 보존을 위해 무시하지 않고 그대로 둘 수 없으므로
+            # 안전하게 건너뛴다(write-back 시 재기록 안 함 → 호출부에서 미사용).
+            continue
+    return entries
+
+
+def _save_jsonl(path: Path, entries: list[dict]) -> None:
+    """엔트리 리스트를 1줄=1엔트리 JSONL로 원자적 재기록한다."""
+    lines = [json.dumps(e, ensure_ascii=False) for e in entries]
+    path.write_text("\n".join(lines) + ("\n" if lines else ""), encoding="utf-8")
+
+
 # ── ❷ Experience Observability ───────────────────────────────
 
 def collect_trace(work_dir: Path, topic: str) -> dict:
@@ -397,9 +424,14 @@ PPT 생성 시스템의 실행 결과(digest)를 분석하고 하네스 파일�
   },
   "claude_md_append": "CLAUDE.md 끝에 추가할 텍스트 (없으면 null)",
   "predictions": [
-    { "change": "변경 내용", "expected": "기대 효과", "metric": "검증 방법" }
+    { "change": "변경 내용", "expected": "기대 효과", "metric": "검증 방법",
+      "manifest_id": "연결된 change_manifest.jsonl 엔트리 id (없으면 null)" }
   ]
-}"""
+}
+
+manifest_id는 이 예측이 검증하는 change_manifest.jsonl 원장 엔트리의 id(예: "2026-06-10-08")를
+가리킨다. 해당 엔트리가 verification:'pending'이면 다음 라운드에 자동으로 verified/refuted로 해소된다.
+연결 대상이 없으면 null."""
 
     vision = digest.get("vision", {})
     vision_block = ""
@@ -559,6 +591,76 @@ def verify_predictions(current_digest: dict, evolution_dir: Path) -> None:
 
     n_pass = sum(1 for v in verified if v["verification"] == "PASS")
     print(f"  ✓ 예측 검증: {n_pass}/{len(verified)} PASS (이전 manifest: {prev_manifest_path.name})")
+
+    # ── 단방향 브리지: 검증 결과 → change_manifest.jsonl 원장 ──
+    # iteration_*_manifest.json(휘발성 per-run)의 검증 verdict를
+    # authoritative 원장(change_manifest.jsonl)의 pending 엔트리로 흘려보낸다.
+    # 역방향(원장→manifest) 금지. 스키마는 분리 유지하고 verdict만 매핑.
+    bridge_verdicts_to_ledger(verified, SKILL_DIR / "harness")
+
+
+# ── ❸ Decision Observability — 원장 브리지 ────────────────────
+
+# iteration manifest의 검증 결과(PASS/FAIL) → 원장 verification 매핑
+_VERDICT_TO_LEDGER = {"PASS": "verified", "FAIL": "refuted"}
+
+
+def bridge_verdicts_to_ledger(verified_predictions: list[dict],
+                              harness_dir: Path) -> int:
+    """단방향 브리지: 검증된 per-run 예측의 verdict를 change_manifest.jsonl로 옮긴다.
+
+    `change_manifest.jsonl`이 authoritative 결정 관찰성 원장(AHE_PRINCIPLES §4/§5③).
+    이 원장에 write하는 코드가 0건이라 `verification:'pending'` 엔트리는
+    영영 갱신되지 않았다. 이 브리지가 그 유일한 write 경로다.
+
+    매칭은 **명시적 링크**(prediction['manifest_id'] == ledger entry['id'])로만 한다.
+    텍스트 휴리스틱 매칭은 큐레이션된 엔트리를 잘못 뒤집을 수 있어 금지.
+    PASS→verified, FAIL→refuted. UNVERIFIED 등 결정 불가 verdict는 건너뛴다.
+
+    기존 원장 데이터는 보존(필드 손실 없음): 추가로
+    `verified_at`/`verified_by_run` 메타만 덧붙이고, 기존 `verification`
+    prose가 'pending' prefix일 때만 상태 토큰을 교체한다.
+
+    Returns: 갱신된 원장 엔트리 수.
+    """
+    ledger_path = harness_dir / "change_manifest.jsonl"
+    entries = _load_jsonl(ledger_path)
+    if not entries:
+        return 0
+
+    # manifest_id → verdict(PASS/FAIL) 매핑 (결정 가능한 것만)
+    verdict_by_id: dict[str, str] = {}
+    for pred in verified_predictions:
+        mid = pred.get("manifest_id")
+        verdict = pred.get("verification")
+        if mid and verdict in _VERDICT_TO_LEDGER:
+            verdict_by_id[mid] = verdict  # 같은 id 다건이면 마지막 verdict 채택
+
+    if not verdict_by_id:
+        return 0
+
+    now = datetime.utcnow().isoformat()
+    updated = 0
+    for entry in entries:
+        eid = entry.get("id")
+        if eid not in verdict_by_id:
+            continue
+        current = str(entry.get("verification", ""))
+        # pending 상태만 해소 (이미 verified/refuted면 큐레이션 결과 존중)
+        if not current.lower().startswith("pending"):
+            continue
+        new_state = _VERDICT_TO_LEDGER[verdict_by_id[eid]]
+        # 기존 prose 보존: 'pending …' 꼬리말은 유지하되 상태 토큰만 교체
+        tail = current[len("pending"):].lstrip(" :—-")
+        entry["verification"] = f"{new_state} (auto-bridge)" + (f" — {tail}" if tail else "")
+        entry["verified_at"] = now
+        entry["verified_by_run"] = "verify_predictions"
+        updated += 1
+
+    if updated:
+        _save_jsonl(ledger_path, entries)
+        print(f"  ✓ 원장 브리지: change_manifest.jsonl {updated}건 pending→해소")
+    return updated
 
 
 # ── 장기 기억 통계 업데이트 ───────────────────────────────────
