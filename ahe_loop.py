@@ -7,8 +7,10 @@ AHE 세 기둥 구현:
 from __future__ import annotations
 
 import json
+import os
 import subprocess
 import sys
+from dataclasses import dataclass, field
 from datetime import datetime
 from pathlib import Path
 
@@ -50,6 +52,208 @@ def _save_jsonl(path: Path, entries: list[dict]) -> None:
     """엔트리 리스트를 1줄=1엔트리 JSONL로 원자적 재기록한다."""
     lines = [json.dumps(e, ensure_ascii=False) for e in entries]
     path.write_text("\n".join(lines) + ("\n" if lines else ""), encoding="utf-8")
+
+
+# ── 독립 QA verdict 스키마 (#13 independent-qa-not-implemented) ─────────────
+# AHE_PRINCIPLES §2(생성≠판정) + §1(명시적·채점 가능 기준).
+# 독립 격리 QA 에이전트(SKILL.md 11단계)는 지금까지 prose 프롬프트로만 존재했고
+# 코드화된 스키마·결과 파싱이 없어, 그 종합 판정이 F1 루프(qa_ok)로 흘러갈 정형
+# 인터페이스가 없었다. 아래가 그 인터페이스다: verdict를 채점 가능한 구조로 코드화하고,
+# 임의의 에이전트 출력(JSON 또는 prose)을 그 구조로 관용 파싱한다.
+#
+# 이 모듈은 *인터페이스/스키마 우선*이다. 실제 에이전트 spawn은 optional이며
+# (run_independent_qa의 spawn 콜백 주입), 비대화형/headless에서는 죽지 않고
+# qa_ok=None(판정 보류) verdict로 안전 폴백한다.
+
+VERDICT_PASS = "pass"          # 이슈 없음 → qa_ok=True
+VERDICT_NEEDS_FIX = "needs_fix"  # 수정 필요 → qa_ok=False
+VERDICT_DEFERRED = "deferred"    # 독립 판정 보류(에이전트 미가용) → qa_ok=None
+
+_VERDICT_TO_QA_OK = {
+    VERDICT_PASS: True,
+    VERDICT_NEEDS_FIX: False,
+    VERDICT_DEFERRED: None,
+}
+
+# 에이전트 prose 종합 판정 → 정식 verdict 토큰 (관용 매핑, 한/영)
+_PASS_TOKENS = ("pass", "통과", "이슈 없음", "이슈없음", "ok", "approved", "no issues")
+_FAIL_TOKENS = ("needs_fix", "needs fix", "수정 필요", "수정필요", "fail", "이슈 있음",
+                "rejected", "issues found")
+
+
+@dataclass
+class QaVerdict:
+    """독립 QA 에이전트의 채점 가능한 종합 판정 (§1 concrete/gradable terms).
+
+    `verdict`는 VERDICT_PASS / VERDICT_NEEDS_FIX / VERDICT_DEFERRED 중 하나.
+    `issues`는 슬라이드별 발견 목록(없으면 빈 리스트). `summary`는 1~2줄 요약.
+    `independent`는 이 판정이 **생성 컨텍스트를 모르는 분리 에이전트**에서 왔는지
+    (True)를 표시한다 — §2 확증편향 차단의 런타임 표식. 인라인 자기-QA가
+    잘못 verdict로 승격되는 것을 막기 위해 기본 False.
+    """
+
+    verdict: str = VERDICT_DEFERRED
+    issues: list[dict] = field(default_factory=list)
+    summary: str = ""
+    independent: bool = False
+
+    def __post_init__(self) -> None:
+        if self.verdict not in _VERDICT_TO_QA_OK:
+            self.verdict = VERDICT_DEFERRED
+
+    @property
+    def qa_ok(self) -> bool | None:
+        """F1 루프(update_last_run_qa / maybe_run_evolve_loop)에 넘길 3-값.
+
+        독립 판정이 아니면(self.independent=False) PASS여도 qa_ok로 승격하지
+        않는다 — §2: 생성자 자기-QA는 '통과'를 주장할 자격이 없다(deferred 취급).
+        NEEDS_FIX(결함 보고)는 분리 여부와 무관하게 False로 신뢰한다.
+        """
+        if self.verdict == VERDICT_NEEDS_FIX:
+            return False
+        if not self.independent:
+            return None
+        return _VERDICT_TO_QA_OK[self.verdict]
+
+    def to_dict(self) -> dict:
+        return {
+            "verdict": self.verdict,
+            "issues": self.issues,
+            "summary": self.summary,
+            "independent": self.independent,
+            "qa_ok": self.qa_ok,
+        }
+
+
+def parse_verdict(raw: object, *, independent: bool = False) -> QaVerdict:
+    """독립 QA 에이전트의 임의 출력 → QaVerdict로 관용 파싱한다 (결과 파싱 코드화).
+
+    허용 입력:
+      - dict: {"verdict": "...", "issues": [...], "summary": "..."} (정식)
+      - dict: SKILL.md 11단계 리포트형 {"slides": [{"issues": [...]}], "summary": ...}
+      - str:  ```json 펜스 포함 가능 → JSON 시도 후 실패 시 prose 토큰 매칭
+      - None/빈 값: VERDICT_DEFERRED (에이전트 미가용)
+
+    파싱 불가/모호하면 결함을 *날조하지 않고* DEFERRED로 떨어진다(보수적).
+    """
+    if raw is None or raw == "" or raw == {}:
+        return QaVerdict(verdict=VERDICT_DEFERRED, independent=independent)
+
+    data: object = raw
+    if isinstance(raw, str):
+        s = raw.strip()
+        if s.startswith("```"):
+            import re
+            s = re.sub(r"^```[a-z]*\n?", "", s)
+            s = re.sub(r"\n?```$", "", s).strip()
+        try:
+            data = json.loads(s)
+        except (json.JSONDecodeError, ValueError):
+            # prose: 종합 판정 토큰만 본다. FAIL 신호 우선(보수적).
+            low = s.lower()
+            if any(t in low for t in _FAIL_TOKENS):
+                return QaVerdict(VERDICT_NEEDS_FIX, summary=s[:200],
+                                 independent=independent)
+            if any(t in low for t in _PASS_TOKENS):
+                return QaVerdict(VERDICT_PASS, summary=s[:200],
+                                 independent=independent)
+            return QaVerdict(VERDICT_DEFERRED, summary=s[:200],
+                             independent=independent)
+
+    if not isinstance(data, dict):
+        return QaVerdict(verdict=VERDICT_DEFERRED, independent=independent)
+
+    # 정식 스키마
+    if "verdict" in data:
+        v = str(data.get("verdict", "")).strip().lower()
+        if v not in _VERDICT_TO_QA_OK:
+            # 자유 토큰 → 정식 토큰 매핑
+            if any(t in v for t in _FAIL_TOKENS):
+                v = VERDICT_NEEDS_FIX
+            elif any(t in v for t in _PASS_TOKENS):
+                v = VERDICT_PASS
+            else:
+                v = VERDICT_DEFERRED
+        return QaVerdict(
+            verdict=v,
+            issues=list(data.get("issues", []) or []),
+            summary=str(data.get("summary", "")),
+            independent=independent,
+        )
+
+    # 리포트형(slides[].issues) → 종합 verdict 도출
+    issues: list[dict] = []
+    for slide in data.get("slides", []) or []:
+        for iss in slide.get("issues", []) or []:
+            issues.append({"slide": slide.get("index"),
+                           "role": slide.get("role"), **iss})
+    if "slides" in data:
+        v = VERDICT_NEEDS_FIX if issues else VERDICT_PASS
+        return QaVerdict(verdict=v, issues=issues,
+                         summary=str(data.get("summary", "")),
+                         independent=independent)
+
+    return QaVerdict(verdict=VERDICT_DEFERRED,
+                     summary=str(data.get("summary", "")),
+                     independent=independent)
+
+
+def _is_headless() -> bool:
+    """현재 실행이 headless(오케스트레이터 없는 비대화형)인지 추정한다.
+
+    PPT_SKILL_HEADLESS=1 이 명시되면 그 값을 신뢰한다(main.py --evolve 경로가 설정).
+    그 외에는 stdin이 tty가 아니면 headless로 본다(파이프/cron/CI).
+    오케스트레이터(Claude Code 세션)에서 inline_vision_qa를 켜는 것을 차단하는 게 목적.
+    """
+    explicit = os.environ.get("PPT_SKILL_HEADLESS")
+    if explicit is not None:
+        return explicit not in ("0", "", "false", "False")
+    try:
+        return not sys.stdin.isatty()
+    except (ValueError, AttributeError):
+        return True
+
+
+def assert_inline_qa_headless_only() -> None:
+    """인라인 vision QA(analyze_qa_images)가 headless 폴백에서만 돌도록 런타임 보장.
+
+    AHE_PRINCIPLES §2: 인라인 vision QA는 생성과 동일 프로세스의 자기-검증이라
+    확증편향 위험이 있다. 오케스트레이터 세션(대화형)에서 호출되면 §2 위반이므로
+    RuntimeError로 막는다. PPT_SKILL_ALLOW_INLINE_QA=1 로 명시 오버라이드 가능
+    (테스트/특수 상황용).
+    """
+    if os.environ.get("PPT_SKILL_ALLOW_INLINE_QA") == "1":
+        return
+    if not _is_headless():
+        raise RuntimeError(
+            "인라인 vision QA(analyze_qa_images)는 headless 폴백 전용입니다 "
+            "(AHE_PRINCIPLES §2 생성≠판정). 오케스트레이터 세션에서는 SKILL.md "
+            "11단계의 독립 격리 QA 에이전트를 사용하세요. "
+            "강제하려면 PPT_SKILL_ALLOW_INLINE_QA=1."
+        )
+
+
+def run_independent_qa(pptx_path: Path, topic: str,
+                       spawn=None) -> QaVerdict:
+    """독립 격리 QA 에이전트 호출의 코드화된 진입점 (#13, §2 분리).
+
+    `spawn`은 (pptx_path, topic) → 에이전트 raw 출력(str|dict)을 반환하는 콜백이다.
+    오케스트레이터(Claude Code 세션)가 Agent tool로 독립 에이전트를 띄워 그 출력을
+    여기로 넘긴다 — 그 콜백은 plan·생성 근거를 전달받지 않는다(독립=True).
+
+    spawn=None(비대화형/headless, 또는 콜백 미주입)이면 **죽지 않고** DEFERRED
+    verdict(qa_ok=None)로 폴백한다 — 닫히지 않은 run은 진화 대상에서 빠진다(§1·#12).
+    """
+    if spawn is None:
+        return QaVerdict(verdict=VERDICT_DEFERRED,
+                         summary="독립 QA 에이전트 미주입 — 판정 보류(headless 폴백)",
+                         independent=False)
+    try:
+        raw = spawn(pptx_path, topic)
+    except Exception as e:  # 에이전트 실패가 파이프라인을 죽이지 않게
+        return QaVerdict(verdict=VERDICT_DEFERRED,
+                         summary=f"독립 QA spawn 실패: {e}", independent=False)
+    return parse_verdict(raw, independent=True)
 
 
 # ── ❷ Experience Observability ───────────────────────────────
@@ -128,7 +332,12 @@ def analyze_qa_images(image_paths: list[str], plan: dict) -> dict:
     if not image_paths:
         return {"slides": [], "summary": "QA 이미지 없음", "design_patterns": []}
 
-    import base64, os
+    # AHE_PRINCIPLES §2(생성≠판정): 이 인라인 self-QA는 plan(slide_roles)을 그대로
+    # 받는 동일-프로세스 검증이라 확증편향 위험이 있다. headless 폴백에서만 허용한다
+    # (#13 independent-qa-not-implemented). 오케스트레이터 세션이면 RuntimeError.
+    assert_inline_qa_headless_only()
+
+    import base64
 
     # 슬라이드별 역할 매핑
     slide_roles = {s["index"]: s.get("role", "content") for s in plan.get("slides", [])}

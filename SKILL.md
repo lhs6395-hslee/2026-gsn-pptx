@@ -389,6 +389,14 @@ PPTX 경로: <생성된 PPTX 절대 경로>
 > 결과 PPTX·렌더 이미지·원 주제만 보고 판정한다. 오케스트레이터(생성한 세션)가 직접 자기 결과를
 > 평가하지 말 것 — 반드시 독립 에이전트의 판정을 받는다.
 
+> **판정 코드화(#13 independent-qa-not-implemented)**: 독립 에이전트의 종합 판정 문자열/JSON을
+> `ahe_loop.parse_verdict(raw, independent=True)`에 넘기면 채점 가능한 `QaVerdict`(verdict ∈
+> `pass`/`needs_fix`/`deferred`)로 정규화되고, `.qa_ok`가 곧 아래 (0)의 `$QA_OK`(True/False/None)다.
+> Agent tool로 띄운 에이전트 출력을 콜백으로 넘기려면 `ahe_loop.run_independent_qa(pptx, topic, spawn=cb)`를
+> 쓴다(콜백 미주입·비대화형이면 죽지 않고 `deferred`로 폴백). 인라인 `analyze_qa_images`는 §2 위반이라
+> headless 폴백 전용이며, 오케스트레이터 세션에서 호출하면 `RuntimeError`로 차단된다
+> (`assert_inline_qa_headless_only`). 즉 PASS는 **독립 판정일 때만** qa_ok=True로 승격된다.
+
 ### 11.5 AHE 피드백 — QA 판정 기록 + 발견을 하네스에 반영 (falsifiable-contract + 통보)
 
 **(0) 독립 QA 판정을 경험 기록에 반영 (필수, F1 루프 닫기)** — skill 경로는 엔진이 QA를 안 해

@@ -58,6 +58,9 @@ def parse_args() -> argparse.Namespace:
 
 def main() -> None:
     _inject_claude_settings_env()
+    # main.py는 headless CLI 진입점이다 — 인라인 vision QA(ahe_loop.analyze_qa_images)는
+    # 여기(오케스트레이터 없는 실행)에서만 허용된다 (AHE_PRINCIPLES §2, #13).
+    os.environ.setdefault("PPT_SKILL_HEADLESS", "1")
     args = parse_args()
     template = Path(args.template)
 

@@ -16,6 +16,7 @@ from __future__ import annotations
 import importlib
 import io
 import json
+import os
 import pathlib
 import re
 import shutil
@@ -946,6 +947,181 @@ class TestMaybeRunEvolveLoop(unittest.TestCase):
         ran, calls = self._maybe(vision_issues=3)
         self.assertFalse(ran)
         self.assertEqual(calls, 0)
+
+
+# ---------------------------------------------------------------------------
+# 9. 독립 QA verdict 스키마 코드화 (#13 independent-qa-not-implemented)
+#    §1 채점 가능 기준 + §2 생성≠판정 (분리). 인터페이스/스키마 우선, spawn optional.
+# ---------------------------------------------------------------------------
+
+class TestQaVerdict(unittest.TestCase):
+    """QaVerdict: verdict→qa_ok 3-값 매핑 + §2 분리 가드(independent 표식)."""
+
+    def test_needs_fix_maps_false_regardless_of_independence(self):
+        """NEEDS_FIX(결함 보고)는 분리 여부와 무관하게 qa_ok=False로 신뢰."""
+        self.assertIs(ahe_loop.QaVerdict(ahe_loop.VERDICT_NEEDS_FIX).qa_ok, False)
+        self.assertIs(
+            ahe_loop.QaVerdict(ahe_loop.VERDICT_NEEDS_FIX, independent=True).qa_ok,
+            False,
+        )
+
+    def test_pass_requires_independence_for_qa_ok_true(self):
+        """§2: 비분리(자기-QA) PASS는 qa_ok=True로 승격 금지 → None(보류)."""
+        self.assertIsNone(ahe_loop.QaVerdict(ahe_loop.VERDICT_PASS,
+                                             independent=False).qa_ok)
+        self.assertIs(ahe_loop.QaVerdict(ahe_loop.VERDICT_PASS,
+                                         independent=True).qa_ok, True)
+
+    def test_deferred_is_none(self):
+        """DEFERRED(판정 보류) → qa_ok=None (닫히지 않은 run, 진화 대상 아님)."""
+        self.assertIsNone(ahe_loop.QaVerdict(independent=True).qa_ok)
+        self.assertIsNone(ahe_loop.QaVerdict(ahe_loop.VERDICT_DEFERRED).qa_ok)
+
+    def test_unknown_verdict_normalized_to_deferred(self):
+        """알 수 없는 verdict 토큰은 DEFERRED로 정규화 (날조 금지)."""
+        self.assertEqual(ahe_loop.QaVerdict("garbage").verdict,
+                         ahe_loop.VERDICT_DEFERRED)
+
+    def test_to_dict_includes_qa_ok(self):
+        v = ahe_loop.QaVerdict(ahe_loop.VERDICT_NEEDS_FIX, summary="s")
+        d = v.to_dict()
+        self.assertIs(d["qa_ok"], False)
+        self.assertEqual(d["verdict"], ahe_loop.VERDICT_NEEDS_FIX)
+        self.assertEqual(d["summary"], "s")
+
+
+class TestParseVerdict(unittest.TestCase):
+    """parse_verdict: 임의 에이전트 출력(dict/str/리포트형/None) → QaVerdict 관용 파싱."""
+
+    def test_none_and_empty_are_deferred(self):
+        for raw in (None, "", {}):
+            self.assertEqual(ahe_loop.parse_verdict(raw).verdict,
+                             ahe_loop.VERDICT_DEFERRED)
+
+    def test_canonical_dict(self):
+        v = ahe_loop.parse_verdict(
+            {"verdict": "needs_fix", "issues": [{"slide": 3}], "summary": "x"},
+            independent=True,
+        )
+        self.assertEqual(v.verdict, ahe_loop.VERDICT_NEEDS_FIX)
+        self.assertEqual(len(v.issues), 1)
+        self.assertTrue(v.independent)
+        self.assertIs(v.qa_ok, False)
+
+    def test_report_shape_with_issues_is_needs_fix(self):
+        """SKILL.md 11단계 리포트형(slides[].issues) → 이슈 있으면 NEEDS_FIX."""
+        report = {"slides": [{"index": 7, "role": "toc",
+                              "issues": [{"type": "overflow", "severity": "HIGH"}]}],
+                  "summary": "오버플로우 1건"}
+        v = ahe_loop.parse_verdict(report, independent=True)
+        self.assertEqual(v.verdict, ahe_loop.VERDICT_NEEDS_FIX)
+        self.assertEqual(v.issues[0]["slide"], 7)
+
+    def test_report_shape_no_issues_is_pass(self):
+        v = ahe_loop.parse_verdict({"slides": [{"index": 1, "issues": []}]},
+                                   independent=True)
+        self.assertEqual(v.verdict, ahe_loop.VERDICT_PASS)
+        self.assertIs(v.qa_ok, True)
+
+    def test_json_fenced_string(self):
+        raw = '```json\n{"verdict": "pass", "summary": "ok"}\n```'
+        v = ahe_loop.parse_verdict(raw, independent=True)
+        self.assertEqual(v.verdict, ahe_loop.VERDICT_PASS)
+
+    def test_prose_fail_tokens(self):
+        """JSON이 아닌 prose 종합 판정 — FAIL 신호 우선(보수적)."""
+        v = ahe_loop.parse_verdict("종합 판정: 수정 필요 — slide 5 잘림")
+        self.assertEqual(v.verdict, ahe_loop.VERDICT_NEEDS_FIX)
+
+    def test_prose_pass_tokens(self):
+        v = ahe_loop.parse_verdict("전체 통과, 이슈 없음")
+        self.assertEqual(v.verdict, ahe_loop.VERDICT_PASS)
+
+    def test_prose_ambiguous_is_deferred_not_fabricated(self):
+        """모호한 prose는 결함을 날조하지 않고 DEFERRED로 떨어진다."""
+        v = ahe_loop.parse_verdict("음... 잘 모르겠습니다")
+        self.assertEqual(v.verdict, ahe_loop.VERDICT_DEFERRED)
+
+    def test_free_verdict_token_mapped(self):
+        """정식 토큰이 아닌 verdict 자유 표현도 매핑된다."""
+        self.assertEqual(
+            ahe_loop.parse_verdict({"verdict": "REJECTED"}).verdict,
+            ahe_loop.VERDICT_NEEDS_FIX,
+        )
+
+
+class TestRunIndependentQa(unittest.TestCase):
+    """run_independent_qa: spawn 콜백 주입 인터페이스 + 비대화형 안전 폴백."""
+
+    def test_no_spawn_is_deferred_not_crash(self):
+        """spawn=None(headless/콜백 미주입) → 죽지 않고 DEFERRED 폴백."""
+        v = ahe_loop.run_independent_qa(Path("/x.pptx"), "주제", spawn=None)
+        self.assertEqual(v.verdict, ahe_loop.VERDICT_DEFERRED)
+        self.assertIsNone(v.qa_ok)
+        self.assertFalse(v.independent)
+
+    def test_spawn_output_parsed_as_independent(self):
+        """spawn이 반환한 출력은 independent=True로 파싱된다 (§2 분리)."""
+        def spawn(path, topic):
+            return {"verdict": "pass", "summary": "ok"}
+        v = ahe_loop.run_independent_qa(Path("/x.pptx"), "주제", spawn=spawn)
+        self.assertEqual(v.verdict, ahe_loop.VERDICT_PASS)
+        self.assertTrue(v.independent)
+        self.assertIs(v.qa_ok, True)
+
+    def test_spawn_exception_is_deferred(self):
+        """spawn 콜백 예외가 파이프라인을 죽이지 않고 DEFERRED로 흡수."""
+        def boom(path, topic):
+            raise RuntimeError("agent down")
+        v = ahe_loop.run_independent_qa(Path("/x.pptx"), "주제", spawn=boom)
+        self.assertEqual(v.verdict, ahe_loop.VERDICT_DEFERRED)
+        self.assertIsNone(v.qa_ok)
+
+
+class TestInlineQaHeadlessGuard(unittest.TestCase):
+    """assert_inline_qa_headless_only: 인라인 vision QA를 headless 전용으로 강제 (§2)."""
+
+    def setUp(self):
+        self._saved = {k: os.environ.get(k) for k in
+                       ("PPT_SKILL_HEADLESS", "PPT_SKILL_ALLOW_INLINE_QA")}
+
+    def tearDown(self):
+        for k, v in self._saved.items():
+            if v is None:
+                os.environ.pop(k, None)
+            else:
+                os.environ[k] = v
+
+    def test_headless_env_passes(self):
+        os.environ["PPT_SKILL_HEADLESS"] = "1"
+        os.environ.pop("PPT_SKILL_ALLOW_INLINE_QA", None)
+        ahe_loop.assert_inline_qa_headless_only()  # no raise
+
+    def test_orchestrator_session_raises(self):
+        """대화형(오케스트레이터)에서는 RuntimeError로 인라인 self-QA 차단."""
+        os.environ["PPT_SKILL_HEADLESS"] = "0"
+        os.environ.pop("PPT_SKILL_ALLOW_INLINE_QA", None)
+        with self.assertRaises(RuntimeError):
+            ahe_loop.assert_inline_qa_headless_only()
+
+    def test_explicit_override_allows(self):
+        """PPT_SKILL_ALLOW_INLINE_QA=1 명시 오버라이드는 허용."""
+        os.environ["PPT_SKILL_HEADLESS"] = "0"
+        os.environ["PPT_SKILL_ALLOW_INLINE_QA"] = "1"
+        ahe_loop.assert_inline_qa_headless_only()  # no raise
+
+    def test_analyze_qa_images_blocked_in_session(self):
+        """analyze_qa_images도 비-headless에서 이미지가 있으면 차단된다."""
+        os.environ["PPT_SKILL_HEADLESS"] = "0"
+        os.environ.pop("PPT_SKILL_ALLOW_INLINE_QA", None)
+        with self.assertRaises(RuntimeError):
+            ahe_loop.analyze_qa_images(["/nonexistent.png"], {"slides": []})
+
+    def test_analyze_qa_images_empty_is_noop_even_in_session(self):
+        """이미지 0장이면 가드 이전에 무해 반환 — 세션에서도 RuntimeError 없음."""
+        os.environ["PPT_SKILL_HEADLESS"] = "0"
+        out = ahe_loop.analyze_qa_images([], {"slides": []})
+        self.assertEqual(out["slides"], [])
 
 
 # ---------------------------------------------------------------------------
