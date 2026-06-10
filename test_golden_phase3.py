@@ -878,6 +878,77 @@ class TestManifestLedgerBridge(unittest.TestCase):
 
 
 # ---------------------------------------------------------------------------
+# 8. evolve 트리거 게이트 (#12 evolve-manual-trigger-gap)
+#    독립 QA fail → evolve 환류 경로 + human-in-loop 게이트(§1) 보존
+# ---------------------------------------------------------------------------
+
+class TestShouldTriggerEvolve(unittest.TestCase):
+    """should_trigger_evolve: 순수 술어 — 어떤 신호가 evolve '제안' 대상인가."""
+
+    def test_explicit_always_true(self):
+        """explicit=True(사람이 --evolve 지정)는 다른 값과 무관하게 제안."""
+        self.assertTrue(ahe_loop.should_trigger_evolve(None, 0, explicit=True))
+        self.assertTrue(ahe_loop.should_trigger_evolve(True, 0, explicit=True))
+
+    def test_qa_fail_triggers(self):
+        """qa_ok=False(독립 QA 결함) → 제안 (skill 경로 환류 핵심)."""
+        self.assertTrue(ahe_loop.should_trigger_evolve(False, 0, explicit=False))
+
+    def test_vision_issues_triggers(self):
+        """vision_issues>0(인라인) → 제안."""
+        self.assertTrue(ahe_loop.should_trigger_evolve(None, 2, explicit=False))
+
+    def test_qa_pass_no_trigger(self):
+        """qa_ok=True + 이슈 없음 → 제안 안 함."""
+        self.assertFalse(ahe_loop.should_trigger_evolve(True, 0, explicit=False))
+
+    def test_qa_none_no_trigger(self):
+        """qa_ok=None(판정 보류) + 이슈 없음 → 닫히지 않은 run은 진화 대상 아님."""
+        self.assertFalse(ahe_loop.should_trigger_evolve(None, 0, explicit=False))
+
+
+class TestMaybeRunEvolveLoop(unittest.TestCase):
+    """maybe_run_evolve_loop: 게이트가 approved/explicit 없이는 절대 실행 안 함 (§1)."""
+
+    def _maybe(self, **kw):
+        """run_evolve_loop을 mock으로 가로채고 (실행여부, 호출횟수) 반환."""
+        with patch.object(ahe_loop, "run_evolve_loop") as m:
+            ran = ahe_loop.maybe_run_evolve_loop(
+                Path("/tmp/_does_not_matter"), "주제", **kw)
+        return ran, m.call_count
+
+    def test_qa_fail_without_approval_does_not_run(self):
+        """qa_ok=False라도 approved/explicit 없으면 제안만 — run_evolve_loop 미호출."""
+        ran, calls = self._maybe(qa_ok=False)
+        self.assertFalse(ran)
+        self.assertEqual(calls, 0)
+
+    def test_qa_fail_with_approval_runs(self):
+        """qa_ok=False + approved=True → 실제 실행."""
+        ran, calls = self._maybe(qa_ok=False, approved=True)
+        self.assertTrue(ran)
+        self.assertEqual(calls, 1)
+
+    def test_explicit_runs_without_approved_flag(self):
+        """explicit=True(사람이 --evolve 직접 지정)는 그 자체로 승인 → 실행."""
+        ran, calls = self._maybe(explicit=True)
+        self.assertTrue(ran)
+        self.assertEqual(calls, 1)
+
+    def test_no_signal_no_run(self):
+        """신호 없음(qa_ok=None, 이슈 0) → 실행 안 함, 제안도 안 함."""
+        ran, calls = self._maybe(qa_ok=None, vision_issues=0)
+        self.assertFalse(ran)
+        self.assertEqual(calls, 0)
+
+    def test_vision_issues_without_approval_does_not_run(self):
+        """vision_issues>0라도 approved/explicit 없으면 제안만 — 자동 실행 금지."""
+        ran, calls = self._maybe(vision_issues=3)
+        self.assertFalse(ran)
+        self.assertEqual(calls, 0)
+
+
+# ---------------------------------------------------------------------------
 # 글로벌 캐시 리셋 픽스처
 # ---------------------------------------------------------------------------
 

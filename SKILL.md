@@ -402,6 +402,22 @@ python3 -c "import sys; sys.path.insert(0,'.'); from ppt_generator import update
 # run_id를 못 구하면(레거시 digest) update_last_run_qa($QA_OK) 만 호출 → qa_ok=None인 가장 최근 보류 run을 닫는다.
 ```
 
+**(0.5) QA 결함 → 진화 루프 환류 (#12 evolve-manual-trigger-gap, human-in-loop 게이트 보존)** —
+이전에는 self-healing이 `--evolve`(헤드리스) 또는 인라인 vision 이슈에만 의존해, skill 경로(엔진이
+vision을 안 돌려 `vision_issues=0` 고정 + main.py 미경유)에서 독립 QA가 결함을 찾아도 `run_evolve_loop`에
+도달할 수 없었다. 이제 `ahe_loop.maybe_run_evolve_loop`이 그 환류 경로를 제공한다.
+독립 QA가 `qa_ok=False`(수정 필요)를 기록했다면, 위 (0) 직후 다음을 호출해 **진화를 제안**한다:
+```bash
+# qa_ok=False일 때만 의미 있음. approved 기본 False → 자동 실행하지 않고 제안만 출력한다.
+python3 -c "import sys; sys.path.insert(0,'.'); from pathlib import Path; from ahe_loop import maybe_run_evolve_loop; \
+maybe_run_evolve_loop(Path('$WORK_DIR'), '$TOPIC', qa_ok=False)"
+```
+> **human-in-loop §1 (절대 보존)**: `maybe_run_evolve_loop`은 `approved=True`(또는 `explicit=True`,
+> 즉 사람이 직접 `--evolve` 지정) 없이는 **절대 `run_evolve_loop`를 실행하지 않는다**. 자동 머지·자동
+> 진화를 강제하지 않는다. 결함이 감지되면 오케스트레이터는 사용자에게 진화 실행 여부를 물어보고,
+> **사용자가 승인한 경우에만** `maybe_run_evolve_loop(..., approved=True)` 또는 `run_evolve_loop`를 직접 호출한다.
+> 승인 없이는 아래 (1)~(4)의 수동 하네스 반영 절차를 따른다(둘 중 하나만 수행 — 진화 루프와 수동 반영은 중복).
+
 그 다음, 독립 QA가 **반복적·체계적 결함**(특정 레이아웃/존이 또 깨짐, placeholder 잔류 패턴 등)을 발견하면,
 일회성 수정에 그치지 말고 **하네스 변경**으로 반영한다. 절차:
 

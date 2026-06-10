@@ -753,6 +753,68 @@ def git_commit_harness(skill_dir: Path, message: str) -> None:
     print(f"  ✓ git commit: {message}")
 
 
+# ── Evolve 트리거 게이트 (#12 evolve-manual-trigger-gap) ──────────
+# skill 경로는 inline_vision_qa=False라 _vision_critical_total=0이 고정 반환되고
+# main.py를 경유하지 않아 run_evolve_loop에 구조적으로 도달할 수 없었다.
+# 독립 QA가 qa_ok=False를 내면 evolve를 *제안*하는 코드 경로를 추가하되,
+# AHE_PRINCIPLES §1(human-in-loop: 고위험 결정엔 사람을 둔다)을 보존하기 위해
+# 실제 실행은 명시적 사람 승인(approved=True) 없이는 절대 일어나지 않는다.
+
+def should_trigger_evolve(qa_ok: bool | None,
+                          vision_issues: int = 0,
+                          explicit: bool = False) -> bool:
+    """evolve가 '제안되어야 하는' 조건인지 판정하는 순수 술어 (채점 가능, §3).
+
+    True이면 '진화할 가치가 있는 신호가 있다' — 이때도 실행 여부는 사람이 결정한다
+    (maybe_run_evolve_loop의 approved 게이트). 실제 자동 실행을 의미하지 않는다.
+
+      - explicit=True            → 사람이 명시적으로 --evolve 요청 (항상 제안)
+      - qa_ok is False           → 독립 QA가 결함 판정 (skill 경로 환류 경로)
+      - vision_issues > 0        → 인라인 vision 이슈 발견 (headless 경로)
+    qa_ok=None(판정 보류)는 신호가 아니다 — 닫히지 않은 run을 진화시키지 않는다.
+    """
+    if explicit:
+        return True
+    if qa_ok is False:
+        return True
+    return int(vision_issues or 0) > 0
+
+
+def maybe_run_evolve_loop(work_dir: Path, topic: str,
+                          qa_ok: bool | None = None,
+                          vision_issues: int = 0,
+                          explicit: bool = False,
+                          approved: bool = False) -> bool:
+    """게이트가 걸린 evolve 진입점 — 독립 QA fail → evolve 환류 경로 (#12).
+
+    self-healing이 --evolve/인라인 vision 이슈에만 의존하던 갭을 닫는다:
+    독립 QA가 qa_ok=False를 기록한 run도 이 함수를 통해 evolve로 연결된다.
+
+    그러나 자동 진화는 강제하지 않는다 (§1 human-in-loop, §4 회귀 위험).
+    실제 run_evolve_loop 호출은 `approved=True`일 때만 일어난다:
+      - explicit=True(사람이 --evolve 직접 지정)는 그 자체로 승인으로 본다.
+      - 그 외(qa_ok=False 등)는 오케스트레이터/사용자가 승인 게이트를 통과시켜야 한다.
+
+    반환: 실제로 run_evolve_loop를 실행했으면 True, 제안만 하고 멈췄으면 False.
+    """
+    if not should_trigger_evolve(qa_ok, vision_issues, explicit):
+        return False
+
+    # explicit --evolve 요청은 사람 의도가 이미 명시된 것이므로 승인으로 간주.
+    human_approved = approved or explicit
+    if not human_approved:
+        reason = ("독립 QA 결함(qa_ok=False)"
+                  if qa_ok is False else f"vision 이슈 {vision_issues}건")
+        print(f"\n[Evolve 제안] {reason} 감지 — 진화 루프 실행을 권장합니다.")
+        print("  ⏸ human-in-loop 게이트(AHE_PRINCIPLES §1): 자동 실행하지 않음.")
+        print("  → 승인하려면 maybe_run_evolve_loop(..., approved=True) 또는 "
+              "run_evolve_loop를 직접 호출하세요.")
+        return False
+
+    run_evolve_loop(work_dir=work_dir, topic=topic)
+    return True
+
+
 # ── 메인 진화 루프 ────────────────────────────────────────────
 
 def run_evolve_loop(work_dir: Path, topic: str) -> None:

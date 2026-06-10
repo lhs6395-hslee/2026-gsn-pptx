@@ -42,6 +42,12 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--output", default=str(Path.home() / "Desktop"), help="출력 디렉토리")
     parser.add_argument("--evolve", action="store_true", help="AHE 진화 루프 활성화")
     parser.add_argument(
+        "--approve-evolve",
+        action="store_true",
+        help="QA 결함 감지 시 진화 루프 자동 승인 (기본: OFF — human-in-loop §1). "
+        "미지정 시 결함을 감지해도 제안만 출력하고 실행하지 않는다.",
+    )
+    parser.add_argument(
         "--backend",
         choices=["vertex", "bedrock", "anthropic", "auto"],
         default="auto",
@@ -90,15 +96,21 @@ def main() -> None:
     shutil.copy2(output, dest)
     print(f"\n완료: {dest}")
 
-    # AHE 진화 루프 — 조건부 자동 실행
-    # 명시적 --evolve OR Vision 이슈 발견 시 자동 실행
-    from ahe_loop import run_evolve_loop
-    if args.evolve:
-        run_evolve_loop(work_dir=work_dir, topic=args.topic)
-    elif vision_issues > 0:
-        print(f"\n[Auto Evolve] Vision 이슈 {vision_issues}건 → 자동 학습 실행...")
-        run_evolve_loop(work_dir=work_dir, topic=args.topic)
-    else:
+    # AHE 진화 루프 — 게이트 경유 트리거 (#12 evolve-manual-trigger-gap)
+    # 명시적 --evolve, 인라인 Vision 이슈, 또는 독립 QA 결함(qa_ok=False)을 한 경로로 통합한다.
+    # human-in-loop §1: --evolve(명시적 사람 의도)만 자동 실행으로 간주하고,
+    # 그 외(QA 결함 등)는 --approve-evolve로 명시 승인하지 않는 한 제안만 출력한다.
+    from ahe_loop import maybe_run_evolve_loop
+    qa_ok = False if vision_issues > 0 else None
+    ran = maybe_run_evolve_loop(
+        work_dir=work_dir,
+        topic=args.topic,
+        qa_ok=qa_ok,
+        vision_issues=vision_issues,
+        explicit=args.evolve,
+        approved=args.approve_evolve,
+    )
+    if not ran and not (args.evolve or vision_issues > 0):
         print("\n[Auto Evolve] 이슈 없음 — Evolve 건너뜀 (다음 실행 빠름)")
 
 
