@@ -501,7 +501,9 @@ def _call_claude_vision(system: str, content: list) -> str | None:
 
 def distill_digest(trace: dict, vision_result: dict | None = None) -> dict:
     """트레이스 + Vision 분석 결과 → 핵심 패턴 digest."""
-    qa_ok = trace["qa"].get("image_count", 0) > 0
+    # 주의: 이것은 "QA 이미지가 존재하는가"일 뿐, 실제 QA 판정(QaVerdict.qa_ok)이 아니다.
+    # 이전 이름(qa_ok/qa_done)이 Evolve Agent에게 "QA 통과"로 오해됐다 → 명확히 rename.
+    qa_images_exist = trace["qa"].get("image_count", 0) > 0
     slide_match = trace["n_slides_planned"] == trace["n_slides_actual"]
 
     # Vision 이슈 집계
@@ -529,7 +531,7 @@ def distill_digest(trace: dict, vision_result: dict | None = None) -> dict:
                            and len(critical_vision) == 0,
         "issue_count":     len(trace["issues"]),
         "patterns":        trace["issues"][:5],
-        "qa_ok":           qa_ok,
+        "qa_images_exist": qa_images_exist,
         "slide_match":     slide_match,
         "vision": {
             "total_issues":    len(vision_issues),
@@ -540,7 +542,7 @@ def distill_digest(trace: dict, vision_result: dict | None = None) -> dict:
         "flags": {
             "has_placeholder":   len(trace["issues"]) > 0,
             "has_design_issues": len(critical_vision) > 0,
-            "qa_done":           qa_ok,
+            "headless_qa_images_exist": qa_images_exist,
             "slide_count_ok":    slide_match,
         },
     }
@@ -1063,7 +1065,7 @@ def run_evolve_loop(work_dir: Path, topic: str) -> None:
     _save_json(traces_dir / f"{trace['run_id']}_digest.json", digest)
     print(f"  ✓ digest 저장 (issues={digest['issue_count']}, "
           f"vision_critical={len(digest['vision']['critical_issues'])}, "
-          f"qa_ok={digest['qa_ok']})")
+          f"qa_images_exist={digest['qa_images_exist']})")
 
     # ── 이전 예측 검증 ──────────────────────────────────────
     verify_predictions(digest, evolution_dir)
@@ -1082,7 +1084,7 @@ def run_evolve_loop(work_dir: Path, topic: str) -> None:
         "digest_summary":  {
             "success":       digest["success"],
             "issue_count":   digest["issue_count"],
-            "qa_ok":         digest["qa_ok"],
+            "qa_images_exist": digest["qa_images_exist"],
         },
         "actual_changes":  evolve_result["actual_changes"],
         "predictions":     evolve_result["predictions"],
