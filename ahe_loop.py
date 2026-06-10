@@ -200,7 +200,7 @@ def _call_claude_vision(system: str, content: list) -> str | None:
         print("  ⚠ Vision API 없음 — 이미지 분석 건너뜀")
         return None
 
-    model = os.environ.get("ANTHROPIC_DEFAULT_SONNET_MODEL", "claude-sonnet-4-6")
+    model = os.environ.get("ANTHROPIC_DEFAULT_SONNET_MODEL", "us.anthropic.claude-sonnet-4-6")
     messages = [{"role": "user", "content": content}]
 
     try:
@@ -208,6 +208,7 @@ def _call_claude_vision(system: str, content: list) -> str | None:
             # Bedrock은 base64 이미지를 다르게 처리
             import boto3, json as _json
             client = boto3.client("bedrock-runtime", region_name=aws_region or "us-east-1")
+            bedrock_model = model if (model.startswith("us.anthropic.") or model.startswith("anthropic.")) else "us.anthropic.claude-sonnet-4-6"
             body = _json.dumps({
                 "anthropic_version": "bedrock-2023-05-31",
                 "max_tokens": 4096,
@@ -215,16 +216,19 @@ def _call_claude_vision(system: str, content: list) -> str | None:
                 "messages": messages,
             })
             resp = client.invoke_model(
-                modelId="us.anthropic.claude-sonnet-4-5-20250929-v1:0", body=body)
+                modelId=bedrock_model, body=body)
             return _json.loads(resp["body"].read())["content"][0]["text"].strip()
 
         import anthropic
+        vertex_model = model[len("us.anthropic."):] if model.startswith("us.anthropic.") else model
         client = (
             anthropic.AnthropicVertex(project_id=vertex_proj or "", region=vertex_region or "us-east5")
             if use_vertex else anthropic.Anthropic(api_key=api_key)
         )
         resp = client.messages.create(
-            model=model, max_tokens=4096,
+            model=vertex_model if use_vertex else model,
+            max_tokens=4096,
+            thinking={"type": "adaptive"},
             system=system, messages=messages,
         )
         return resp.content[0].text.strip()
@@ -297,13 +301,14 @@ def _call_claude(system: str, user: str) -> str | None:
     if not api_key and not use_vertex and not use_bedrock:
         return None
 
-    model = os.environ.get("ANTHROPIC_DEFAULT_SONNET_MODEL", "claude-sonnet-4-6")
+    model = os.environ.get("ANTHROPIC_DEFAULT_SONNET_MODEL", "us.anthropic.claude-sonnet-4-6")
     messages = [{"role": "user", "content": user}]
 
     try:
         if use_bedrock:
             import boto3, json as _json
             client = boto3.client("bedrock-runtime", region_name=aws_region or "us-east-1")
+            bedrock_model = model if (model.startswith("us.anthropic.") or model.startswith("anthropic.")) else "us.anthropic.claude-sonnet-4-6"
             body = _json.dumps({
                 "anthropic_version": "bedrock-2023-05-31",
                 "max_tokens": 4096,
@@ -311,16 +316,19 @@ def _call_claude(system: str, user: str) -> str | None:
                 "messages": messages,
             })
             resp = client.invoke_model(
-                modelId="us.anthropic.claude-sonnet-4-5-20250929-v1:0", body=body)
+                modelId=bedrock_model, body=body)
             return _json.loads(resp["body"].read())["content"][0]["text"].strip()
 
         import anthropic
+        vertex_model = model[len("us.anthropic."):] if model.startswith("us.anthropic.") else model
         client = (
             anthropic.AnthropicVertex(project_id=vertex_proj or "", region=vertex_region or "us-east5")
             if use_vertex else anthropic.Anthropic(api_key=api_key)
         )
         resp = client.messages.create(
-            model=model, max_tokens=4096,
+            model=vertex_model if use_vertex else model,
+            max_tokens=4096,
+            thinking={"type": "adaptive"},
             system=system, messages=messages,
         )
         return resp.content[0].text.strip()

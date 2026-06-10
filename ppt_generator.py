@@ -438,6 +438,7 @@ def generate_plan_with_claude(
         response = client.messages.create(
             model=model,
             max_tokens=8192,
+            thinking={"type": "adaptive"},
             system=system,
             messages=messages,
         )
@@ -5584,6 +5585,7 @@ def _call_api(client, bedrock, system: str, user: str, max_tokens: int = 4096) -
         if model.startswith("us.anthropic."):
             model = model[len("us.anthropic."):]
     resp = client.messages.create(model=model, max_tokens=max_tokens,
+                                   thinking={"type": "adaptive"},
                                    system=system, messages=messages)
     return resp.content[0].text.strip()
 
@@ -5808,7 +5810,9 @@ def _call_vision_api(system: str, content: list) -> str | None:
                 modelId="us.anthropic.claude-sonnet-4-6", body=body)
             return _j.loads(resp["body"].read())["content"][0]["text"].strip()
         resp = client.messages.create(
-            model=model, max_tokens=4096, system=system, messages=messages)
+            model=model, max_tokens=4096,
+            thinking={"type": "adaptive"},
+            system=system, messages=messages)
         return resp.content[0].text.strip()
     except Exception as e:
         print(f"  ⚠ Vision API 호출 실패: {e}")
