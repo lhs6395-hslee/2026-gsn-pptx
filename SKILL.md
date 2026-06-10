@@ -392,10 +392,14 @@ PPTX 경로: <생성된 PPTX 절대 경로>
 ### 11.5 AHE 피드백 — QA 판정 기록 + 발견을 하네스에 반영 (falsifiable-contract + 통보)
 
 **(0) 독립 QA 판정을 경험 기록에 반영 (필수, F1 루프 닫기)** — skill 경로는 엔진이 QA를 안 해
-`qa_ok=None`(보류)으로 기록돼 있다. 독립 QA 에이전트의 종합 판정(통과/수정필요)을 확정값으로 채운다:
+`qa_ok=None`(보류)으로 기록돼 있다. 독립 QA 에이전트의 종합 판정(통과/수정필요)을 확정값으로 채운다.
+**off-by-one 회피(#10): 생성 직후 `evolution/last_run_digest.json`의 `run_id`를 읽어 그 run을 정확히 닫는다**
+(생성과 QA 사이에 다른 생성이 끼면 `runs[-1]`이 엉뚱한 run을 가리킬 수 있음):
 ```bash
-python3 -c "import sys; sys.path.insert(0,'.'); from ppt_generator import update_last_run_qa; update_last_run_qa($QA_OK)"
+RUN_ID=$(python3 -c "import json; print(json.load(open('evolution/last_run_digest.json')).get('run_id',''))")
+python3 -c "import sys; sys.path.insert(0,'.'); from ppt_generator import update_last_run_qa; update_last_run_qa($QA_OK, run_id='$RUN_ID' or None)"
 # $QA_OK = True(이슈 없음) / False(수정 필요). success_rate가 독립 QA 결과를 반영하게 됨.
+# run_id를 못 구하면(레거시 digest) update_last_run_qa($QA_OK) 만 호출 → qa_ok=None인 가장 최근 보류 run을 닫는다.
 ```
 
 그 다음, 독립 QA가 **반복적·체계적 결함**(특정 레이아웃/존이 또 깨짐, placeholder 잔류 패턴 등)을 발견하면,

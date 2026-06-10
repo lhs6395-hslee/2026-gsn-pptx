@@ -410,6 +410,20 @@ class TestRecordRunExperience(unittest.TestCase):
         after = real_mem_path.read_text(encoding="utf-8")
         self.assertEqual(before, after, "실제 long_term_memory.json이 오염됨")
 
+    def test_returns_run_id_and_persists(self):
+        """_record_run_experience가 run_id를 반환하고, 기록된 run에 동일 run_id가 들어간다 (#10)."""
+        plan = {"slides": [{"template_file": "slide1.xml"}]}
+        with patch.object(ppt, "SKILL_DIR", self.tmp_path):
+            rid = ppt._record_run_experience("rid 테스트", plan, 0, qa_done=False)
+        self.assertIsInstance(rid, str)
+        self.assertTrue(rid)
+        mem = self._read_mem()
+        self.assertEqual(mem["runs"][-1]["run_id"], rid)
+        # digest에도 run_id가 남는다 (SKILL.md가 읽어 update_last_run_qa(run_id=...)로 닫음)
+        digest = json.loads(
+            (self.tmp_path / "evolution" / "last_run_digest.json").read_text(encoding="utf-8"))
+        self.assertEqual(digest["run_id"], rid)
+
     def test_success_rate_all_bool(self):
         """모든 run이 bool qa_ok인 경우 success_rate 산식 검증."""
         # 초기 mem을 2 success / 1 fail로 세팅
@@ -432,6 +446,116 @@ class TestRecordRunExperience(unittest.TestCase):
         mem = self._read_mem()
         # 3 True + 1 False = 3/4 = 0.75
         self.assertAlmostEqual(mem["success_rate"], 0.75, places=2)
+
+
+# ---------------------------------------------------------------------------
+# 3b. update_last_run_qa — run_id 매칭으로 off-by-one 회피 (#10)
+# ---------------------------------------------------------------------------
+
+class TestUpdateLastRunQa(unittest.TestCase):
+    """update_last_run_qa: run_id 매칭 + 보류(None) 폴백 + 레거시 폴백 (#10)."""
+
+    def setUp(self):
+        self.tmp_dir = tempfile.mkdtemp()
+        self.tmp_path = Path(self.tmp_dir)
+        harness_dir = self.tmp_path / "harness"
+        harness_dir.mkdir()
+        self.mem_path = harness_dir / "long_term_memory.json"
+
+    def _write_mem(self, runs: list, **extra):
+        mem = {"version": "0.4", "total_runs": len(runs), "runs": runs}
+        mem.update(extra)
+        self.mem_path.write_text(json.dumps(mem, ensure_ascii=False, indent=2),
+                                 encoding="utf-8")
+
+    def _read_mem(self) -> dict:
+        return json.loads(self.mem_path.read_text(encoding="utf-8"))
+
+    def _call(self, qa_ok, run_id=None):
+        with patch.object(ppt, "SKILL_DIR", self.tmp_path):
+            ppt.update_last_run_qa(qa_ok, run_id=run_id)
+
+    def tearDown(self):
+        shutil.rmtree(self.tmp_dir, ignore_errors=True)
+
+    def test_run_id_match_closes_exact_run(self):
+        """run_id가 주어지면 runs[-1]이 아니라 그 run_id의 run을 닫는다 (off-by-one 회피)."""
+        # A는 보류, B(나중 생성)도 보류 — A에 대한 QA 판정이 늦게 도착
+        self._write_mem([
+            {"run_id": "AAA", "qa_ok": None, "qa_done": False},
+            {"run_id": "BBB", "qa_ok": None, "qa_done": False},
+        ])
+        self._call(True, run_id="AAA")
+        mem = self._read_mem()
+        a = next(r for r in mem["runs"] if r["run_id"] == "AAA")
+        b = next(r for r in mem["runs"] if r["run_id"] == "BBB")
+        self.assertTrue(a["qa_ok"], "run_id로 지정한 A가 닫혀야 한다")
+        self.assertTrue(a["qa_done"])
+        self.assertIsNone(b["qa_ok"], "지정 안 한 B(runs[-1])는 건드리지 않아야 한다")
+
+    def test_run_id_miss_falls_back_to_pending(self):
+        """매칭 실패 시 qa_ok=None인 가장 최근 보류 run을 닫는다."""
+        self._write_mem([
+            {"run_id": "AAA", "qa_ok": True, "qa_done": True},
+            {"run_id": "BBB", "qa_ok": None, "qa_done": False},
+        ])
+        self._call(False, run_id="ZZZ-없음")
+        mem = self._read_mem()
+        b = next(r for r in mem["runs"] if r["run_id"] == "BBB")
+        self.assertFalse(b["qa_ok"], "보류였던 B가 닫혀야 한다")
+
+    def test_no_run_id_closes_latest_pending_not_last(self):
+        """run_id 없이 호출하면 runs[-1](확정완료)이 아닌 보류(None) run을 닫는다."""
+        # 마지막 run은 이미 qa_ok=True로 확정 → 블라인드 runs[-1]이면 오판
+        self._write_mem([
+            {"run_id": "AAA", "qa_ok": None, "qa_done": False},
+            {"run_id": "BBB", "qa_ok": True, "qa_done": True},
+        ])
+        self._call(False)  # run_id 없음
+        mem = self._read_mem()
+        a = next(r for r in mem["runs"] if r["run_id"] == "AAA")
+        b = next(r for r in mem["runs"] if r["run_id"] == "BBB")
+        self.assertFalse(a["qa_ok"], "보류였던 A가 닫혀야 한다")
+        self.assertTrue(b["qa_ok"], "이미 확정된 B(runs[-1])는 보존돼야 한다")
+
+    def test_legacy_fallback_no_pending_no_run_id(self):
+        """보류 run도 run_id도 없으면 runs[-1]을 닫는다 (레거시 호환)."""
+        self._write_mem([
+            {"run_id": "AAA", "qa_ok": True, "qa_done": True},
+            {"run_id": "BBB", "qa_ok": True, "qa_done": True},
+        ])
+        self._call(False)
+        mem = self._read_mem()
+        self.assertFalse(mem["runs"][-1]["qa_ok"])
+
+    def test_recomputes_success_rate(self):
+        """qa_ok 확정 후 success_rate가 재계산된다 (None 제외)."""
+        self._write_mem([
+            {"run_id": "AAA", "qa_ok": True, "qa_done": True},
+            {"run_id": "BBB", "qa_ok": None, "qa_done": False},
+        ])
+        self._call(False, run_id="BBB")
+        mem = self._read_mem()
+        # 1 True + 1 False = 0.5
+        self.assertAlmostEqual(mem["success_rate"], 0.5, places=2)
+
+    def test_empty_runs_no_crash(self):
+        """run 기록이 없으면 조용히 반환한다 (예외 없음)."""
+        self._write_mem([])
+        self._call(True, run_id="AAA")  # 예외 없이 통과해야 함
+        mem = self._read_mem()
+        self.assertEqual(mem["runs"], [])
+
+    def test_no_git_tracked_file_mutation(self):
+        """실제 harness/long_term_memory.json(git-tracked)이 변경되지 않는다."""
+        real_mem_path = PROJECT_ROOT / "harness" / "long_term_memory.json"
+        if not real_mem_path.exists():
+            self.skipTest("long_term_memory.json 없음")
+        self._write_mem([{"run_id": "AAA", "qa_ok": None, "qa_done": False}])
+        before = real_mem_path.read_text(encoding="utf-8")
+        self._call(True, run_id="AAA")  # monkeypatched SKILL_DIR → tmp
+        after = real_mem_path.read_text(encoding="utf-8")
+        self.assertEqual(before, after, "실제 long_term_memory.json이 오염됨")
 
 
 # ---------------------------------------------------------------------------

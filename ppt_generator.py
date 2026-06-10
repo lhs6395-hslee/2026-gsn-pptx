@@ -6303,18 +6303,24 @@ def _success_rate(runs: list) -> float | None:
 
 
 def _record_run_experience(topic: str, plan: dict, vision_issues: int,
-                           qa_done: bool = True) -> None:
+                           qa_done: bool = True) -> str | None:
     """AHE 경험 관찰성(❷) + auto-update: 매 실행 후 long_term_memory에 run 기록을 append하고
     메타(total_runs/success_rate/last_updated)를 갱신한다. evolution/last_run_digest.json에도 요약 기록.
     실패해도 생성 결과엔 영향 없도록 전부 try/except로 감싼다 (AHE_PRINCIPLES §5 경험 관찰성).
 
     qa_done=False (skill 경로, inline_vision_qa=False)면 엔진이 QA를 안 한 것이므로
     qa_ok=None(판정 보류)로 기록한다. 실제 판정은 오케스트레이터의 독립 QA 에이전트가
-    update_last_run_qa()로 채운다 (확증편향 차단 + success_rate 정확성, F1)."""
+    update_last_run_qa()로 채운다 (확증편향 차단 + success_rate 정확성, F1).
+
+    반환값: 기록한 run의 run_id (off-by-one 없이 update_last_run_qa(run_id=...)로
+    정확히 그 run의 qa_ok를 닫기 위함). 기록 실패 시 None (#10)."""
     try:
         from datetime import datetime as _dt
+        import uuid as _uuid
         slides = plan.get("slides", [])
+        run_id = _uuid.uuid4().hex
         rec = {
+            "run_id": run_id,
             "ts": _dt.now().isoformat(timespec="seconds"),
             "topic": topic,
             "n_slides": len(slides),
@@ -6342,28 +6348,56 @@ def _record_run_experience(topic: str, plan: dict, vision_issues: int,
             json.dumps(rec, ensure_ascii=False, indent=2), encoding="utf-8")
         _qa = rec["qa_ok"] if rec["qa_ok"] is not None else "보류(독립 QA 대기)"
         print(f"  ✓ AHE 경험 기록: total_runs={mem['total_runs']}, "
-              f"success_rate={mem.get('success_rate')}, qa_ok={_qa} → harness/long_term_memory.json")
+              f"success_rate={mem.get('success_rate')}, qa_ok={_qa}, "
+              f"run_id={run_id[:8]} → harness/long_term_memory.json")
+        return run_id
     except Exception as _e:
         print(f"  ⚠ AHE 경험 기록 실패(무시): {_e}")
+        return None
 
 
-def update_last_run_qa(qa_ok: bool) -> None:
-    """오케스트레이터(독립 QA 에이전트)의 실제 판정을 가장 최근 run 기록에 반영한다 (F1).
+def update_last_run_qa(qa_ok: bool, run_id: str | None = None) -> None:
+    """오케스트레이터(독립 QA 에이전트)의 실제 판정을 해당 run 기록에 반영한다 (F1).
     skill 경로에서 _record_run_experience가 qa_ok=None으로 남긴 것을 확정값으로 채우고
-    success_rate를 재계산한다. SKILL.md 11.5단계에서 독립 QA 종료 후 호출."""
+    success_rate를 재계산한다. SKILL.md 11.5단계에서 독립 QA 종료 후 호출.
+
+    어떤 run을 닫을지 결정하는 순서 (#10 off-by-one 회피):
+      1. run_id가 주어지면 → 그 run_id와 일치하는 run을 정확히 닫는다
+         (생성과 QA 판정 사이에 다른 run이 기록돼도 안전).
+      2. run_id가 없으면 → qa_ok가 아직 None(판정 보류)인 가장 최근 run을 닫는다
+         (블라인드 runs[-1]은 보류 run이 아닐 수 있어 오판 위험 → 보류 run 우선).
+      3. 보류 run도 없으면 → runs[-1] (레거시 호환)."""
     try:
         mem_path = SKILL_DIR / "harness" / "long_term_memory.json"
         mem = json.loads(mem_path.read_text(encoding="utf-8"))
         runs = mem.get("runs", [])
         if not runs:
             print("  ⚠ QA 판정 반영: run 기록 없음"); return
-        runs[-1]["qa_ok"] = bool(qa_ok)
-        runs[-1]["qa_done"] = True
+
+        target = None
+        if run_id is not None:
+            target = next((r for r in reversed(runs)
+                           if r.get("run_id") == run_id), None)
+            if target is None:
+                print(f"  ⚠ QA 판정 반영: run_id={run_id[:8]} 매칭 실패 — "
+                      f"보류 run으로 폴백")
+        if target is None:
+            # 판정 보류(qa_ok=None) 상태인 가장 최근 run을 우선 닫는다
+            target = next((r for r in reversed(runs)
+                           if r.get("qa_ok") is None), None)
+        if target is None:
+            target = runs[-1]  # 레거시 호환
+
+        target["qa_ok"] = bool(qa_ok)
+        target["qa_done"] = True
         sr = _success_rate(runs)
         if sr is not None:
             mem["success_rate"] = sr
         mem_path.write_text(json.dumps(mem, ensure_ascii=False, indent=2), encoding="utf-8")
-        print(f"  ✓ 독립 QA 판정 반영: qa_ok={qa_ok} → success_rate={mem.get('success_rate')}")
+        _rid = target.get("run_id", "?")
+        _rid = _rid[:8] if isinstance(_rid, str) else _rid
+        print(f"  ✓ 독립 QA 판정 반영: qa_ok={qa_ok}, run_id={_rid} "
+              f"→ success_rate={mem.get('success_rate')}")
     except Exception as _e:
         print(f"  ⚠ QA 판정 반영 실패(무시): {_e}")
 
@@ -6823,7 +6857,8 @@ def run_ppt_generation(
 
     # ── AHE 경험 자동 기록 (❷ 경험 관찰성 + auto-update) ──
     # skill 경로(inline_vision_qa=False)는 qa_ok 보류로 기록 → 독립 QA가 update_last_run_qa로 확정 (F1)
-    _record_run_experience(topic, plan, _vision_critical_total, qa_done=inline_vision_qa)
+    # 반환된 run_id는 evolution/last_run_digest.json에도 남아 update_last_run_qa(run_id=...) 매칭에 쓰인다 (#10)
+    _last_run_id = _record_run_experience(topic, plan, _vision_critical_total, qa_done=inline_vision_qa)
 
     # ── tmp work_dir 정리 ────────────────────────────
     if cleanup_work_dir:
