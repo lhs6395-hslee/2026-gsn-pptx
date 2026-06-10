@@ -4946,6 +4946,7 @@ def _edit_slide42(xml_path: Path, slide_plan: dict) -> None:
     - ID=28(body_desc, cx=8.8M, cy≈3줄): section_desc — 상세 설명 3줄 이내
     - ID=43/47/51(item_descs, cx=2.4M, cy≈3줄): descriptions 3개 — 각 원형 아래 content
     zone_map: body_desc="28", body.item_descs=["43","47","51"]
+    harness/slide_shape_ids.json slide42.item_descs_ids / item_desc 우선 적용.
     """
     content = slide_plan.get("content", {})
     descs   = _coerce_list(content.get("descriptions") or [])
@@ -4954,12 +4955,19 @@ def _edit_slide42(xml_path: Path, slide_plan: dict) -> None:
     except ET.ParseError: return
     _apply_common_zones(root, slide_plan, "slide42.xml")
     ns_p, ns_a = _NS_P, _NS_A
-    # ID=43/47/51: descriptions 3개 → 각 원형 아래 content 박스 (cx=2.4M, cy≈3줄)
-    for i, sid in enumerate(["43", "47", "51"]):
+    # harness 우선, 동일 fallback
+    _s42 = _load_slide_shape_ids().get("slide42", {})
+    _item_ids = _s42.get("item_descs_ids", ["43", "47", "51"])
+    _item_cfg  = _s42.get("item_desc", {"width_emu": 2_435_125, "font_pt": 12, "max_lines": 3})
+    _cx42   = _item_cfg.get("width_emu", 2_435_125)
+    _pt42   = _item_cfg.get("font_pt", 12)
+    _lines42 = _item_cfg.get("max_lines", 3)
+    # descriptions 3개 → 각 원형 아래 content 박스
+    for i, sid in enumerate(_item_ids):
         txt = descs[i] if i < len(descs) else ""
         if txt:
             _slide_set_helper(root, ns_p, ns_a, sid,
-                              _truncate_to_lines(txt, 2_435_125, 12, 3))
+                              _truncate_to_lines(txt, _cx42, _pt42, _lines42))
     _clear_residual_placeholders(root); _write_xml(root, xml_path)
 
 
