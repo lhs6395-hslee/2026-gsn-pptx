@@ -131,17 +131,37 @@ PPT_SKILL_BACKEND=bedrock python3 main.py --topic "..."
   │
   ▼
 1. ~/.ppt-skill/templates/default.pptx 언팩
-2. 슬라이드 레이아웃 분석 (41개 슬라이드 구조 파악)
+2. 슬라이드 레이아웃 분석 (46개 슬라이드 구조 파악)
 3. Claude API → plan.json 생성 (슬라이드별 제목·내용·레이아웃 결정)
    └─ 폴백: Claude 미응답 시 규칙 기반 계획
 4. 각 슬라이드 XML 편집 (제목·내용 교체)
+   └─ 차트 레이아웃(slide40/41/43)은 content.chart_data를 차트 캐시 + 임베디드 xlsx에 주입
 5. clean.py → pack.py → output.pptx 생성
-6. soffice PDF 변환 → pdftoppm 이미지 → qa_report.json
+6. PowerPoint(AppleScript) PDF 변환 → pdftoppm 이미지 → qa_report.json
+   └─ LibreOffice 미사용 (PowerPoint 정확 렌더링만 신뢰)
 7. extract-text로 플레이스홀더 잔여 검증
 8. ~/Desktop/<주제>.pptx 복사
   │
   └─ --evolve 시: 트레이스 → digest → manifest → long_term_memory 업데이트
 ```
+
+---
+
+## 차트 슬라이드 (Excel 연동)
+
+slide40/41/43은 임베디드 차트 레이아웃으로, plan의 `content.chart_data`를 차트 캐시
+(`chartN.xml`)와 연동된 임베디드 워크북(`embeddings/*.xlsx`)에 주입해 템플릿 더미값을
+실제 수치로 교체한다. ⚠️ 데이터포인트 **개수는 템플릿 고정**(c:pt 추가/삭제 시 PowerPoint
+PDF export가 무음 실패) — 아래 개수에 맞춰 제공한다.
+
+| 슬라이드 | 차트 | `chart_data` 스키마 |
+|---------|------|--------------------|
+| **slide40** | 도넛 3개 | 리스트 3항목, 각 `{title, values:[정확히 3개]}` (범주 라벨 미표시) |
+| **slide41** | 막대(다시리즈) | `[{categories:[4개], series:[{name, values:[4개]} … 최대 3]}]` |
+| **slide43** | 막대(시계열) | `[{categories:[6개], series:[{name, values:[6개, 음수 가능]} × 2]}]` |
+
+매핑은 `harness/chart_map.json`에 정의된다. slide43(chart5)은 OLE 객체라 임베디드 xlsx가
+없어 차트 캐시만 갱신한다.
 
 ---
 
@@ -155,13 +175,14 @@ PPT_SKILL_BACKEND=bedrock python3 main.py --topic "..."
 │   ├── AHE_PRINCIPLES.md       ← 하네스 엔지니어링 원칙 (공식 출처 기반)
 │   ├── change_manifest.jsonl   ← 변경별 falsifiable-contract 원장 (결정 관찰성 ❸)
 │   ├── long_term_memory.json   ← 누적 경험 (AHE 자동 업데이트)
-│   ├── slide_catalog.json      ← verified/banned 레이아웃 분류
+│   ├── slide_catalog.json      ← verified/unverified/banned 3단계 레이아웃 분류
+│   ├── chart_map.json          ← 차트 레이아웃(40/41/43)→차트파일·타입 매핑
 │   ├── verifier_rules.json     ← 검증 기준
 │   └── tools.json
 ├── scripts/office/
 │   ├── unpack.py               ← pptx → 디렉토리
-│   ├── pack.py                 ← 디렉토리 → pptx
-│   └── soffice.py              ← PDF 변환 헬퍼
+│   └── pack.py                 ← 디렉토리 → pptx
+│                               (시각 QA PDF 변환은 PowerPoint AppleScript 사용)
 ├── templates/
 │   └── default.pptx            ← ← 여기에 템플릿 배치
 ├── runs/                       ← 실행별 작업 디렉토리
@@ -169,7 +190,7 @@ PPT_SKILL_BACKEND=bedrock python3 main.py --topic "..."
 │       ├── plan.json           ← Claude가 생성한 슬라이드 계획
 │       ├── output.pptx
 │       ├── qa_report.json      ← 시각 QA 결과
-│       └── qa_images/          ← 슬라이드 이미지 (41장)
+│       └── qa_images/          ← 슬라이드 이미지 (46장)
 ├── traces/                     ← AHE 실행 트레이스
 ├── evolution/                  ← AHE 변경 매니페스트
 │
@@ -201,6 +222,6 @@ PPT_SKILL_BACKEND=bedrock python3 main.py --topic "..."
 | Python | 3.11+ | — |
 | anthropic | 최신 | `pip install "anthropic[vertex]"` |
 | python-pptx | — | `pip install python-pptx` |
-| LibreOffice | — | `brew install --cask libreoffice` |
-| Poppler | — | `brew install poppler` |
+| Microsoft PowerPoint | macOS | 시각 QA PDF 렌더용 (AppleScript). **LibreOffice 미사용** |
+| Poppler | — | `brew install poppler` (pdftoppm) |
 | Claude API | Team Plan | Vertex AI 또는 Bedrock 설정 필요 |

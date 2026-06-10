@@ -37,3 +37,6 @@ qa_images/
 *.pdf
 slide-*.jpg
 thumbs*.jpg
+
+# AHE 휘발성 런 다이제스트 (매 실행 변경 — 추적 제외)
+evolution/
