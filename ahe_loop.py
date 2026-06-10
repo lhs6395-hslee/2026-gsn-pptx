@@ -635,7 +635,8 @@ PPT 생성 시스템의 실행 결과(digest)를 분석하고 하네스 파일�
   },
   "claude_md_append": "CLAUDE.md 끝에 추가할 텍스트 (없으면 null)",
   "predictions": [
-    { "change": "변경 내용", "expected": "기대 효과", "metric": "검증 방법",
+    { "change": "변경 내용", "expected": "기대 효과",
+      "metric": "기계 평가 가능한 식 — '<field> <op> <value>' 형식. field는 issue_count|critical_issues|total_issues|success|slide_match|qa_images_exist 중 하나, op는 ==,!=,<=,>=,<,> (예: 'issue_count == 0', 'critical_issues <= 1', 'slide_match == true')",
       "manifest_id": "연결된 change_manifest.jsonl 엔트리 id (없으면 null)" }
   ]
 }
@@ -768,6 +769,49 @@ verifier_rules에 반드시 반영하세요.
 
 # ── Prediction Verification ───────────────────────────────────
 
+def _eval_metric(metric: str, digest: dict) -> str:
+    """예측 metric 문자열을 현재 digest 실측값에 대해 평가한다 (#20).
+
+    타입별 분기: "<field> <op> <value>" 수치/불리언 비교, 또는 단독 불리언 플래그.
+    평가 불가(미지원 필드/형식)면 결함 날조 없이 'UNVERIFIED' 반환.
+    """
+    if not metric or not isinstance(metric, str):
+        return "UNVERIFIED"
+    import re as _re
+    vis = digest.get("vision", {})
+    fields = {
+        "issue_count":     digest.get("issue_count", 0),
+        "critical_issues": len(vis.get("critical_issues", [])),
+        "critical_count":  len(vis.get("critical_issues", [])),
+        "total_issues":    vis.get("total_issues", 0),
+        "success":         bool(digest.get("success")),
+        "slide_match":     bool(digest.get("slide_match")),
+        "slide_count_ok":  bool(digest.get("slide_match")),
+        "qa_images_exist": bool(digest.get("qa_images_exist")),
+    }
+    m = metric.strip().lower()
+    mt = _re.match(r"([a-z_]+)\s*(==|!=|<=|>=|<|>)\s*([a-z0-9_.]+)$", m)
+    if mt:
+        fname, op, rhs = mt.groups()
+        if fname not in fields:
+            return "UNVERIFIED"
+        lhs = fields[fname]
+        if rhs in ("true", "false"):
+            rhsv: object = (rhs == "true")
+        else:
+            try:
+                rhsv, lhs = float(rhs), float(lhs)
+            except (ValueError, TypeError):
+                return "UNVERIFIED"
+        ops = {"==": lhs == rhsv, "!=": lhs != rhsv, "<=": lhs <= rhsv,
+               ">=": lhs >= rhsv, "<": lhs < rhsv, ">": lhs > rhsv}
+        return "PASS" if ops[op] else "FAIL"
+    # 단독 불리언 플래그 (예: "success", "slide_match")
+    if m in fields and isinstance(fields[m], bool):
+        return "PASS" if fields[m] else "FAIL"
+    return "UNVERIFIED"
+
+
 def verify_predictions(current_digest: dict, evolution_dir: Path) -> None:
     """
     이전 실행의 manifest 예측 vs 현재 실행 결과를 비교해
@@ -784,16 +828,10 @@ def verify_predictions(current_digest: dict, evolution_dir: Path) -> None:
         return
 
     verified: list[dict] = []
-    current_success = current_digest["success"]
 
     for pred in prev["predictions"]:
         metric = pred.get("metric", "")
-        # 간단한 지표 검증: "issue_count == 0" 형태
-        if "issue_count == 0" in metric:
-            result = "PASS" if current_success else "FAIL"
-        else:
-            result = "PASS" if current_success else "UNVERIFIED"
-
+        result = _eval_metric(metric, current_digest)
         verified.append({**pred, "verification": result})
 
     prev["prediction_results"] = verified

@@ -1124,6 +1124,31 @@ class TestInlineQaHeadlessGuard(unittest.TestCase):
         self.assertEqual(out["slides"], [])
 
 
+class TestEvalMetric(unittest.TestCase):
+    """#20 verify_predictions — metric 타입별 평가 (_eval_metric)."""
+
+    def test_numeric_eq_pass_fail(self):
+        self.assertEqual(ahe_loop._eval_metric("issue_count == 0", {"issue_count": 0}), "PASS")
+        self.assertEqual(ahe_loop._eval_metric("issue_count == 0", {"issue_count": 3}), "FAIL")
+
+    def test_numeric_comparators(self):
+        d = {"vision": {"critical_issues": [1]}}
+        self.assertEqual(ahe_loop._eval_metric("critical_issues <= 1", d), "PASS")
+        self.assertEqual(ahe_loop._eval_metric("critical_issues < 1", d), "FAIL")
+
+    def test_boolean_metric(self):
+        self.assertEqual(ahe_loop._eval_metric("slide_match == true", {"slide_match": True}), "PASS")
+        self.assertEqual(ahe_loop._eval_metric("success == false", {"success": True}), "FAIL")
+        self.assertEqual(ahe_loop._eval_metric("success", {"success": True}), "PASS")
+
+    def test_unverifiable_is_not_fabricated_fail(self):
+        # 평가 불가는 결함(FAIL) 날조 없이 UNVERIFIED
+        self.assertEqual(ahe_loop._eval_metric("자유 서술 검증 방법", {}), "UNVERIFIED")
+        self.assertEqual(ahe_loop._eval_metric("unknown_field == 0", {}), "UNVERIFIED")
+        self.assertEqual(ahe_loop._eval_metric("", {}), "UNVERIFIED")
+        self.assertEqual(ahe_loop._eval_metric(None, {}), "UNVERIFIED")
+
+
 # ---------------------------------------------------------------------------
 # 글로벌 캐시 리셋 픽스처
 # ---------------------------------------------------------------------------
