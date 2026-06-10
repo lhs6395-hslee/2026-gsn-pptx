@@ -177,8 +177,7 @@ PDF export가 무음 실패) — 아래 개수에 맞춰 제공한다.
 │   ├── long_term_memory.json   ← 누적 경험 (AHE 자동 업데이트)
 │   ├── slide_catalog.json      ← verified/unverified/banned 3단계 레이아웃 분류
 │   ├── chart_map.json          ← 차트 레이아웃(40/41/43)→차트파일·타입 매핑
-│   ├── verifier_rules.json     ← 검증 기준
-│   └── tools.json
+│   └── verifier_rules.json     ← 검증 기준
 ├── scripts/office/
 │   ├── unpack.py               ← pptx → 디렉토리
 │   └── pack.py                 ← 디렉토리 → pptx

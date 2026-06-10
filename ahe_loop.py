@@ -7,8 +7,10 @@ AHE 세 기둥 구현:
 from __future__ import annotations
 
 import json
+import os
 import subprocess
 import sys
+from dataclasses import dataclass, field
 from datetime import datetime
 from pathlib import Path
 
@@ -23,6 +25,235 @@ def _load_json(path: Path) -> dict:
 
 def _save_json(path: Path, data: dict) -> None:
     path.write_text(json.dumps(data, ensure_ascii=False, indent=2))
+
+
+def _load_jsonl(path: Path) -> list[dict]:
+    """change_manifest.jsonl 원장을 1줄=1엔트리 리스트로 로드한다.
+
+    빈 줄·파싱 불가 줄은 건너뛴다(데이터 손실 방지: 원본은 그대로 둠).
+    """
+    if not path.exists():
+        return []
+    entries: list[dict] = []
+    for ln in path.read_text(encoding="utf-8").splitlines():
+        ln = ln.strip()
+        if not ln:
+            continue
+        try:
+            entries.append(json.loads(ln))
+        except json.JSONDecodeError:
+            # 손상 줄은 보존을 위해 무시하지 않고 그대로 둘 수 없으므로
+            # 안전하게 건너뛴다(write-back 시 재기록 안 함 → 호출부에서 미사용).
+            continue
+    return entries
+
+
+def _save_jsonl(path: Path, entries: list[dict]) -> None:
+    """엔트리 리스트를 1줄=1엔트리 JSONL로 원자적 재기록한다."""
+    lines = [json.dumps(e, ensure_ascii=False) for e in entries]
+    path.write_text("\n".join(lines) + ("\n" if lines else ""), encoding="utf-8")
+
+
+# ── 독립 QA verdict 스키마 (#13 independent-qa-not-implemented) ─────────────
+# AHE_PRINCIPLES §2(생성≠판정) + §1(명시적·채점 가능 기준).
+# 독립 격리 QA 에이전트(SKILL.md 11단계)는 지금까지 prose 프롬프트로만 존재했고
+# 코드화된 스키마·결과 파싱이 없어, 그 종합 판정이 F1 루프(qa_ok)로 흘러갈 정형
+# 인터페이스가 없었다. 아래가 그 인터페이스다: verdict를 채점 가능한 구조로 코드화하고,
+# 임의의 에이전트 출력(JSON 또는 prose)을 그 구조로 관용 파싱한다.
+#
+# 이 모듈은 *인터페이스/스키마 우선*이다. 실제 에이전트 spawn은 optional이며
+# (run_independent_qa의 spawn 콜백 주입), 비대화형/headless에서는 죽지 않고
+# qa_ok=None(판정 보류) verdict로 안전 폴백한다.
+
+VERDICT_PASS = "pass"          # 이슈 없음 → qa_ok=True
+VERDICT_NEEDS_FIX = "needs_fix"  # 수정 필요 → qa_ok=False
+VERDICT_DEFERRED = "deferred"    # 독립 판정 보류(에이전트 미가용) → qa_ok=None
+
+_VERDICT_TO_QA_OK = {
+    VERDICT_PASS: True,
+    VERDICT_NEEDS_FIX: False,
+    VERDICT_DEFERRED: None,
+}
+
+# 에이전트 prose 종합 판정 → 정식 verdict 토큰 (관용 매핑, 한/영)
+_PASS_TOKENS = ("pass", "통과", "이슈 없음", "이슈없음", "ok", "approved", "no issues")
+_FAIL_TOKENS = ("needs_fix", "needs fix", "수정 필요", "수정필요", "fail", "이슈 있음",
+                "rejected", "issues found")
+
+
+@dataclass
+class QaVerdict:
+    """독립 QA 에이전트의 채점 가능한 종합 판정 (§1 concrete/gradable terms).
+
+    `verdict`는 VERDICT_PASS / VERDICT_NEEDS_FIX / VERDICT_DEFERRED 중 하나.
+    `issues`는 슬라이드별 발견 목록(없으면 빈 리스트). `summary`는 1~2줄 요약.
+    `independent`는 이 판정이 **생성 컨텍스트를 모르는 분리 에이전트**에서 왔는지
+    (True)를 표시한다 — §2 확증편향 차단의 런타임 표식. 인라인 자기-QA가
+    잘못 verdict로 승격되는 것을 막기 위해 기본 False.
+    """
+
+    verdict: str = VERDICT_DEFERRED
+    issues: list[dict] = field(default_factory=list)
+    summary: str = ""
+    independent: bool = False
+
+    def __post_init__(self) -> None:
+        if self.verdict not in _VERDICT_TO_QA_OK:
+            self.verdict = VERDICT_DEFERRED
+
+    @property
+    def qa_ok(self) -> bool | None:
+        """F1 루프(update_last_run_qa / maybe_run_evolve_loop)에 넘길 3-값.
+
+        독립 판정이 아니면(self.independent=False) PASS여도 qa_ok로 승격하지
+        않는다 — §2: 생성자 자기-QA는 '통과'를 주장할 자격이 없다(deferred 취급).
+        NEEDS_FIX(결함 보고)는 분리 여부와 무관하게 False로 신뢰한다.
+        """
+        if self.verdict == VERDICT_NEEDS_FIX:
+            return False
+        if not self.independent:
+            return None
+        return _VERDICT_TO_QA_OK[self.verdict]
+
+    def to_dict(self) -> dict:
+        return {
+            "verdict": self.verdict,
+            "issues": self.issues,
+            "summary": self.summary,
+            "independent": self.independent,
+            "qa_ok": self.qa_ok,
+        }
+
+
+def parse_verdict(raw: object, *, independent: bool = False) -> QaVerdict:
+    """독립 QA 에이전트의 임의 출력 → QaVerdict로 관용 파싱한다 (결과 파싱 코드화).
+
+    허용 입력:
+      - dict: {"verdict": "...", "issues": [...], "summary": "..."} (정식)
+      - dict: SKILL.md 11단계 리포트형 {"slides": [{"issues": [...]}], "summary": ...}
+      - str:  ```json 펜스 포함 가능 → JSON 시도 후 실패 시 prose 토큰 매칭
+      - None/빈 값: VERDICT_DEFERRED (에이전트 미가용)
+
+    파싱 불가/모호하면 결함을 *날조하지 않고* DEFERRED로 떨어진다(보수적).
+    """
+    if raw is None or raw == "" or raw == {}:
+        return QaVerdict(verdict=VERDICT_DEFERRED, independent=independent)
+
+    data: object = raw
+    if isinstance(raw, str):
+        s = raw.strip()
+        if s.startswith("```"):
+            import re
+            s = re.sub(r"^```[a-z]*\n?", "", s)
+            s = re.sub(r"\n?```$", "", s).strip()
+        try:
+            data = json.loads(s)
+        except (json.JSONDecodeError, ValueError):
+            # prose: 종합 판정 토큰만 본다. FAIL 신호 우선(보수적).
+            low = s.lower()
+            if any(t in low for t in _FAIL_TOKENS):
+                return QaVerdict(VERDICT_NEEDS_FIX, summary=s[:200],
+                                 independent=independent)
+            if any(t in low for t in _PASS_TOKENS):
+                return QaVerdict(VERDICT_PASS, summary=s[:200],
+                                 independent=independent)
+            return QaVerdict(VERDICT_DEFERRED, summary=s[:200],
+                             independent=independent)
+
+    if not isinstance(data, dict):
+        return QaVerdict(verdict=VERDICT_DEFERRED, independent=independent)
+
+    # 정식 스키마
+    if "verdict" in data:
+        v = str(data.get("verdict", "")).strip().lower()
+        if v not in _VERDICT_TO_QA_OK:
+            # 자유 토큰 → 정식 토큰 매핑
+            if any(t in v for t in _FAIL_TOKENS):
+                v = VERDICT_NEEDS_FIX
+            elif any(t in v for t in _PASS_TOKENS):
+                v = VERDICT_PASS
+            else:
+                v = VERDICT_DEFERRED
+        return QaVerdict(
+            verdict=v,
+            issues=list(data.get("issues", []) or []),
+            summary=str(data.get("summary", "")),
+            independent=independent,
+        )
+
+    # 리포트형(slides[].issues) → 종합 verdict 도출
+    issues: list[dict] = []
+    for slide in data.get("slides", []) or []:
+        for iss in slide.get("issues", []) or []:
+            issues.append({"slide": slide.get("index"),
+                           "role": slide.get("role"), **iss})
+    if "slides" in data:
+        v = VERDICT_NEEDS_FIX if issues else VERDICT_PASS
+        return QaVerdict(verdict=v, issues=issues,
+                         summary=str(data.get("summary", "")),
+                         independent=independent)
+
+    return QaVerdict(verdict=VERDICT_DEFERRED,
+                     summary=str(data.get("summary", "")),
+                     independent=independent)
+
+
+def _is_headless() -> bool:
+    """현재 실행이 headless(오케스트레이터 없는 비대화형)인지 추정한다.
+
+    PPT_SKILL_HEADLESS=1 이 명시되면 그 값을 신뢰한다(main.py --evolve 경로가 설정).
+    그 외에는 stdin이 tty가 아니면 headless로 본다(파이프/cron/CI).
+    오케스트레이터(Claude Code 세션)에서 inline_vision_qa를 켜는 것을 차단하는 게 목적.
+    """
+    explicit = os.environ.get("PPT_SKILL_HEADLESS")
+    if explicit is not None:
+        return explicit not in ("0", "", "false", "False")
+    try:
+        return not sys.stdin.isatty()
+    except (ValueError, AttributeError):
+        return True
+
+
+def assert_inline_qa_headless_only() -> None:
+    """인라인 vision QA(analyze_qa_images)가 headless 폴백에서만 돌도록 런타임 보장.
+
+    AHE_PRINCIPLES §2: 인라인 vision QA는 생성과 동일 프로세스의 자기-검증이라
+    확증편향 위험이 있다. 오케스트레이터 세션(대화형)에서 호출되면 §2 위반이므로
+    RuntimeError로 막는다. PPT_SKILL_ALLOW_INLINE_QA=1 로 명시 오버라이드 가능
+    (테스트/특수 상황용).
+    """
+    if os.environ.get("PPT_SKILL_ALLOW_INLINE_QA") == "1":
+        return
+    if not _is_headless():
+        raise RuntimeError(
+            "인라인 vision QA(analyze_qa_images)는 headless 폴백 전용입니다 "
+            "(AHE_PRINCIPLES §2 생성≠판정). 오케스트레이터 세션에서는 SKILL.md "
+            "11단계의 독립 격리 QA 에이전트를 사용하세요. "
+            "강제하려면 PPT_SKILL_ALLOW_INLINE_QA=1."
+        )
+
+
+def run_independent_qa(pptx_path: Path, topic: str,
+                       spawn=None) -> QaVerdict:
+    """독립 격리 QA 에이전트 호출의 코드화된 진입점 (#13, §2 분리).
+
+    `spawn`은 (pptx_path, topic) → 에이전트 raw 출력(str|dict)을 반환하는 콜백이다.
+    오케스트레이터(Claude Code 세션)가 Agent tool로 독립 에이전트를 띄워 그 출력을
+    여기로 넘긴다 — 그 콜백은 plan·생성 근거를 전달받지 않는다(독립=True).
+
+    spawn=None(비대화형/headless, 또는 콜백 미주입)이면 **죽지 않고** DEFERRED
+    verdict(qa_ok=None)로 폴백한다 — 닫히지 않은 run은 진화 대상에서 빠진다(§1·#12).
+    """
+    if spawn is None:
+        return QaVerdict(verdict=VERDICT_DEFERRED,
+                         summary="독립 QA 에이전트 미주입 — 판정 보류(headless 폴백)",
+                         independent=False)
+    try:
+        raw = spawn(pptx_path, topic)
+    except Exception as e:  # 에이전트 실패가 파이프라인을 죽이지 않게
+        return QaVerdict(verdict=VERDICT_DEFERRED,
+                         summary=f"독립 QA spawn 실패: {e}", independent=False)
+    return parse_verdict(raw, independent=True)
 
 
 # ── ❷ Experience Observability ───────────────────────────────
@@ -101,7 +332,12 @@ def analyze_qa_images(image_paths: list[str], plan: dict) -> dict:
     if not image_paths:
         return {"slides": [], "summary": "QA 이미지 없음", "design_patterns": []}
 
-    import base64, os
+    # AHE_PRINCIPLES §2(생성≠판정): 이 인라인 self-QA는 plan(slide_roles)을 그대로
+    # 받는 동일-프로세스 검증이라 확증편향 위험이 있다. headless 폴백에서만 허용한다
+    # (#13 independent-qa-not-implemented). 오케스트레이터 세션이면 RuntimeError.
+    assert_inline_qa_headless_only()
+
+    import base64
 
     # 슬라이드별 역할 매핑
     slide_roles = {s["index"]: s.get("role", "content") for s in plan.get("slides", [])}
@@ -184,6 +420,32 @@ def analyze_qa_images(image_paths: list[str], plan: dict) -> dict:
         return {"slides": [], "summary": raw[:200], "design_patterns": []}
 
 
+def _select_backend(vertex_proj, vertex_region, aws_region):
+    """백엔드 선택 — ppt_generator.generate_plan_with_claude 와 동일한 우선순위.
+    PPT_SKILL_BACKEND > CLAUDE_CODE_USE_* > 자동 감지. (use_vertex, use_bedrock) 반환."""
+    import os
+    explicit = os.environ.get("PPT_SKILL_BACKEND", "auto")  # auto|vertex|bedrock|anthropic
+    cc_bedrock = os.environ.get("CLAUDE_CODE_USE_BEDROCK", "0")
+    cc_vertex  = os.environ.get("CLAUDE_CODE_USE_VERTEX", "0")
+    if explicit == "vertex":
+        return True, False
+    if explicit == "bedrock":
+        return False, True
+    if explicit == "anthropic":
+        return False, False
+    if cc_bedrock == "1":
+        return False, True
+    if cc_vertex == "1":
+        return True, False
+    if cc_bedrock == "0" and cc_vertex == "0":
+        # switch-provider.sh direct — 두 플래그가 명시적으로 0이면 직접 API
+        return False, False
+    # 환경 변수 미설정 시 자동 감지
+    use_vertex = bool(vertex_proj or (vertex_region and not aws_region))
+    use_bedrock = bool(aws_region) and not use_vertex
+    return use_vertex, use_bedrock
+
+
 def _call_claude_vision(system: str, content: list) -> str | None:
     """멀티모달(Vision) Claude API 호출."""
     import os
@@ -193,8 +455,7 @@ def _call_claude_vision(system: str, content: list) -> str | None:
     vertex_region = os.environ.get("CLOUD_ML_REGION")
     aws_region   = os.environ.get("AWS_REGION")
 
-    use_vertex  = bool(vertex_proj or (vertex_region and not aws_region))
-    use_bedrock = bool(aws_region) and not use_vertex
+    use_vertex, use_bedrock = _select_backend(vertex_proj, vertex_region, aws_region)
 
     if not api_key and not use_vertex and not use_bedrock:
         print("  ⚠ Vision API 없음 — 이미지 분석 건너뜀")
@@ -208,6 +469,7 @@ def _call_claude_vision(system: str, content: list) -> str | None:
             # Bedrock은 base64 이미지를 다르게 처리
             import boto3, json as _json
             client = boto3.client("bedrock-runtime", region_name=aws_region or "us-east-1")
+            bedrock_model = model if (model.startswith("us.anthropic.") or model.startswith("anthropic.")) else "us.anthropic.claude-sonnet-4-6"
             body = _json.dumps({
                 "anthropic_version": "bedrock-2023-05-31",
                 "max_tokens": 4096,
@@ -215,16 +477,19 @@ def _call_claude_vision(system: str, content: list) -> str | None:
                 "messages": messages,
             })
             resp = client.invoke_model(
-                modelId="us.anthropic.claude-sonnet-4-5-20250929-v1:0", body=body)
+                modelId=bedrock_model, body=body)
             return _json.loads(resp["body"].read())["content"][0]["text"].strip()
 
         import anthropic
+        sdk_model = model[len("us.anthropic."):] if model.startswith("us.anthropic.") else model
         client = (
             anthropic.AnthropicVertex(project_id=vertex_proj or "", region=vertex_region or "us-east5")
             if use_vertex else anthropic.Anthropic(api_key=api_key)
         )
         resp = client.messages.create(
-            model=model, max_tokens=4096,
+            model=sdk_model,
+            max_tokens=4096,
+            thinking={"type": "adaptive"},
             system=system, messages=messages,
         )
         return resp.content[0].text.strip()
@@ -284,15 +549,14 @@ def distill_digest(trace: dict, vision_result: dict | None = None) -> dict:
 # ── ❸ Decision Observability — Evolve Agent ──────────────────
 
 def _call_claude(system: str, user: str) -> str | None:
-    """Claude API 호출 (Vertex > Bedrock > Anthropic 순 자동 감지)."""
+    """Claude API 호출. 백엔드 선택은 _select_backend (PPT_SKILL_BACKEND > CLAUDE_CODE_USE_* > 자동 감지)."""
     import os
     api_key      = os.environ.get("ANTHROPIC_API_KEY")
     vertex_proj  = os.environ.get("ANTHROPIC_VERTEX_PROJECT_ID")
     vertex_region = os.environ.get("CLOUD_ML_REGION")
     aws_region   = os.environ.get("AWS_REGION")
 
-    use_vertex  = bool(vertex_proj or (vertex_region and not aws_region))
-    use_bedrock = bool(aws_region) and not use_vertex
+    use_vertex, use_bedrock = _select_backend(vertex_proj, vertex_region, aws_region)
 
     if not api_key and not use_vertex and not use_bedrock:
         return None
@@ -304,6 +568,7 @@ def _call_claude(system: str, user: str) -> str | None:
         if use_bedrock:
             import boto3, json as _json
             client = boto3.client("bedrock-runtime", region_name=aws_region or "us-east-1")
+            bedrock_model = model if (model.startswith("us.anthropic.") or model.startswith("anthropic.")) else "us.anthropic.claude-sonnet-4-6"
             body = _json.dumps({
                 "anthropic_version": "bedrock-2023-05-31",
                 "max_tokens": 4096,
@@ -311,16 +576,19 @@ def _call_claude(system: str, user: str) -> str | None:
                 "messages": messages,
             })
             resp = client.invoke_model(
-                modelId="us.anthropic.claude-sonnet-4-5-20250929-v1:0", body=body)
+                modelId=bedrock_model, body=body)
             return _json.loads(resp["body"].read())["content"][0]["text"].strip()
 
         import anthropic
+        sdk_model = model[len("us.anthropic."):] if model.startswith("us.anthropic.") else model
         client = (
             anthropic.AnthropicVertex(project_id=vertex_proj or "", region=vertex_region or "us-east5")
             if use_vertex else anthropic.Anthropic(api_key=api_key)
         )
         resp = client.messages.create(
-            model=model, max_tokens=4096,
+            model=sdk_model,
+            max_tokens=4096,
+            thinking={"type": "adaptive"},
             system=system, messages=messages,
         )
         return resp.content[0].text.strip()
@@ -365,9 +633,14 @@ PPT 생성 시스템의 실행 결과(digest)를 분석하고 하네스 파일�
   },
   "claude_md_append": "CLAUDE.md 끝에 추가할 텍스트 (없으면 null)",
   "predictions": [
-    { "change": "변경 내용", "expected": "기대 효과", "metric": "검증 방법" }
+    { "change": "변경 내용", "expected": "기대 효과", "metric": "검증 방법",
+      "manifest_id": "연결된 change_manifest.jsonl 엔트리 id (없으면 null)" }
   ]
-}"""
+}
+
+manifest_id는 이 예측이 검증하는 change_manifest.jsonl 원장 엔트리의 id(예: "2026-06-10-08")를
+가리킨다. 해당 엔트리가 verification:'pending'이면 다음 라운드에 자동으로 verified/refuted로 해소된다.
+연결 대상이 없으면 null."""
 
     vision = digest.get("vision", {})
     vision_block = ""
@@ -528,6 +801,76 @@ def verify_predictions(current_digest: dict, evolution_dir: Path) -> None:
     n_pass = sum(1 for v in verified if v["verification"] == "PASS")
     print(f"  ✓ 예측 검증: {n_pass}/{len(verified)} PASS (이전 manifest: {prev_manifest_path.name})")
 
+    # ── 단방향 브리지: 검증 결과 → change_manifest.jsonl 원장 ──
+    # iteration_*_manifest.json(휘발성 per-run)의 검증 verdict를
+    # authoritative 원장(change_manifest.jsonl)의 pending 엔트리로 흘려보낸다.
+    # 역방향(원장→manifest) 금지. 스키마는 분리 유지하고 verdict만 매핑.
+    bridge_verdicts_to_ledger(verified, SKILL_DIR / "harness")
+
+
+# ── ❸ Decision Observability — 원장 브리지 ────────────────────
+
+# iteration manifest의 검증 결과(PASS/FAIL) → 원장 verification 매핑
+_VERDICT_TO_LEDGER = {"PASS": "verified", "FAIL": "refuted"}
+
+
+def bridge_verdicts_to_ledger(verified_predictions: list[dict],
+                              harness_dir: Path) -> int:
+    """단방향 브리지: 검증된 per-run 예측의 verdict를 change_manifest.jsonl로 옮긴다.
+
+    `change_manifest.jsonl`이 authoritative 결정 관찰성 원장(AHE_PRINCIPLES §4/§5③).
+    이 원장에 write하는 코드가 0건이라 `verification:'pending'` 엔트리는
+    영영 갱신되지 않았다. 이 브리지가 그 유일한 write 경로다.
+
+    매칭은 **명시적 링크**(prediction['manifest_id'] == ledger entry['id'])로만 한다.
+    텍스트 휴리스틱 매칭은 큐레이션된 엔트리를 잘못 뒤집을 수 있어 금지.
+    PASS→verified, FAIL→refuted. UNVERIFIED 등 결정 불가 verdict는 건너뛴다.
+
+    기존 원장 데이터는 보존(필드 손실 없음): 추가로
+    `verified_at`/`verified_by_run` 메타만 덧붙이고, 기존 `verification`
+    prose가 'pending' prefix일 때만 상태 토큰을 교체한다.
+
+    Returns: 갱신된 원장 엔트리 수.
+    """
+    ledger_path = harness_dir / "change_manifest.jsonl"
+    entries = _load_jsonl(ledger_path)
+    if not entries:
+        return 0
+
+    # manifest_id → verdict(PASS/FAIL) 매핑 (결정 가능한 것만)
+    verdict_by_id: dict[str, str] = {}
+    for pred in verified_predictions:
+        mid = pred.get("manifest_id")
+        verdict = pred.get("verification")
+        if mid and verdict in _VERDICT_TO_LEDGER:
+            verdict_by_id[mid] = verdict  # 같은 id 다건이면 마지막 verdict 채택
+
+    if not verdict_by_id:
+        return 0
+
+    now = datetime.utcnow().isoformat()
+    updated = 0
+    for entry in entries:
+        eid = entry.get("id")
+        if eid not in verdict_by_id:
+            continue
+        current = str(entry.get("verification", ""))
+        # pending 상태만 해소 (이미 verified/refuted면 큐레이션 결과 존중)
+        if not current.lower().startswith("pending"):
+            continue
+        new_state = _VERDICT_TO_LEDGER[verdict_by_id[eid]]
+        # 기존 prose 보존: 'pending …' 꼬리말은 유지하되 상태 토큰만 교체
+        tail = current[len("pending"):].lstrip(" :—-")
+        entry["verification"] = f"{new_state} (auto-bridge)" + (f" — {tail}" if tail else "")
+        entry["verified_at"] = now
+        entry["verified_by_run"] = "verify_predictions"
+        updated += 1
+
+    if updated:
+        _save_jsonl(ledger_path, entries)
+        print(f"  ✓ 원장 브리지: change_manifest.jsonl {updated}건 pending→해소")
+    return updated
+
 
 # ── 장기 기억 통계 업데이트 ───────────────────────────────────
 
@@ -617,6 +960,68 @@ def git_commit_harness(skill_dir: Path, message: str) -> None:
     subprocess.run(["git", "commit", "-m", message],
                    cwd=str(skill_dir), capture_output=True)
     print(f"  ✓ git commit: {message}")
+
+
+# ── Evolve 트리거 게이트 (#12 evolve-manual-trigger-gap) ──────────
+# skill 경로는 inline_vision_qa=False라 _vision_critical_total=0이 고정 반환되고
+# main.py를 경유하지 않아 run_evolve_loop에 구조적으로 도달할 수 없었다.
+# 독립 QA가 qa_ok=False를 내면 evolve를 *제안*하는 코드 경로를 추가하되,
+# AHE_PRINCIPLES §1(human-in-loop: 고위험 결정엔 사람을 둔다)을 보존하기 위해
+# 실제 실행은 명시적 사람 승인(approved=True) 없이는 절대 일어나지 않는다.
+
+def should_trigger_evolve(qa_ok: bool | None,
+                          vision_issues: int = 0,
+                          explicit: bool = False) -> bool:
+    """evolve가 '제안되어야 하는' 조건인지 판정하는 순수 술어 (채점 가능, §3).
+
+    True이면 '진화할 가치가 있는 신호가 있다' — 이때도 실행 여부는 사람이 결정한다
+    (maybe_run_evolve_loop의 approved 게이트). 실제 자동 실행을 의미하지 않는다.
+
+      - explicit=True            → 사람이 명시적으로 --evolve 요청 (항상 제안)
+      - qa_ok is False           → 독립 QA가 결함 판정 (skill 경로 환류 경로)
+      - vision_issues > 0        → 인라인 vision 이슈 발견 (headless 경로)
+    qa_ok=None(판정 보류)는 신호가 아니다 — 닫히지 않은 run을 진화시키지 않는다.
+    """
+    if explicit:
+        return True
+    if qa_ok is False:
+        return True
+    return int(vision_issues or 0) > 0
+
+
+def maybe_run_evolve_loop(work_dir: Path, topic: str,
+                          qa_ok: bool | None = None,
+                          vision_issues: int = 0,
+                          explicit: bool = False,
+                          approved: bool = False) -> bool:
+    """게이트가 걸린 evolve 진입점 — 독립 QA fail → evolve 환류 경로 (#12).
+
+    self-healing이 --evolve/인라인 vision 이슈에만 의존하던 갭을 닫는다:
+    독립 QA가 qa_ok=False를 기록한 run도 이 함수를 통해 evolve로 연결된다.
+
+    그러나 자동 진화는 강제하지 않는다 (§1 human-in-loop, §4 회귀 위험).
+    실제 run_evolve_loop 호출은 `approved=True`일 때만 일어난다:
+      - explicit=True(사람이 --evolve 직접 지정)는 그 자체로 승인으로 본다.
+      - 그 외(qa_ok=False 등)는 오케스트레이터/사용자가 승인 게이트를 통과시켜야 한다.
+
+    반환: 실제로 run_evolve_loop를 실행했으면 True, 제안만 하고 멈췄으면 False.
+    """
+    if not should_trigger_evolve(qa_ok, vision_issues, explicit):
+        return False
+
+    # explicit --evolve 요청은 사람 의도가 이미 명시된 것이므로 승인으로 간주.
+    human_approved = approved or explicit
+    if not human_approved:
+        reason = ("독립 QA 결함(qa_ok=False)"
+                  if qa_ok is False else f"vision 이슈 {vision_issues}건")
+        print(f"\n[Evolve 제안] {reason} 감지 — 진화 루프 실행을 권장합니다.")
+        print("  ⏸ human-in-loop 게이트(AHE_PRINCIPLES §1): 자동 실행하지 않음.")
+        print("  → 승인하려면 maybe_run_evolve_loop(..., approved=True) 또는 "
+              "run_evolve_loop를 직접 호출하세요.")
+        return False
+
+    run_evolve_loop(work_dir=work_dir, topic=topic)
+    return True
 
 
 # ── 메인 진화 루프 ────────────────────────────────────────────

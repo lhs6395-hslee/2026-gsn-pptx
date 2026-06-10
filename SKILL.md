@@ -389,14 +389,42 @@ PPTX 경로: <생성된 PPTX 절대 경로>
 > 결과 PPTX·렌더 이미지·원 주제만 보고 판정한다. 오케스트레이터(생성한 세션)가 직접 자기 결과를
 > 평가하지 말 것 — 반드시 독립 에이전트의 판정을 받는다.
 
+> **판정 코드화(#13 independent-qa-not-implemented)**: 독립 에이전트의 종합 판정 문자열/JSON을
+> `ahe_loop.parse_verdict(raw, independent=True)`에 넘기면 채점 가능한 `QaVerdict`(verdict ∈
+> `pass`/`needs_fix`/`deferred`)로 정규화되고, `.qa_ok`가 곧 아래 (0)의 `$QA_OK`(True/False/None)다.
+> Agent tool로 띄운 에이전트 출력을 콜백으로 넘기려면 `ahe_loop.run_independent_qa(pptx, topic, spawn=cb)`를
+> 쓴다(콜백 미주입·비대화형이면 죽지 않고 `deferred`로 폴백). 인라인 `analyze_qa_images`는 §2 위반이라
+> headless 폴백 전용이며, 오케스트레이터 세션에서 호출하면 `RuntimeError`로 차단된다
+> (`assert_inline_qa_headless_only`). 즉 PASS는 **독립 판정일 때만** qa_ok=True로 승격된다.
+
 ### 11.5 AHE 피드백 — QA 판정 기록 + 발견을 하네스에 반영 (falsifiable-contract + 통보)
 
 **(0) 독립 QA 판정을 경험 기록에 반영 (필수, F1 루프 닫기)** — skill 경로는 엔진이 QA를 안 해
-`qa_ok=None`(보류)으로 기록돼 있다. 독립 QA 에이전트의 종합 판정(통과/수정필요)을 확정값으로 채운다:
+`qa_ok=None`(보류)으로 기록돼 있다. 독립 QA 에이전트의 종합 판정(통과/수정필요)을 확정값으로 채운다.
+**off-by-one 회피(#10): 생성 직후 `evolution/last_run_digest.json`의 `run_id`를 읽어 그 run을 정확히 닫는다**
+(생성과 QA 사이에 다른 생성이 끼면 `runs[-1]`이 엉뚱한 run을 가리킬 수 있음):
 ```bash
-python3 -c "import sys; sys.path.insert(0,'.'); from ppt_generator import update_last_run_qa; update_last_run_qa($QA_OK)"
+RUN_ID=$(python3 -c "import json; print(json.load(open('evolution/last_run_digest.json')).get('run_id',''))")
+python3 -c "import sys; sys.path.insert(0,'.'); from ppt_generator import update_last_run_qa; update_last_run_qa($QA_OK, run_id='$RUN_ID' or None)"
 # $QA_OK = True(이슈 없음) / False(수정 필요). success_rate가 독립 QA 결과를 반영하게 됨.
+# run_id를 못 구하면(레거시 digest) update_last_run_qa($QA_OK) 만 호출 → qa_ok=None인 가장 최근 보류 run을 닫는다.
 ```
+
+**(0.5) QA 결함 → 진화 루프 환류 (#12 evolve-manual-trigger-gap, human-in-loop 게이트 보존)** —
+이전에는 self-healing이 `--evolve`(헤드리스) 또는 인라인 vision 이슈에만 의존해, skill 경로(엔진이
+vision을 안 돌려 `vision_issues=0` 고정 + main.py 미경유)에서 독립 QA가 결함을 찾아도 `run_evolve_loop`에
+도달할 수 없었다. 이제 `ahe_loop.maybe_run_evolve_loop`이 그 환류 경로를 제공한다.
+독립 QA가 `qa_ok=False`(수정 필요)를 기록했다면, 위 (0) 직후 다음을 호출해 **진화를 제안**한다:
+```bash
+# qa_ok=False일 때만 의미 있음. approved 기본 False → 자동 실행하지 않고 제안만 출력한다.
+python3 -c "import sys; sys.path.insert(0,'.'); from pathlib import Path; from ahe_loop import maybe_run_evolve_loop; \
+maybe_run_evolve_loop(Path('$WORK_DIR'), '$TOPIC', qa_ok=False)"
+```
+> **human-in-loop §1 (절대 보존)**: `maybe_run_evolve_loop`은 `approved=True`(또는 `explicit=True`,
+> 즉 사람이 직접 `--evolve` 지정) 없이는 **절대 `run_evolve_loop`를 실행하지 않는다**. 자동 머지·자동
+> 진화를 강제하지 않는다. 결함이 감지되면 오케스트레이터는 사용자에게 진화 실행 여부를 물어보고,
+> **사용자가 승인한 경우에만** `maybe_run_evolve_loop(..., approved=True)` 또는 `run_evolve_loop`를 직접 호출한다.
+> 승인 없이는 아래 (1)~(4)의 수동 하네스 반영 절차를 따른다(둘 중 하나만 수행 — 진화 루프와 수동 반영은 중복).
 
 그 다음, 독립 QA가 **반복적·체계적 결함**(특정 레이아웃/존이 또 깨짐, placeholder 잔류 패턴 등)을 발견하면,
 일회성 수정에 그치지 말고 **하네스 변경**으로 반영한다. 절차:

@@ -438,6 +438,7 @@ def generate_plan_with_claude(
         response = client.messages.create(
             model=model,
             max_tokens=8192,
+            thinking={"type": "adaptive"},
             system=system,
             messages=messages,
         )
@@ -552,7 +553,6 @@ _ZONE_MAP_CACHE: dict | None = None
 _SLIDE_CATALOG_CACHE: dict | None = None
 _ZONE_FILL_CACHE: dict | None = None
 _TOC_CONFIG_CACHE: dict | None = None
-_SLIDE15_CONFIG_CACHE: dict | None = None
 _COLLISION_RULES_CACHE: dict | None = None
 _COMMON_FORMATTING_CACHE: dict | None = None
 _SLIDE_SHAPE_IDS_CACHE: dict | None = None
@@ -661,23 +661,6 @@ def _load_toc_config() -> dict:
             pass
     _TOC_CONFIG_CACHE = {}
     return _TOC_CONFIG_CACHE
-
-
-def _load_slide15_config() -> dict:
-    """harness/slide15_config.json 로드 (캐시). 없으면 빈 dict."""
-    global _SLIDE15_CONFIG_CACHE
-    if _SLIDE15_CONFIG_CACHE is not None:
-        return _SLIDE15_CONFIG_CACHE
-    for p in (SKILL_DIR / "harness" / "slide15_config.json",
-              Path(__file__).parent / "harness" / "slide15_config.json"):
-        try:
-            if p.exists():
-                _SLIDE15_CONFIG_CACHE = json.loads(p.read_text())
-                return _SLIDE15_CONFIG_CACHE
-        except Exception:
-            pass
-    _SLIDE15_CONFIG_CACHE = {}
-    return _SLIDE15_CONFIG_CACHE
 
 
 def _load_collision_rules() -> dict:
@@ -1558,201 +1541,6 @@ def _apply_formatting_safe(sp: ET.Element, zone_fmt: dict, common_fmt: dict) -> 
                         ET.SubElement(sc, f"{{{ns_a}}}lumMod", val=str(rPr_cfg["lumMod"]))
                     if "lumOff" in rPr_cfg:
                         ET.SubElement(sc, f"{{{ns_a}}}lumOff", val=str(rPr_cfg["lumOff"]))
-
-
-def edit_slide15(xml_path: Path, content: dict) -> None:
-    """
-    slide15.xml (3-item 레이아웃) 전용 편집 함수.
-    하네스 기반: harness/slide15_config.json + layout_zone_map.json
-
-    Args:
-        xml_path: slide15.xml 경로
-        content: plan.json의 content 필드 (slide15_config.json 스키마 참조)
-    """
-    ns_a = _NS_A
-    ns_p = _NS_P
-
-    # 하네스 로드
-    cfg = _load_slide15_config()
-    zone = _zone("slide15.xml")
-
-    # items/descriptions/image_descriptions → item1_title/item1_desc/item1_image_desc 변환
-    for _idx, _val in enumerate(content.get("items", []), 1):
-        content.setdefault(f"item{_idx}_title", _val)
-    for _idx, _val in enumerate(content.get("descriptions", []), 1):
-        content.setdefault(f"item{_idx}_desc", _val)
-    for _idx, _val in enumerate(content.get("image_descriptions", []), 1):
-        content.setdefault(f"item{_idx}_image_desc", _val)
-    content.setdefault("body_title", content.get("section_title", ""))
-    content.setdefault("body_desc",  content.get("section_desc", ""))
-
-    # 번호 체계
-    chapter = int(content.get("chapter", "1"))
-    section = int(content.get("section", "1"))
-    subsection = int(content.get("subsection", "1"))
-
-    numbering = cfg.get("numbering", {})
-    subtitle_prefix_template = numbering.get("subtitle_prefix", "{n:02d}")
-    item_prefix_template = numbering.get("item_title_prefix", "{n:02d}")
-    body_prefix_template = numbering.get("body_title_prefix", "{major}.{minor}.")
-    sub_prefix_template = numbering.get("sub_heading_prefix", "| {major}.{minor}.{sub}")
-
-    # 이미지 슬롯 포맷 (common_formatting.json 우선, 없으면 폴백)
-    common_fmt = _load_common_formatting()
-    img_format = common_fmt.get("image_slot_format",
-                 cfg.get("image_slot_format", "[이미지: {description}]"))
-
-    try:
-        tree = ET.parse(xml_path)
-        root = tree.getroot()
-    except ET.ParseError:
-        return
-
-    def _find_shape_by_id(shape_id: str) -> "ET.Element | None":
-        """ID로 shape 찾기"""
-        for sp in root.findall(f".//{{{ns_p}}}sp"):
-            cpr = sp.find(f"{{{ns_p}}}nvSpPr/{{{ns_p}}}cNvPr")
-            if cpr is not None and cpr.get("id") == shape_id:
-                return sp
-        return None
-
-    def _set_shape_text(sp: "ET.Element | None", lines: "list[str]", bold_line1: bool = False) -> None:
-        """
-        shape의 텍스트를 교체 (원본 XML 구조 완전 보존).
-        bodyPr, pPr, rPr 모두 유지 — <a:t> 텍스트만 교체.
-        lines 배열의 각 요소는 paragraph 단위로 매핑.
-        나머지 paragraph는 빈 줄로 유지 (run 제거).
-        """
-        if sp is None:
-            return
-        txBody = sp.find(f"{{{ns_p}}}txBody")
-        if txBody is None:
-            return
-
-        paras = txBody.findall(f"{{{ns_a}}}p")
-
-        for i in range(len(paras)):
-            para = paras[i]
-            runs = para.findall(f"{{{ns_a}}}r")
-
-            if i < len(lines):
-                # 텍스트 설정
-                line_text = lines[i]
-
-                if not runs:
-                    continue
-
-                # 첫 번째 run의 <a:t>만 수정
-                first_run = runs[0]
-                t_elem = first_run.find(f"{{{ns_a}}}t")
-                if t_elem is not None:
-                    t_elem.text = line_text
-
-                    # bold 설정 (필요 시 rPr 수정)
-                    if bold_line1:
-                        rPr = first_run.find(f"{{{ns_a}}}rPr")
-                        if rPr is not None:
-                            if i == 0:
-                                rPr.set("b", "1")
-                            elif "b" in rPr.attrib:
-                                del rPr.attrib["b"]
-
-                # 나머지 run들은 제거 (중복 텍스트 방지)
-                for extra_run in runs[1:]:
-                    para.remove(extra_run)
-            else:
-                # lines 범위 밖 paragraph는 완전히 제거 (빈 줄 없애기)
-                txBody.remove(para)
-
-    # ── 0. title & subtitle ───────────────────────────────────────
-    title_id = zone.get("title")
-    title_text = content.get("title", "")
-    if title_id and title_text:
-        sp = _find_shape_by_id(title_id)
-        _set_shape_text(sp, [title_text])
-
-    subtitle_id = zone.get("subtitle")
-    subtitle_text = content.get("subtitle", "")
-    if subtitle_id and subtitle_text:
-        prefix = subtitle_prefix_template.format(n=chapter)
-        full_text = f"{prefix} {subtitle_text}"
-        sp = _find_shape_by_id(subtitle_id)
-        _set_shape_text(sp, [full_text])
-
-    # 포맷 설정 로드
-    fmt_cfg = cfg.get("formatting", {})
-
-    # ── 1. 이미지 슬롯 (image_slots) ──────────────────────────────
-    img_slot_ids = zone.get("body", {}).get("image_slots", [])
-    for i, slot_id in enumerate(img_slot_ids, 1):
-        img_desc = content.get(f"item{i}_image_desc", "")
-        if img_desc:
-            text = img_desc if img_desc.strip().startswith("[이미지:") else img_format.format(description=img_desc)
-            sp = _find_shape_by_id(slot_id)
-            _set_shape_text(sp, [text])
-            if sp is not None and "image_slots" in fmt_cfg:
-                _apply_formatting_safe(sp, fmt_cfg["image_slots"], common_fmt)
-
-    # ── 2. 항목 제목 (item_titles) — 2줄 구조 ────────────────────
-    title_ids = zone.get("body", {}).get("item_titles", [])
-    for i, title_id in enumerate(title_ids, 1):
-        item_title = content.get(f"item{i}_title", "")
-        item_subtitle = content.get(f"item{i}_subtitle", "")
-
-        if item_title or item_subtitle:
-            prefix = item_prefix_template.format(n=i)
-            line1 = f"{prefix} {item_title}" if item_title else ""
-            line2 = item_subtitle
-
-            sp = _find_shape_by_id(title_id)
-            _set_shape_text(sp, [line1, line2], bold_line1=True)
-            if sp is not None and "item_titles" in fmt_cfg:
-                _apply_formatting_safe(sp, fmt_cfg["item_titles"], common_fmt)
-
-    # ── 3. 항목 설명 (item_descs) — 1줄 구조 ─────────────────────
-    desc_ids = zone.get("body", {}).get("item_descs", [])
-    for i, desc_id in enumerate(desc_ids, 1):
-        item_desc = content.get(f"item{i}_desc", "")
-
-        if item_desc:
-            sp = _find_shape_by_id(desc_id)
-            _set_shape_text(sp, [item_desc])
-            if sp is not None and "item_descs" in fmt_cfg:
-                _apply_formatting_safe(sp, fmt_cfg["item_descs"], common_fmt)
-
-    # ── 4. body_title ─────────────────────────────────────────────
-    body_title_id = zone.get("body_title")
-    body_title_text = content.get("body_title", "")
-    if body_title_id and body_title_text:
-        prefix = body_prefix_template.format(major=chapter, minor=section)
-        full_text = f"{prefix} {body_title_text}"
-        sp = _find_shape_by_id(body_title_id)
-        _set_shape_text(sp, [full_text])
-        if sp is not None and "body_title" in fmt_cfg:
-            _apply_formatting_safe(sp, fmt_cfg["body_title"], common_fmt)
-
-    # ── 5. body_desc ──────────────────────────────────────────────
-    body_desc_id = zone.get("body_desc")
-    body_desc_text = content.get("body_desc", "")
-    if body_desc_id and body_desc_text:
-        sp = _find_shape_by_id(body_desc_id)
-        _set_shape_text(sp, [body_desc_text])
-        if sp is not None and "body_desc" in fmt_cfg:
-            _apply_formatting_safe(sp, fmt_cfg["body_desc"], common_fmt)
-
-    # ── 6. sub_heading ────────────────────────────────────────────
-    sub_heading_ids = zone.get("body", {}).get("sub_heading", [])
-    sub_heading_text = content.get("sub_heading", "")
-    if sub_heading_ids and sub_heading_text:
-        prefix = sub_prefix_template.format(major=chapter, minor=section, sub=subsection)
-        full_text = f"{prefix} {sub_heading_text}"
-        sp = _find_shape_by_id(sub_heading_ids[0])
-        _set_shape_text(sp, [full_text])
-        if sp is not None and "sub_heading" in fmt_cfg:
-            _apply_formatting_safe(sp, fmt_cfg["sub_heading"], common_fmt)
-
-    _write_xml(root, xml_path)
-    ET.parse(xml_path)  # 유효성 검증
 
 
 def edit_slide(work_dir: Path, slide_plan: dict) -> bool:
@@ -5159,6 +4947,7 @@ def _edit_slide42(xml_path: Path, slide_plan: dict) -> None:
     - ID=28(body_desc, cx=8.8M, cy≈3줄): section_desc — 상세 설명 3줄 이내
     - ID=43/47/51(item_descs, cx=2.4M, cy≈3줄): descriptions 3개 — 각 원형 아래 content
     zone_map: body_desc="28", body.item_descs=["43","47","51"]
+    harness/slide_shape_ids.json slide42.item_descs_ids / item_desc 우선 적용.
     """
     content = slide_plan.get("content", {})
     descs   = _coerce_list(content.get("descriptions") or [])
@@ -5167,12 +4956,19 @@ def _edit_slide42(xml_path: Path, slide_plan: dict) -> None:
     except ET.ParseError: return
     _apply_common_zones(root, slide_plan, "slide42.xml")
     ns_p, ns_a = _NS_P, _NS_A
-    # ID=43/47/51: descriptions 3개 → 각 원형 아래 content 박스 (cx=2.4M, cy≈3줄)
-    for i, sid in enumerate(["43", "47", "51"]):
+    # harness 우선, 동일 fallback
+    _s42 = _load_slide_shape_ids().get("slide42", {})
+    _item_ids = _s42.get("item_descs_ids", ["43", "47", "51"])
+    _item_cfg  = _s42.get("item_desc", {"width_emu": 2_435_125, "font_pt": 12, "max_lines": 3})
+    _cx42   = _item_cfg.get("width_emu", 2_435_125)
+    _pt42   = _item_cfg.get("font_pt", 12)
+    _lines42 = _item_cfg.get("max_lines", 3)
+    # descriptions 3개 → 각 원형 아래 content 박스
+    for i, sid in enumerate(_item_ids):
         txt = descs[i] if i < len(descs) else ""
         if txt:
             _slide_set_helper(root, ns_p, ns_a, sid,
-                              _truncate_to_lines(txt, 2_435_125, 12, 3))
+                              _truncate_to_lines(txt, _cx42, _pt42, _lines42))
     _clear_residual_placeholders(root); _write_xml(root, xml_path)
 
 
@@ -5789,6 +5585,7 @@ def _call_api(client, bedrock, system: str, user: str, max_tokens: int = 4096) -
         if model.startswith("us.anthropic."):
             model = model[len("us.anthropic."):]
     resp = client.messages.create(model=model, max_tokens=max_tokens,
+                                   thinking={"type": "adaptive"},
                                    system=system, messages=messages)
     return resp.content[0].text.strip()
 
@@ -6013,7 +5810,9 @@ def _call_vision_api(system: str, content: list) -> str | None:
                 modelId="us.anthropic.claude-sonnet-4-6", body=body)
             return _j.loads(resp["body"].read())["content"][0]["text"].strip()
         resp = client.messages.create(
-            model=model, max_tokens=4096, system=system, messages=messages)
+            model=model, max_tokens=4096,
+            thinking={"type": "adaptive"},
+            system=system, messages=messages)
         return resp.content[0].text.strip()
     except Exception as e:
         print(f"  ⚠ Vision API 호출 실패: {e}")
@@ -6504,18 +6303,24 @@ def _success_rate(runs: list) -> float | None:
 
 
 def _record_run_experience(topic: str, plan: dict, vision_issues: int,
-                           qa_done: bool = True) -> None:
+                           qa_done: bool = True) -> str | None:
     """AHE 경험 관찰성(❷) + auto-update: 매 실행 후 long_term_memory에 run 기록을 append하고
     메타(total_runs/success_rate/last_updated)를 갱신한다. evolution/last_run_digest.json에도 요약 기록.
     실패해도 생성 결과엔 영향 없도록 전부 try/except로 감싼다 (AHE_PRINCIPLES §5 경험 관찰성).
 
     qa_done=False (skill 경로, inline_vision_qa=False)면 엔진이 QA를 안 한 것이므로
     qa_ok=None(판정 보류)로 기록한다. 실제 판정은 오케스트레이터의 독립 QA 에이전트가
-    update_last_run_qa()로 채운다 (확증편향 차단 + success_rate 정확성, F1)."""
+    update_last_run_qa()로 채운다 (확증편향 차단 + success_rate 정확성, F1).
+
+    반환값: 기록한 run의 run_id (off-by-one 없이 update_last_run_qa(run_id=...)로
+    정확히 그 run의 qa_ok를 닫기 위함). 기록 실패 시 None (#10)."""
     try:
         from datetime import datetime as _dt
+        import uuid as _uuid
         slides = plan.get("slides", [])
+        run_id = _uuid.uuid4().hex
         rec = {
+            "run_id": run_id,
             "ts": _dt.now().isoformat(timespec="seconds"),
             "topic": topic,
             "n_slides": len(slides),
@@ -6543,28 +6348,56 @@ def _record_run_experience(topic: str, plan: dict, vision_issues: int,
             json.dumps(rec, ensure_ascii=False, indent=2), encoding="utf-8")
         _qa = rec["qa_ok"] if rec["qa_ok"] is not None else "보류(독립 QA 대기)"
         print(f"  ✓ AHE 경험 기록: total_runs={mem['total_runs']}, "
-              f"success_rate={mem.get('success_rate')}, qa_ok={_qa} → harness/long_term_memory.json")
+              f"success_rate={mem.get('success_rate')}, qa_ok={_qa}, "
+              f"run_id={run_id[:8]} → harness/long_term_memory.json")
+        return run_id
     except Exception as _e:
         print(f"  ⚠ AHE 경험 기록 실패(무시): {_e}")
+        return None
 
 
-def update_last_run_qa(qa_ok: bool) -> None:
-    """오케스트레이터(독립 QA 에이전트)의 실제 판정을 가장 최근 run 기록에 반영한다 (F1).
+def update_last_run_qa(qa_ok: bool, run_id: str | None = None) -> None:
+    """오케스트레이터(독립 QA 에이전트)의 실제 판정을 해당 run 기록에 반영한다 (F1).
     skill 경로에서 _record_run_experience가 qa_ok=None으로 남긴 것을 확정값으로 채우고
-    success_rate를 재계산한다. SKILL.md 11.5단계에서 독립 QA 종료 후 호출."""
+    success_rate를 재계산한다. SKILL.md 11.5단계에서 독립 QA 종료 후 호출.
+
+    어떤 run을 닫을지 결정하는 순서 (#10 off-by-one 회피):
+      1. run_id가 주어지면 → 그 run_id와 일치하는 run을 정확히 닫는다
+         (생성과 QA 판정 사이에 다른 run이 기록돼도 안전).
+      2. run_id가 없으면 → qa_ok가 아직 None(판정 보류)인 가장 최근 run을 닫는다
+         (블라인드 runs[-1]은 보류 run이 아닐 수 있어 오판 위험 → 보류 run 우선).
+      3. 보류 run도 없으면 → runs[-1] (레거시 호환)."""
     try:
         mem_path = SKILL_DIR / "harness" / "long_term_memory.json"
         mem = json.loads(mem_path.read_text(encoding="utf-8"))
         runs = mem.get("runs", [])
         if not runs:
             print("  ⚠ QA 판정 반영: run 기록 없음"); return
-        runs[-1]["qa_ok"] = bool(qa_ok)
-        runs[-1]["qa_done"] = True
+
+        target = None
+        if run_id is not None:
+            target = next((r for r in reversed(runs)
+                           if r.get("run_id") == run_id), None)
+            if target is None:
+                print(f"  ⚠ QA 판정 반영: run_id={run_id[:8]} 매칭 실패 — "
+                      f"보류 run으로 폴백")
+        if target is None:
+            # 판정 보류(qa_ok=None) 상태인 가장 최근 run을 우선 닫는다
+            target = next((r for r in reversed(runs)
+                           if r.get("qa_ok") is None), None)
+        if target is None:
+            target = runs[-1]  # 레거시 호환
+
+        target["qa_ok"] = bool(qa_ok)
+        target["qa_done"] = True
         sr = _success_rate(runs)
         if sr is not None:
             mem["success_rate"] = sr
         mem_path.write_text(json.dumps(mem, ensure_ascii=False, indent=2), encoding="utf-8")
-        print(f"  ✓ 독립 QA 판정 반영: qa_ok={qa_ok} → success_rate={mem.get('success_rate')}")
+        _rid = target.get("run_id", "?")
+        _rid = _rid[:8] if isinstance(_rid, str) else _rid
+        print(f"  ✓ 독립 QA 판정 반영: qa_ok={qa_ok}, run_id={_rid} "
+              f"→ success_rate={mem.get('success_rate')}")
     except Exception as _e:
         print(f"  ⚠ QA 판정 반영 실패(무시): {_e}")
 
@@ -7024,7 +6857,8 @@ def run_ppt_generation(
 
     # ── AHE 경험 자동 기록 (❷ 경험 관찰성 + auto-update) ──
     # skill 경로(inline_vision_qa=False)는 qa_ok 보류로 기록 → 독립 QA가 update_last_run_qa로 확정 (F1)
-    _record_run_experience(topic, plan, _vision_critical_total, qa_done=inline_vision_qa)
+    # 반환된 run_id는 evolution/last_run_digest.json에도 남아 update_last_run_qa(run_id=...) 매칭에 쓰인다 (#10)
+    _last_run_id = _record_run_experience(topic, plan, _vision_critical_total, qa_done=inline_vision_qa)
 
     # ── tmp work_dir 정리 ────────────────────────────
     if cleanup_work_dir:

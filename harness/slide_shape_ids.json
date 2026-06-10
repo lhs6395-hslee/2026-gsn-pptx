@@ -861,7 +861,13 @@
       "font_pt": 12,
       "max_lines": 8
     },
-    "main_desc_max_lines": 8
+    "main_desc_max_lines": 8,
+    "item_descs_ids": ["43", "47", "51"],
+    "item_desc": {
+      "width_emu": 2435125,
+      "font_pt": 12,
+      "max_lines": 3
+    }
   },
   "slide27": {
     "panel_label_id": "40",
@@ -908,5 +914,11 @@
       "font_pt": 11,
       "max_lines": 4
     }
+  },
+  "slide25": {
+    "_comment": "slide25는 zonemap(layout_zone_map.json) 전담 슬라이드 — _edit_slide25 함수가 descriptions[0]을 overview로, descriptions[1:]을 item_descs로 분리해 _apply_common_zones에 위임한다. 별도 shape ID 하드코딩 없음."
+  },
+  "slide26": {
+    "_comment": "slide26는 zonemap(layout_zone_map.json) 전담 슬라이드 — _edit_slide26 함수가 descriptions[0]을 main_desc로, descriptions[1:]을 item_descs로 분리해 _apply_common_zones에 위임한다. 별도 shape ID 하드코딩 없음."
   }
 }
