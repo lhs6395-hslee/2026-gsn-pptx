@@ -184,6 +184,32 @@ def analyze_qa_images(image_paths: list[str], plan: dict) -> dict:
         return {"slides": [], "summary": raw[:200], "design_patterns": []}
 
 
+def _select_backend(vertex_proj, vertex_region, aws_region):
+    """백엔드 선택 — ppt_generator.generate_plan_with_claude 와 동일한 우선순위.
+    PPT_SKILL_BACKEND > CLAUDE_CODE_USE_* > 자동 감지. (use_vertex, use_bedrock) 반환."""
+    import os
+    explicit = os.environ.get("PPT_SKILL_BACKEND", "auto")  # auto|vertex|bedrock|anthropic
+    cc_bedrock = os.environ.get("CLAUDE_CODE_USE_BEDROCK", "0")
+    cc_vertex  = os.environ.get("CLAUDE_CODE_USE_VERTEX", "0")
+    if explicit == "vertex":
+        return True, False
+    if explicit == "bedrock":
+        return False, True
+    if explicit == "anthropic":
+        return False, False
+    if cc_bedrock == "1":
+        return False, True
+    if cc_vertex == "1":
+        return True, False
+    if cc_bedrock == "0" and cc_vertex == "0":
+        # switch-provider.sh direct — 두 플래그가 명시적으로 0이면 직접 API
+        return False, False
+    # 환경 변수 미설정 시 자동 감지
+    use_vertex = bool(vertex_proj or (vertex_region and not aws_region))
+    use_bedrock = bool(aws_region) and not use_vertex
+    return use_vertex, use_bedrock
+
+
 def _call_claude_vision(system: str, content: list) -> str | None:
     """멀티모달(Vision) Claude API 호출."""
     import os
@@ -193,8 +219,7 @@ def _call_claude_vision(system: str, content: list) -> str | None:
     vertex_region = os.environ.get("CLOUD_ML_REGION")
     aws_region   = os.environ.get("AWS_REGION")
 
-    use_vertex  = bool(vertex_proj or (vertex_region and not aws_region))
-    use_bedrock = bool(aws_region) and not use_vertex
+    use_vertex, use_bedrock = _select_backend(vertex_proj, vertex_region, aws_region)
 
     if not api_key and not use_vertex and not use_bedrock:
         print("  ⚠ Vision API 없음 — 이미지 분석 건너뜀")
@@ -288,15 +313,14 @@ def distill_digest(trace: dict, vision_result: dict | None = None) -> dict:
 # ── ❸ Decision Observability — Evolve Agent ──────────────────
 
 def _call_claude(system: str, user: str) -> str | None:
-    """Claude API 호출 (Vertex > Bedrock > Anthropic 순 자동 감지)."""
+    """Claude API 호출. 백엔드 선택은 _select_backend (PPT_SKILL_BACKEND > CLAUDE_CODE_USE_* > 자동 감지)."""
     import os
     api_key      = os.environ.get("ANTHROPIC_API_KEY")
     vertex_proj  = os.environ.get("ANTHROPIC_VERTEX_PROJECT_ID")
     vertex_region = os.environ.get("CLOUD_ML_REGION")
     aws_region   = os.environ.get("AWS_REGION")
 
-    use_vertex  = bool(vertex_proj or (vertex_region and not aws_region))
-    use_bedrock = bool(aws_region) and not use_vertex
+    use_vertex, use_bedrock = _select_backend(vertex_proj, vertex_region, aws_region)
 
     if not api_key and not use_vertex and not use_bedrock:
         return None
