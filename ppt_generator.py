@@ -3204,13 +3204,18 @@ def _edit_slide29(xml_path: Path, slide_plan: dict) -> None:
         ET.SubElement(tb, f"{{{ns_a}}}bodyPr", wrap="square",
                       lIns="152400", tIns="114300", rIns="152400", bIns="114300", anchor="t")
         ET.SubElement(tb, f"{{{ns_a}}}lstStyle")
+        _lnspc = _s29.get("period_lnspc_pct", 100000)
         for txt, sz, bold, col in lines:
             p = ET.SubElement(tb, f"{{{ns_a}}}p")
+            if _lnspc != 100000:
+                pPr = ET.SubElement(p, f"{{{ns_a}}}pPr")
+                lnSpc = ET.SubElement(pPr, f"{{{ns_a}}}lnSpc")
+                ET.SubElement(lnSpc, f"{{{ns_a}}}spcPct", val=str(_lnspc))
             r2 = ET.SubElement(p, f"{{{ns_a}}}r")
             r2.append(_mk_rPr(sz, bold, col))
             ET.SubElement(r2, f"{{{ns_a}}}t").text = txt
 
-    CONTENT_CY = _s29.get("content_box_cy", 2_065_000)
+    CONTENT_CY = _s29.get("period_item_cy", _s29.get("content_box_cy", 2_065_000))
     MARGIN     = _s29.get("content_box_margin", 80_000)
 
     sid = 400

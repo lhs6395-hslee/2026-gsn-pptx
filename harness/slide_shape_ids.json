@@ -479,7 +479,9 @@
     ],
     "content_box_cy": 2065000,
     "content_box_margin": 80000,
-    "_note": "period_label_ids는 layout_zone_map.json slide29.body.period_labels에서 로드. content_box 크기는 파란 제목박스 좌표 기반으로 동적 계산(ML PPT 실측값)"
+    "_note": "period_label_ids는 layout_zone_map.json slide29.body.period_labels에서 로드. content_box 크기는 파란 제목박스 좌표 기반으로 동적 계산(ML PPT 실측값)",
+    "period_lnspc_pct": 150000,
+    "period_item_cy": 3200000
   },
   "slide30": {
     "header_ids": [
