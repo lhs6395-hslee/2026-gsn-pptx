@@ -4819,12 +4819,12 @@ def _edit_chart_slide(xml_path: Path, slide_plan: dict, tmpl_key: str) -> None:
     sec_desc = content.get("section_desc", "")
     sec_title = content.get("section_title", "")
 
-    if chart_title_id and sec_desc:
-        _set_shape_text(chart_title_id, sec_desc)
+    if chart_title_id and sec_title:
+        _set_shape_text(chart_title_id, sec_title)
     if chart_desc_id and sec_desc:
         _set_shape_text(chart_desc_id, sec_desc)
-    if body_desc_id and sec_title:
-        _set_shape_text(body_desc_id, sec_title)
+    if body_desc_id and sec_desc:
+        _set_shape_text(body_desc_id, sec_desc)
 
     # 도넛 중앙 퍼센트 (slide40 전용)
     donut_pct_ids = sdata.get("donut_pct_ids", [])
