@@ -2,47 +2,63 @@
   "verified_slides": {
     "slide6.xml": {
       "role": "cover",
-      "desc": "표지"
+      "desc": "표지",
+      "llm_hint": "표지 (전용, 변경 불가)"
     },
     "slide7.xml": {
       "role": "toc",
-      "desc": "목차"
+      "desc": "목차",
+      "llm_hint": "목차 (전용, 변경 불가)"
+    },
+    "slide8.xml": {
+      "role": "section",
+      "desc": "섹션 구분",
+      "llm_hint": "챕터 구분 (사용자 명시 요청 시에만 — 자동 선택 금지)"
     },
     "slide9.xml": {
       "role": "content",
-      "desc": "3열 이미지+제목+설명"
+      "desc": "3열 이미지+제목+설명",
+      "llm_hint": "3가지 사례/제품 (이미지+제목+설명 3열)"
     },
     "slide10.xml": {
       "role": "content",
-      "desc": "3열 이미지+제목+설명 + 인사이트 배너"
+      "desc": "3열 이미지+제목+설명 + 인사이트 배너",
+      "llm_hint": "3가지 사례 + 하단 Insight 배너"
     },
     "slide11.xml": {
       "role": "content",
-      "desc": "3행 이미지+제목+설명"
+      "desc": "3행 이미지+제목+설명",
+      "llm_hint": "3가지 이미지 카드 (이미지+제목+설명 3열, 기능 강조)"
     },
     "slide12.xml": {
       "role": "content",
-      "desc": "3행 이미지+제목+설명 + 서브헤딩 바"
+      "desc": "3행 이미지+제목+설명 + 서브헤딩 바",
+      "llm_hint": "3가지 도구/기술 (이미지+우측 텍스트)"
     },
     "slide13.xml": {
       "role": "content",
-      "desc": "3열 네이비헤더+이미지+설명+인사이트"
+      "desc": "3열 네이비헤더+이미지+설명+인사이트",
+      "llm_hint": "3가지 기능/특징/장점 카드 (제목+설명 3열)"
     },
     "slide14.xml": {
       "role": "content",
-      "desc": "4열 네이비헤더+설명+인사이트"
+      "desc": "4열 네이비헤더+설명+인사이트",
+      "llm_hint": "4가지 기능/구성요소 (제목+설명+Insight 4열)"
     },
     "slide15.xml": {
       "role": "content",
-      "desc": "3열 + 서브헤딩 바 (slide13 패턴)"
+      "desc": "3열 + 서브헤딩 바 (slide13 패턴)",
+      "llm_hint": "3가지 핵심 가치 (제목+설명 3열)"
     },
     "slide16.xml": {
       "role": "content",
-      "desc": "4열 네이비헤더+이미지+설명 + 서브헤딩 바"
+      "desc": "4열 네이비헤더+이미지+설명 + 서브헤딩 바",
+      "llm_hint": "4가지 구성요소 컴팩트 (제목+설명 4열)"
     },
     "slide17.xml": {
       "role": "content",
-      "desc": "4항목 + 이미지"
+      "desc": "4항목 + 이미지",
+      "llm_hint": "4가지 이미지+서브헤딩 (이미지+제목+설명 4열, 로드맵/단계)"
     },
     "slide18.xml": {
       "role": "content",
@@ -66,19 +82,23 @@
     },
     "slide24.xml": {
       "role": "content",
-      "desc": "미디어(영상)형 + 좌측 2 텍스트블록"
+      "desc": "미디어(영상)형 + 좌측 2 텍스트블록",
+      "llm_hint": "2블록 텍스트 (bullets + body)"
     },
     "slide25.xml": {
       "role": "content",
-      "desc": "이미지 + 3항목 overview+3행"
+      "desc": "이미지 + 3항목 overview+3행",
+      "llm_hint": "이미지+우측3열 (좌측 이미지, 우측 overview+3항목)"
     },
     "slide26.xml": {
       "role": "content",
-      "desc": "이미지 + 3항목 상세"
+      "desc": "이미지 + 3항목 상세",
+      "llm_hint": "이미지+3항목 상세 (좌측 이미지, 우측 overview+3항목+설명)"
     },
     "slide27.xml": {
       "role": "content",
-      "desc": "이미지(좌) + 우측 3행 패널"
+      "desc": "이미지(좌) + 우측 3행 패널",
+      "llm_hint": "이미지+우측3행 패널 (좌측 이미지, 우측 overview+3행 — body_title 길이로 slide28 자동 전환)"
     },
     "slide28.xml": {
       "role": "content",
@@ -86,63 +106,83 @@
     },
     "slide29.xml": {
       "role": "timeline",
-      "desc": "대각선 계단형 타임라인 (periods)"
+      "desc": "대각선 계단형 타임라인 (periods)",
+      "llm_hint": "연도별 타임라인(2023→2026) 또는 월별(2026.1→2026.6)"
     },
     "slide30.xml": {
       "role": "steps",
-      "desc": "4열 step + 하단 4×4 grid"
+      "desc": "4열 step + 하단 4×4 grid",
+      "llm_hint": "4단계 프로세스 (Step1→Step2→Step3→Step4)"
     },
     "slide31.xml": {
       "role": "quarterly",
-      "desc": "분기별 타임라인 Q1→Q4 (quarters)"
+      "desc": "분기별 타임라인 Q1→Q4 (quarters)",
+      "llm_hint": "분기별 Q1→Q2→Q3→Q4 레이아웃"
+    },
+    "slide32.xml": {
+      "role": "content",
+      "desc": "상단 텍스트+하단 3열 콘텐츠",
+      "llm_hint": "상단 텍스트+하단 3열 콘텐츠 (본문설명글+3가지 핵심 포인트/이미지)"
     },
     "slide33.xml": {
       "role": "quarterly",
-      "desc": "분기별 타임라인 (slide31 변형)"
+      "desc": "분기별 타임라인 (slide31 변형)",
+      "llm_hint": "slide31 변형 — 상단 설명 + Q1-Q4열"
     },
     "slide34.xml": {
       "role": "content",
-      "desc": "2이미지 + 키워드 4개"
+      "desc": "2이미지 + 키워드 4개",
+      "llm_hint": "2이미지+키워드 (키워드 4개+설명+이미지 2개)"
     },
     "slide35.xml": {
       "role": "content",
-      "desc": "Before / After 버블 키워드"
+      "desc": "Before / After 버블 키워드",
+      "llm_hint": "Before→After 비교"
     },
     "slide36.xml": {
       "role": "content",
-      "desc": "As-is / To-be 벤다이어그램"
+      "desc": "As-is / To-be 벤다이어그램",
+      "llm_hint": "As-is/To-be 벤다이어그램 (현황→목표 비교)"
     },
     "slide37.xml": {
       "role": "content",
-      "desc": "3구역 텍스트 (2025→2026)"
+      "desc": "3구역 텍스트 (2025→2026)",
+      "llm_hint": "3구역 텍스트 (대형 설명+보조 설명 2개, 텍스트 중심)"
     },
     "slide38.xml": {
       "role": "flow",
-      "desc": "3행 흐름도 keyword→solution→service"
+      "desc": "3행 흐름도 keyword→solution→service",
+      "llm_hint": "3행 흐름도 keyword→solution→service (아키텍처/파이프라인)"
     },
     "slide39.xml": {
       "role": "flow",
-      "desc": "4열 상세 흐름도"
-    },
-    "slide42.xml": {
-      "role": "content",
-      "desc": "대형 본문 + 3원형"
-    },
-    "slide46.xml": {
-      "role": "closing",
-      "desc": "감사합니다 — 편집 금지"
+      "desc": "4열 상세 흐름도",
+      "llm_hint": "4열 흐름도 (keyword/solution/detail/service)"
     },
     "slide40.xml": {
       "role": "charts",
-      "desc": "도넛 차트 3개 (KPI/달성률)"
+      "desc": "도넛 차트 3개 (KPI/달성률)",
+      "llm_hint": "도넛 차트 3개 (비율·KPI 달성도 — chart_data 필수)"
     },
     "slide41.xml": {
       "role": "charts",
-      "desc": "막대 차트 (다범주 비교)"
+      "desc": "막대 차트 (다범주 비교)",
+      "llm_hint": "막대 차트 (항목별 다시리즈 수치 비교 — chart_data 필수)"
+    },
+    "slide42.xml": {
+      "role": "content",
+      "desc": "대형 본문 + 3원형",
+      "llm_hint": "대형 본문 (단일 대형 텍스트 박스, 심층 설명)"
     },
     "slide43.xml": {
       "role": "charts",
-      "desc": "막대 차트 (시계열/증감)"
+      "desc": "막대 차트 (시계열/증감)",
+      "llm_hint": "막대 차트 (시계열 증감 추이, 음수 가능 — chart_data 필수)"
+    },
+    "slide46.xml": {
+      "role": "closing",
+      "desc": "감사합니다 — 편집 금지",
+      "llm_hint": "감사합니다 (전용, 변경 불가)"
     }
   },
   "unverified_slides": {},

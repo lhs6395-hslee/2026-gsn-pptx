@@ -33,47 +33,6 @@ NS = {
 # ── Plan 콘텐츠 스키마 ────────────────────────────────────────
 # role별 content 필드 요구사항 정의
 
-# ── 레이아웃 레지스트리 ────────────────────────────────────────
-# CLAUDE.md 카탈로그 기반: 역할별 최적 슬라이드 + 편집기 함수명
-# shape 구조:
-#   slide24: ID=8(제목), ID=7(본문1/bullets), ID=10(본문2/body)        — 순수 텍스트 2블록
-#   slide30: ID=8(제목), ID=9(부제목), ID=28-31(Step1~4)               — 4단계 프로세스
-#   slide32: ID=8(제목), ID=9(부제목), ID=25(본문제목), ID=26(본문설명글)  — 상단텍스트+하단3열(텍스트/이미지 삽입형)
-#   slide38: ID=8(제목), ID=13-15(keyword×3), ID=7/10/11(solution×3)  — 3행 흐름도
-#   slide8:  ID=2(섹션제목/40pt), ID=4(서브항목 목록)                    — 섹션 구분
-LAYOUT_REGISTRY: dict[str, dict] = {
-    "slide24.xml": {"label": "2블록 텍스트", "best_for": ["content", "body"],
-                    "editor": "_edit_slide24"},
-    "slide30.xml": {"label": "4단계 스텝",   "best_for": ["steps", "process"],
-                    "editor": "_edit_slide30"},
-    "slide32.xml": {"label": "상단텍스트+하단3열콘텐츠", "best_for": ["content", "three_points"],
-                    "editor": "_edit_slide32"},
-    "slide38.xml": {"label": "3행 흐름도",   "best_for": ["flow", "architecture"],
-                    "editor": "_edit_slide38"},
-    "slide8.xml":  {"label": "섹션 구분",    "best_for": ["section"],
-                    "editor": "_edit_slide8"},
-    "slide6.xml":  {"label": "표지",         "best_for": ["cover"],
-                    "editor": "edit_cover_slide"},
-    "slide7.xml":  {"label": "목차",         "best_for": ["toc"],
-                    "editor": "edit_toc_slide"},
-    "slide46.xml": {"label": "감사합니다",   "best_for": ["closing"],
-                    "editor": "noop"},
-    "slide9.xml":  {"label": "3열 이미지+제목+설명", "best_for": ["three_col", "comparison", "services"],    "editor": "_edit_slide9"},
-    "slide10.xml": {"label": "3열+인사이트",          "best_for": ["insights", "metrics", "comparison"],      "editor": "_edit_slide10"},
-    "slide11.xml": {"label": "3열 이미지카드",         "best_for": ["features", "three_col", "highlights"],   "editor": "_edit_slide11"},
-    "slide12.xml": {"label": "3열+서브헤딩",           "best_for": ["three_col", "content"],                  "editor": "_edit_slide12"},
-    "slide14.xml": {"label": "4열 아이콘+인사이트",    "best_for": ["four_features", "pillars", "benefits"],  "editor": "_edit_slide14"},
-    "slide16.xml": {"label": "4열 아이콘+서브헤딩",    "best_for": ["four_col", "features", "services"],      "editor": "_edit_slide16"},
-    "slide17.xml": {"label": "4열 이미지+서브헤딩",    "best_for": ["four_col", "roadmap", "phases"],         "editor": "_edit_slide17"},
-    "slide25.xml": {"label": "이미지+우측3열",         "best_for": ["image_text", "overview", "content"],     "editor": "_edit_slide25"},
-    "slide26.xml": {"label": "이미지+3항목",           "best_for": ["image_text", "detail", "content"],       "editor": "_edit_slide26"},
-    "slide27.xml": {"label": "이미지+우측3행(2줄)",    "best_for": ["image_text", "panel", "content"],        "editor": "_edit_slide27"},
-    "slide28.xml": {"label": "이미지+우측3행(3줄)",    "best_for": ["image_text", "panel", "content"],        "editor": "_edit_slide28"},
-    "slide34.xml": {"label": "2이미지+키워드",         "best_for": ["keywords", "highlight", "comparison"],   "editor": "_edit_slide34"},
-    "slide37.xml": {"label": "3구역 텍스트",           "best_for": ["text_heavy", "explanation", "detail"],   "editor": "_edit_slide37"},
-    "slide42.xml": {"label": "대형 본문",              "best_for": ["body", "deep_dive", "content"],          "editor": "_edit_slide42"},
-}
-
 
 # ── 1. 템플릿 분석 ────────────────────────────────────────────
 
@@ -121,6 +80,22 @@ def _extract_layout_order(pptx_path: Path) -> list[str]:
     rid_to_file = dict(_re.findall(r'Id="(rId\d+)"[^>]*Target="slides/([^"]+)"', rels_xml))
     rids = _re.findall(r'<p:sldId[^>]+r:id="(rId\d+)"', xml)
     return [rid_to_file[r] for r in rids if r in rid_to_file]
+
+
+def _build_catalog_prompt() -> str:
+    """slide_catalog.json의 llm_hint를 읽어 LLM용 카탈로그 프롬프트를 동적 생성한다."""
+    _cat = _load_slide_catalog()
+    _banned = set(_cat.get("banned_slides", {}).keys())
+    lines = []
+    for slide_file, info in _cat.get("verified_slides", {}).items():
+        hint = info.get("llm_hint")
+        if not hint:
+            continue
+        role = info.get("role", "content")
+        if role == "charts":
+            role = "content"
+        lines.append(f"{slide_file:<13s} → {role:<9s}: {hint}")
+    return "\n".join(lines)
 
 
 def generate_plan_with_claude(
@@ -183,35 +158,7 @@ def generate_plan_with_claude(
         "콘텐츠를 먼저 설계하고, 그 콘텐츠에 가장 적합한 template_file을 선택합니다.\n"
         "반드시 JSON만 출력하고 다른 텍스트는 포함하지 않습니다.\n\n"
         "=== 사용 가능한 template_file 카탈로그 ===\n"
-        "slide6.xml   → cover    : 표지 (전용, 변경 불가)\n"
-        "slide7.xml   → toc      : 목차 (전용, 변경 불가)\n"
-        "slide8.xml   → section  : 챕터 구분 (사용자 명시 요청 시에만 — 자동 선택 금지)\n"
-        "slide29.xml  → timeline : 연도별 타임라인(2023→2026) 또는 월별(2026.1→2026.6)\n"
-        "slide31.xml  → quarterly: 분기별 Q1→Q2→Q3→Q4 레이아웃\n"
-        "slide33.xml  → quarterly: slide31 변형 — 상단 설명 + Q1-Q4열\n"
-        "slide13.xml  → content  : 3가지 기능/특징/장점 카드 (제목+설명 3열)\n"
-        "slide15.xml  → content  : 3가지 핵심 가치 (제목+설명 3열)\n"
-        "slide14.xml  → content  : 4가지 기능/구성요소 (제목+설명+Insight 4열)\n"
-        "slide16.xml  → content  : 4가지 구성요소 컴팩트 (제목+설명 4열)\n"
-        "slide9.xml   → content  : 3가지 사례/제품 (이미지+제목+설명 3열)\n"
-        "slide10.xml  → content  : 3가지 사례 + 하단 Insight 배너\n"
-        "slide12.xml  → content  : 3가지 도구/기술 (이미지+우측 텍스트)\n"
-        "slide30.xml  → steps    : 4단계 프로세스 (Step1→Step2→Step3→Step4)\n"
-        "slide11.xml  → content  : 3가지 이미지 카드 (이미지+제목+설명 3열, 기능 강조)\n"
-        "slide17.xml  → content  : 4가지 이미지+서브헤딩 (이미지+제목+설명 4열, 로드맵/단계)\n"
-        "slide25.xml  → content  : 이미지+우측3열 (좌측 이미지, 우측 overview+3항목)\n"
-        "slide26.xml  → content  : 이미지+3항목 상세 (좌측 이미지, 우측 overview+3항목+설명)\n"
-        "slide27.xml  → content  : 이미지+우측3행 패널 (좌측 이미지, 우측 overview+3행 — body_title 길이로 slide28 자동 전환)\n"
-        "slide34.xml  → content  : 2이미지+키워드 (키워드 4개+설명+이미지 2개)\n"
-        "slide37.xml  → content  : 3구역 텍스트 (대형 설명+보조 설명 2개, 텍스트 중심)\n"
-        "slide42.xml  → content  : 대형 본문 (단일 대형 텍스트 박스, 심층 설명)\n"
-        "slide40.xml  → content  : 도넛 차트 3개 (비율·KPI 달성도 — chart_data 필수)\n"
-        "slide41.xml  → content  : 막대 차트 (항목별 다시리즈 수치 비교 — chart_data 필수)\n"
-        "slide43.xml  → content  : 막대 차트 (시계열 증감 추이, 음수 가능 — chart_data 필수)\n"
-        "slide32.xml  → content  : 상단 텍스트+하단 3열 콘텐츠 (본문설명글+3가지 핵심 포인트/이미지)\n"
-        "slide36.xml  → content  : As-is/To-be 벤다이어그램 (현황→목표 비교)\n"
-        "slide38.xml  → flow     : 3행 흐름도 keyword→solution→service (아키텍처/파이프라인)\n"
-        "slide46.xml  → closing  : 감사합니다 (전용, 변경 불가)\n\n"
+        + _build_catalog_prompt() + "\n\n"
         "=== template 선택 기준 (반드시 콘텐츠 형태와 일치시킬 것) ===\n"
         "- 서술형 설명+3가지 핵심 포인트 → slide32 (상단: 본문설명글, 하단 3열: bullets 3개 또는 이미지)\n"
         "- 3가지 기능/장점 나열 → slide13 (items 3개 + descriptions 3개 필수)\n"
@@ -444,23 +391,17 @@ def generate_plan(topic: str, audience: str, n_slides: int, slide_info: list[dic
     """
     available = [s["file"] for s in slide_info]
 
-    # 사용 가능한 슬라이드 파일을 역할에 매핑 (GS Neotek 템플릿 기준)
+    # slide_catalog.json의 role 필드로 역할 매핑 (하드코딩 번호 제거)
+    _cat = _load_slide_catalog()
+    _verified = _cat.get("verified_slides", {})
     role_map: dict[str, str] = {}
     for f in available:
-        name = Path(f).stem  # e.g. "slide6"
-        idx = int(re.search(r"\d+", name).group())
-        if idx == 6:
-            role_map["cover"] = f
-        elif idx == 7:
-            role_map["toc"] = f
-        elif idx == 8:
-            role_map["section"] = f
-        elif idx == 14:
+        cat_entry = _verified.get(f, {})
+        cat_role = cat_entry.get("role", "")
+        if cat_role in ("cover", "toc", "closing", "steps", "flow", "section"):
+            role_map.setdefault(cat_role, f)
+        elif cat_role == "content" and "three_col" not in role_map:
             role_map["three_col"] = f
-        elif idx == 30:
-            role_map["steps"] = f
-        elif idx == 46:
-            role_map["closing"] = f
 
     def pick(preferred: str, fallback_idx: int) -> str:
         if preferred in role_map:
