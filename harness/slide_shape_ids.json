@@ -908,5 +908,62 @@
       "font_pt": 11,
       "max_lines": 4
     }
+  },
+  "slide40": {
+    "chart_title_id": "17",
+    "chart_desc_id": "31",
+    "body_desc_id": "10",
+    "donut_pct_ids": [
+      "23",
+      "26",
+      "29"
+    ]
+  },
+  "slide41": {
+    "chart_title_id": "20",
+    "chart_desc_id": "30",
+    "body_desc_id": "10",
+    "slots": [
+      {
+        "type": "item_title",
+        "ids": [
+          "14",
+          "11",
+          "12"
+        ],
+        "content_key": "chart_series_names",
+        "width_emu": 1685487,
+        "font_pt": 11,
+        "max_lines": 1
+      }
+    ]
+  },
+  "slide43": {
+    "chart_title_id": "28",
+    "body_desc_id": "40",
+    "slots": [
+      {
+        "type": "item_title",
+        "ids": [
+          "35",
+          "38"
+        ],
+        "content_key": "chart_series_names",
+        "width_emu": 3565978,
+        "font_pt": 11,
+        "max_lines": 1
+      },
+      {
+        "type": "item_body",
+        "ids": [
+          "49",
+          "50"
+        ],
+        "content_key": "chart_series_descs",
+        "width_emu": 3558882,
+        "font_pt": 12,
+        "max_lines": 3
+      }
+    ]
   }
 }

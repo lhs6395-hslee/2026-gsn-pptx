@@ -4767,6 +4767,107 @@ def _edit_slide42(xml_path: Path, slide_plan: dict) -> None:
     _clear_residual_placeholders(root); _write_xml(root, xml_path)
 
 
+def _edit_chart_slide(xml_path: Path, slide_plan: dict, tmpl_key: str) -> None:
+    """차트 슬라이드(slide40/41/43) 텍스트 shape 편집기.
+    차트 데이터 자체는 _update_chart_data가 처리하고,
+    이 함수는 제목·설명·도넛 퍼센트 등 텍스트 shape만 채운다."""
+    import copy as _copy
+    content = slide_plan.get("content", {})
+    try:
+        tree = ET.parse(xml_path); root = tree.getroot()
+    except ET.ParseError:
+        return
+    _apply_common_zones(root, slide_plan, tmpl_key)
+    slide_key = tmpl_key.replace(".xml", "")
+    sdata = _load_slide_shape_ids().get(slide_key, {})
+    if not isinstance(sdata, dict):
+        _write_xml(root, xml_path)
+        return
+
+    ns_p, ns_a = _NS_P, _NS_A
+
+    def _set_shape_text(sid, text):
+        sp = _find_shape_by_id(root, sid)
+        if sp is None:
+            return
+        txBody = sp.find(f"{{{ns_p}}}txBody")
+        if txBody is None:
+            return
+        orig_rPr = None
+        for r in sp.findall(f".//{{{ns_a}}}r"):
+            rPr_e = r.find(f"{{{ns_a}}}rPr")
+            if rPr_e is not None:
+                orig_rPr = _copy.deepcopy(rPr_e)
+                orig_rPr.set("lang", _ppt_lang())
+                orig_rPr.set("dirty", "0")
+                break
+        for p in txBody.findall(f"{{{ns_a}}}p"):
+            for r in p.findall(f"{{{ns_a}}}r"):
+                p.remove(r)
+            end = p.find(f"{{{ns_a}}}endParaRPr")
+            idx = list(p).index(end) if end is not None else len(p)
+            r_new = ET.Element(f"{{{ns_a}}}r")
+            if orig_rPr:
+                r_new.append(_copy.deepcopy(orig_rPr))
+            ET.SubElement(r_new, f"{{{ns_a}}}t").text = text
+            p.insert(idx, r_new)
+            break
+
+    chart_title_id = sdata.get("chart_title_id")
+    chart_desc_id = sdata.get("chart_desc_id")
+    body_desc_id = sdata.get("body_desc_id")
+    sec_desc = content.get("section_desc", "")
+    sec_title = content.get("section_title", "")
+
+    if chart_title_id and sec_desc:
+        _set_shape_text(chart_title_id, sec_desc)
+    if chart_desc_id and sec_desc:
+        _set_shape_text(chart_desc_id, sec_desc)
+    if body_desc_id and sec_title:
+        _set_shape_text(body_desc_id, sec_title)
+
+    # 도넛 중앙 퍼센트 (slide40 전용)
+    donut_pct_ids = sdata.get("donut_pct_ids", [])
+    chart_data = content.get("chart_data", [])
+    if donut_pct_ids and isinstance(chart_data, list):
+        for i, sid in enumerate(donut_pct_ids):
+            if i < len(chart_data):
+                entry = chart_data[i]
+                vals = entry.get("values", []) if isinstance(entry, dict) else []
+                pct = vals[0] if vals else ""
+                _set_shape_text(sid, f"{pct}%")
+
+    # slots 기반 처리 (chart_series_names, chart_series_descs 등)
+    slots = sdata.get("slots", [])
+    if slots:
+        # chart_data에서 series names 자동 파생
+        if chart_data and isinstance(chart_data, list):
+            for entry in chart_data:
+                if isinstance(entry, dict) and "series" in entry:
+                    series = entry["series"]
+                    content.setdefault("chart_series_names",
+                                       [s.get("name", "") for s in series if isinstance(s, dict)])
+                    content.setdefault("chart_series_descs",
+                                       [f"{s.get('name','')}: 데이터 시리즈" for s in series if isinstance(s, dict)])
+                    break
+        _apply_slots(root, content, slots, slide_plan=slide_plan)
+
+    _clear_residual_placeholders(root)
+    _write_xml(root, xml_path)
+
+
+def _edit_slide40(xml_path: Path, slide_plan: dict) -> None:
+    _edit_chart_slide(xml_path, slide_plan, "slide40.xml")
+
+
+def _edit_slide41(xml_path: Path, slide_plan: dict) -> None:
+    _edit_chart_slide(xml_path, slide_plan, "slide41.xml")
+
+
+def _edit_slide43(xml_path: Path, slide_plan: dict) -> None:
+    _edit_chart_slide(xml_path, slide_plan, "slide43.xml")
+
+
 # ── _SLIDE_EDITORS 자동 등록 ─────────────────────────────────────
 # 함수명 규칙 _edit_slideN → slideN.xml 자동 매핑. 수동 누락 버그 방지.
 import re as _re_auto
