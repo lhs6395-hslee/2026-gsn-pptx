@@ -496,13 +496,73 @@
       "vision_issues": 0,
       "qa_done": false,
       "qa_ok": null
+    },
+    {
+      "ts": "2026-06-10T16:21:33",
+      "topic": "Anthropic Fable 5",
+      "n_slides": 10,
+      "templates": [
+        "slide6.xml",
+        "slide7.xml",
+        "slide13.xml",
+        "slide36.xml",
+        "slide38.xml",
+        "slide14.xml",
+        "slide41.xml",
+        "slide6_c2.xml",
+        "slide30.xml",
+        "slide46.xml"
+      ],
+      "vision_issues": 3,
+      "qa_done": true,
+      "qa_ok": false
+    },
+    {
+      "ts": "2026-06-10T17:34:25",
+      "topic": "Anthropic Fable 5",
+      "n_slides": 10,
+      "templates": [
+        "slide6.xml",
+        "slide7.xml",
+        "slide14.xml",
+        "slide14_c2.xml",
+        "slide14_c3.xml",
+        "slide6_c2.xml",
+        "slide6_c3.xml",
+        "slide6_c4.xml",
+        "slide7_c2.xml",
+        "slide46.xml"
+      ],
+      "vision_issues": 0,
+      "qa_done": true,
+      "qa_ok": true
+    },
+    {
+      "ts": "2026-06-10T17:38:52",
+      "topic": "Anthropic Fable 5",
+      "n_slides": 10,
+      "templates": [
+        "slide6.xml",
+        "slide7.xml",
+        "slide13.xml",
+        "slide36.xml",
+        "slide30.xml",
+        "slide38.xml",
+        "slide14.xml",
+        "slide16.xml",
+        "slide41.xml",
+        "slide46.xml"
+      ],
+      "vision_issues": 1,
+      "qa_done": true,
+      "qa_ok": false
     }
   ],
-  "total_runs": 25,
+  "total_runs": 28,
   "evolution_notes": "v0.4 — 2026-06-09: AHE 공식 원칙 명문화(AHE_PRINCIPLES.md) + 결정관찰성 원장(change_manifest.jsonl) 도입. slide_catalog verified 13→33 재분류(slide23 ban). slide31/33 하단 메타 데이터주도화. group_title(사이드 소제목=subtitle) 도입. 원칙: 생성≠판정 분리(확증편향 방지), stale scaffolding 제거(Opus 4.8 기준 stress test), falsifiable-contract 의무.",
   "qa_enforcement_note": "qa_ok=false인 실행은 issue_count=0이더라도 완료 조건 미검증으로 간주. verifier에서 qa_done 플래그를 반드시 확인하고, false인 경우 WARN 처리하여 다음 실행에서 QA 단계를 강제 수행할 것.",
   "last_evolved": "2026-06-02T06:14:48.197792",
-  "success_rate": 1.0,
+  "success_rate": 0.5,
   "last_updated": "2026-06-10",
   "planning_constraints": [
     "텍스트 간결화: 본문제목 25자·항목 30자 이내 권장. 엔진이 _truncate_to_lines로 자동 절단하고 텍스트박스 cy를 자동 확장하므로, 가독성을 위해 plan 단계에서 핵심만 간결하게 작성한다.",

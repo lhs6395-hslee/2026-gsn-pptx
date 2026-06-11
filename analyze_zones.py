@@ -121,7 +121,7 @@ def classify(shapes):
             add("timeline_y", sh); continue
         if re.match(r"^Solution", t, re.I):
             add("flow_solution", sh); continue
-        if re.match(r"^Sevice|^Service", t, re.I):
+        if re.match(r"^Se[rv]vice|^Service", t, re.I):
             add("flow_service", sh); continue
         if re.match(r"^항목 ?0?1", t):
             add("detail_items", sh); continue
