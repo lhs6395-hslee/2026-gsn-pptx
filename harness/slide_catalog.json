@@ -164,11 +164,6 @@
       "desc": "대형 본문 + 3원형",
       "llm_hint": "대형 본문 (단일 대형 텍스트 박스, 심층 설명)"
     },
-    "slide43.xml": {
-      "role": "charts",
-      "desc": "막대 차트 (시계열/증감)",
-      "llm_hint": "막대 차트 (시계열 증감 추이, 음수 가능 — chart_data 필수)"
-    },
     "slide46.xml": {
       "role": "closing",
       "desc": "감사합니다 — 편집 금지",
@@ -188,7 +183,8 @@
     "slide44.xml": "closing 전용 — 미검증 변형",
     "slide45.xml": "closing 전용 — 미검증 변형",
     "slide32.xml": "내부 콘텐츠 부족 — 실제 프레젠테이션 생성 시 사용 금지",
-    "slide41.xml": "막대 차트 — PDF 렌더 불안정 + 범례 레이아웃 깨짐"
+    "slide41.xml": "막대 차트 — PDF 렌더 불안정 + 범례 레이아웃 깨짐",
+    "slide43.xml": "막대 차트(시계열) — PDF 렌더 불안정 + 범례 깨짐"
   },
   "layout_variants": {
     "slide27.xml": {
