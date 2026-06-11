@@ -5139,68 +5139,6 @@ def _edit_zonemap_slide(xml_path: Path, slide_plan: dict) -> None:
             else:
                 _slide_set_helper(root, ns_p, ns_a, sid, txt)
 
-    # item_titles/item_descs y좌표 균등 분배 — 템플릿에서 같은 y에 겹쳐있는 경우 해소
-    # group_title 배경 직사각형 아래 ~ content_bottom_limit 사이에서 균등 배치
-    for role_pair in [("item_titles", "item_descs")]:
-        title_ids = body_zones.get(role_pair[0], [])
-        desc_ids = body_zones.get(role_pair[1], [])
-        if len(title_ids) < 2:
-            continue
-        # 모든 title이 같은 y인지 확인 — 다르면 이미 배치된 것
-        title_ys = set()
-        for tid in title_ids:
-            sp_t = _find_shape_by_id(root, tid)
-            if sp_t is not None:
-                xfrm_t = sp_t.find(f".//{{{ns_a}}}xfrm")
-                if xfrm_t is not None:
-                    off_t = xfrm_t.find(f"{{{ns_a}}}off")
-                    if off_t is not None:
-                        title_ys.add(off_t.get("y", ""))
-        if len(title_ys) > 1:
-            continue  # 이미 서로 다른 y → 재배치 불필요
-        # group_title 배경 하단 찾기
-        gt_id = z.get("group_title")
-        area_top = 2100000  # 기본값
-        if gt_id:
-            gt_sp = _find_shape_by_id(root, gt_id)
-            if gt_sp is not None:
-                gt_xfrm = gt_sp.find(f".//{{{ns_a}}}xfrm")
-                if gt_xfrm is not None:
-                    gt_off = gt_xfrm.find(f"{{{ns_a}}}off")
-                    gt_ext = gt_xfrm.find(f"{{{ns_a}}}ext")
-                    if gt_off is not None and gt_ext is not None:
-                        area_top = int(gt_off.get("y", "0")) + int(gt_ext.get("cy", "0")) + 60000
-        area_bottom = _load_common_formatting().get("content_bottom_limit", 6286286)
-        n = len(title_ids)
-        title_cy = 384019
-        desc_cy = 712993
-        sp0 = _find_shape_by_id(root, title_ids[0])
-        if sp0 is not None:
-            ext0 = sp0.find(f".//{{{ns_a}}}xfrm/{{{ns_a}}}ext")
-            if ext0 is not None:
-                title_cy = int(ext0.get("cy", "384019"))
-        if desc_ids:
-            dsp = _find_shape_by_id(root, desc_ids[0])
-            if dsp is not None:
-                dext = dsp.find(f".//{{{ns_a}}}xfrm/{{{ns_a}}}ext")
-                if dext is not None:
-                    desc_cy = int(dext.get("cy", "712993"))
-        gap = 30000
-        row_h = title_cy + desc_cy + gap + 80000
-        for i, tid in enumerate(title_ids):
-            sp_t = _find_shape_by_id(root, tid)
-            if sp_t is None:
-                continue
-            off_t = sp_t.find(f".//{{{ns_a}}}xfrm/{{{ns_a}}}off")
-            if off_t is not None:
-                off_t.set("y", str(area_top + i * row_h))
-            if i < len(desc_ids):
-                sp_d = _find_shape_by_id(root, desc_ids[i])
-                if sp_d is not None:
-                    off_d = sp_d.find(f".//{{{ns_a}}}xfrm/{{{ns_a}}}off")
-                    if off_d is not None:
-                        off_d.set("y", str(area_top + i * row_h + title_cy + gap))
-
     _clear_residual_placeholders(root)
     _write_xml(root, xml_path)
 
