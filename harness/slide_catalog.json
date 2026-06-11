@@ -119,11 +119,6 @@
       "desc": "분기별 타임라인 Q1→Q4 (quarters)",
       "llm_hint": "분기별 Q1→Q2→Q3→Q4 레이아웃"
     },
-    "slide32.xml": {
-      "role": "content",
-      "desc": "상단 텍스트+하단 3열 콘텐츠",
-      "llm_hint": "상단 텍스트+하단 3열 콘텐츠 (본문설명글+3가지 핵심 포인트/이미지)"
-    },
     "slide33.xml": {
       "role": "quarterly",
       "desc": "분기별 타임라인 (slide31 변형)",
@@ -164,11 +159,6 @@
       "desc": "도넛 차트 3개 (KPI/달성률)",
       "llm_hint": "도넛 차트 3개 (비율·KPI 달성도 — chart_data 필수)"
     },
-    "slide41.xml": {
-      "role": "charts",
-      "desc": "막대 차트 (다범주 비교)",
-      "llm_hint": "막대 차트 (항목별 다시리즈 수치 비교 — chart_data 필수)"
-    },
     "slide42.xml": {
       "role": "content",
       "desc": "대형 본문 + 3원형",
@@ -196,7 +186,9 @@
     "slide23.xml": "복잡한 고정 인포그래픽 — 6 타이틀박스 vs 3설명 슬롯 불일치, 자동 채움 시 설명-박스 정렬 불가",
     "slide28.xml": "layout_variants 자동 선택 전용 — LLM 직접 지정 금지",
     "slide44.xml": "closing 전용 — 미검증 변형",
-    "slide45.xml": "closing 전용 — 미검증 변형"
+    "slide45.xml": "closing 전용 — 미검증 변형",
+    "slide32.xml": "내부 콘텐츠 부족 — 실제 프레젠테이션 생성 시 사용 금지",
+    "slide41.xml": "막대 차트 — PDF 렌더 불안정 + 범례 레이아웃 깨짐"
   },
   "layout_variants": {
     "slide27.xml": {
