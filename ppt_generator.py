@@ -2342,6 +2342,24 @@ def validate_plan(plan: dict) -> tuple[bool, list[str]]:
                     f"slide {slide['index']} ({role}): 필수 — 슬라이드 레벨 'subtitle'(중제목) 없음"
                 )
 
+        # slot 기반 필수 content_key 검증 (slide_shape_ids.json 참조)
+        tmpl = slide.get("template_file", "")
+        slide_key = tmpl.replace(".xml", "") if tmpl else ""
+        _sdata = _load_slide_shape_ids().get(slide_key, {})
+        if isinstance(_sdata, dict):
+            for slot in _sdata.get("slots", []):
+                if not isinstance(slot, dict):
+                    continue
+                stype = slot.get("type", "")
+                ckey = slot.get("content_key", "")
+                if not ckey or stype == "clear":
+                    continue
+                val = content.get(ckey)
+                if not val:
+                    warnings.append(
+                        f"slide {slide['index']} ({tmpl}): slot '{stype}' → content.{ckey} 없음 — 빈 영역 발생"
+                    )
+
     ok = not any("필수" in w for w in warnings)
     return ok, warnings
 
@@ -3650,6 +3668,23 @@ def _equalize_row_heights(root, id_groups: list[list[str]]) -> None:
                 ext.set("cy", str(max_cy))
 
 
+def _derive_insights(content: dict, n: int) -> list[str]:
+    """items + descriptions에서 insight 텍스트를 자동 파생한다."""
+    items = _coerce_list(content.get("items", []))
+    descs = _coerce_list(content.get("descriptions", []))
+    result = []
+    for i in range(n):
+        item = items[i] if i < len(items) else ""
+        desc = descs[i] if i < len(descs) else ""
+        if item and desc:
+            result.append(f"{item} — {desc[:30]}")
+        elif item:
+            result.append(item)
+        elif desc:
+            result.append(desc[:40])
+    return result
+
+
 def _apply_slots(root, content: dict, slots: list, slide_plan: dict | None = None) -> None:
     """JSON slots 선언 기반 범용 슬롯 채우기 엔진.
 
@@ -3729,10 +3764,15 @@ def _apply_slots(root, content: dict, slots: list, slide_plan: dict | None = Non
                 # img_slot은 높이 고정 — spAutoFit 미적용
             body_id_groups.append(list(ids))
         elif stype == "insight":
-            values = content.get(slot.get("content_key", "insights"), [])
+            raw = content.get(slot.get("content_key", "insights"), [])
+            values = raw if isinstance(raw, list) else [raw] if raw else []
+            if not values:
+                values = _derive_insights(content, len(ids))
+                if values:
+                    print(f"    ⚠ insights 누락 → items/descriptions에서 자동 파생 ({len(values)}건)")
             for i, sid in enumerate(ids):
                 val = values[i] if i < len(values) else ""
-                _set(sid, _truncate_to_lines(val, width_emu, font_pt, max_lines))
+                _set(sid, _truncate_to_lines(str(val), width_emu, font_pt, max_lines))
         elif stype == "sub_heading":
             val = content.get(slot.get("content_key", "sub_heading")) or _make_sub_heading(content)
             # _apply_common_zones가 이미 prefix 붙인 경우 중복 방지
