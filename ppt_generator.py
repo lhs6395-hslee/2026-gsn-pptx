@@ -4812,18 +4812,29 @@ def _edit_chart_slide(xml_path: Path, slide_plan: dict, tmpl_key: str) -> None:
             p.insert(idx, r_new)
             break
 
-    chart_title_id = sdata.get("chart_title_id")
-    chart_desc_id = sdata.get("chart_desc_id")
-    body_desc_id = sdata.get("body_desc_id")
     sec_desc = content.get("section_desc", "")
     sec_title = content.get("section_title", "")
+    sub_heading = content.get("sub_heading_tail", "")
 
-    if chart_title_id and sec_title:
-        _set_shape_text(chart_title_id, sec_title)
-    if chart_desc_id and sec_desc:
-        _set_shape_text(chart_desc_id, sec_desc)
+    # 본문제목 (좌상단 사이드바)
+    body_title_id = sdata.get("body_title_id")
+    if body_title_id and sec_title:
+        _set_shape_text(body_title_id, sec_title)
+
+    # 본문설명글 (우상단)
+    body_desc_id = sdata.get("body_desc_id")
     if body_desc_id and sec_desc:
         _set_shape_text(body_desc_id, sec_desc)
+
+    # 소제목 (하단 메인 텍스트)
+    sub_heading_id = sdata.get("sub_heading_id") or sdata.get("chart_title_id")
+    if sub_heading_id and sec_title:
+        _set_shape_text(sub_heading_id, sec_title)
+
+    # 소제목 설명 (하단 상세)
+    sub_heading_desc_id = sdata.get("sub_heading_desc_id") or sdata.get("chart_desc_id")
+    if sub_heading_desc_id and sec_desc:
+        _set_shape_text(sub_heading_desc_id, sec_desc)
 
     # 도넛 중앙 퍼센트 (slide40 전용)
     donut_pct_ids = sdata.get("donut_pct_ids", [])
@@ -5263,7 +5274,7 @@ _PLACEHOLDER_TEXTS = (
         r"nibh euismod|tincidunt ut|elit,\s*sed diam|nonummy|"
         r"짧은 텍스트에 사용|텍스트에 사용|1\.1\s|1\.2\s|1\.3\s|"
         r"insight /|conclusion /|definition|\bicon\b|image\b|"
-        r"핵심 설명을 작성|부분 설명|설명 타이틀|01 핵심|02 핵심|03 핵심|"
+        r"핵심 설명을 작성|부분 설명 타이틀|"
         r"ppt 대제목|01 중제목|01 컨텐츠|중제목 작성|대제목 작성|컨텐츠 작성|"
         r"solution 0[123]|sevice 0[123]|keyword\b|step[1-4]|"
         r"1\.4\s|텍스트 작성해주세요|텍스트 길어질|작성하여 사용|"

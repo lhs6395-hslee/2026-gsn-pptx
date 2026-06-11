@@ -910,9 +910,10 @@
     }
   },
   "slide40": {
-    "chart_title_id": "17",
-    "chart_desc_id": "31",
+    "body_title_id": "18",
     "body_desc_id": "10",
+    "sub_heading_id": "17",
+    "sub_heading_desc_id": "31",
     "donut_pct_ids": [
       "23",
       "26",
