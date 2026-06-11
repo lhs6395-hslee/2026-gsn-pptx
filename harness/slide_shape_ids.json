@@ -529,7 +529,7 @@
     "_layout_note": "상단: ID=17(소제목박스 좌측) + upper_bullets(동적 sp, ID 500~) 개조식 최소3개. 하단: 4열×4행 grid(동적 sp, ID 600~), 배경색 흰색/회색 교대",
     "_col_desc_note": "각 컬럼 헤더(ID=28~31) 아래 개별 desc 박스(동적 sp, ID 500~503). step_descs[0~3] 각각 배치",
     "col_desc_id_start": 500,
-    "col_desc_y": 1280000,
+    "col_desc_y": 1499874,
     "col_desc_cy": 2750000,
     "col_desc_font_sz": 1200,
     "grid_start_id": 600,
