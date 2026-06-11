@@ -606,7 +606,8 @@
     "logo_y": 6200000,
     "sep_h": 6000,
     "summ_gap": 30000,
-    "summ_h": 120000
+    "summ_h": 120000,
+    "upper_lnspc_pct": 150000
   },
   "slide32": {
     "main_desc_id": "26",
