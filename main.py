@@ -74,6 +74,9 @@ def main() -> None:
     print(f"작업 디렉토리: {work_dir}")
 
     # PPT 생성
+    # cleanup_work_dir=False: work_dir 삭제를 main.py가 직접 제어.
+    # ppt_generator 내부에서 rmtree하면 이후 auto-evolve가 삭제된 경로를 분석해
+    # 성공 실행을 "실패"로 기록하는 AHE 통계 오염이 발생한다.
     from ppt_generator import run_ppt_generation
     output, vision_issues = run_ppt_generation(
         topic=args.topic,
@@ -81,6 +84,7 @@ def main() -> None:
         work_dir=work_dir,
         audience=args.audience,
         n_slides=args.slides,
+        cleanup_work_dir=False,
     )
 
     # 결과 복사
@@ -92,6 +96,7 @@ def main() -> None:
 
     # AHE 진화 루프 — 조건부 자동 실행
     # 명시적 --evolve OR Vision 이슈 발견 시 자동 실행
+    # work_dir은 아직 삭제되지 않았으므로 run_evolve_loop가 안전하게 접근 가능
     from ahe_loop import run_evolve_loop
     if args.evolve:
         run_evolve_loop(work_dir=work_dir, topic=args.topic)
@@ -100,6 +105,9 @@ def main() -> None:
         run_evolve_loop(work_dir=work_dir, topic=args.topic)
     else:
         print("\n[Auto Evolve] 이슈 없음 — Evolve 건너뜀 (다음 실행 빠름)")
+
+    # evolve 완료(또는 건너뜀) 후 work_dir 정리
+    shutil.rmtree(work_dir, ignore_errors=True)
 
 
 if __name__ == "__main__":

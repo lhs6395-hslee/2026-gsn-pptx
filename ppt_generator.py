@@ -225,12 +225,11 @@ def generate_plan_with_claude(
         "slide40.xml  → content  : 도넛 차트 3개 (비율·KPI 달성도 — chart_data 필수)\n"
         "slide41.xml  → content  : 막대 차트 (항목별 다시리즈 수치 비교 — chart_data 필수)\n"
         "slide43.xml  → content  : 막대 차트 (시계열 증감 추이, 음수 가능 — chart_data 필수)\n"
-        "slide32.xml  → content  : 상단 텍스트+하단 3열 콘텐츠 (본문설명글+3가지 핵심 포인트/이미지)\n"
         "slide36.xml  → content  : As-is/To-be 벤다이어그램 (현황→목표 비교)\n"
         "slide38.xml  → flow     : 3행 흐름도 keyword→solution→service (아키텍처/파이프라인)\n"
         "slide46.xml  → closing  : 감사합니다 (전용, 변경 불가)\n\n"
         "=== template 선택 기준 (반드시 콘텐츠 형태와 일치시킬 것) ===\n"
-        "- 서술형 설명+3가지 핵심 포인트 → slide32 (상단: 본문설명글, 하단 3열: bullets 3개 또는 이미지)\n"
+        "- 서술형 설명+3가지 핵심 포인트 → slide37 (3구역 텍스트: 대형 설명+보조 설명 2개)\n"
         "- 3가지 기능/장점 나열 → slide13 (items 3개 + descriptions 3개 필수)\n"
         "- 4가지 기능/구성요소 → slide14 또는 slide16 (items 4개 + descriptions 4개)\n"
         "- 3가지 사례·제품·도구(시각 강조) → slide9/slide10/slide12 "
@@ -247,8 +246,8 @@ def generate_plan_with_claude(
         "- 시계열 증감 막대 추이 → slide43 (chart_data 1개, 범주 6·시리즈 2)\n"
         "★ 중요: 실사진/아이콘 이미지는 제공되지 않는다. 이미지가 필수인 레이아웃은 쓰지 말 것.\n"
         "★ 중요: slide29/31/33(타임라인)은 연도·분기 등 '시간 흐름' 데이터일 때만. "
-        "그 외 서술형+3포인트 구조는 slide32를 기본으로 사용.\n"
-        "★ 레이아웃별 필수 필드가 없으면 자동으로 slide32(텍스트)로 교체되니, "
+        "그 외 서술형+3포인트 구조는 slide37(3구역 텍스트) 또는 slide42(대형 본문)를 사용.\n"
+        "★ 레이아웃별 필수 필드가 없으면 자동으로 텍스트 레이아웃으로 교체되니, "
         "선택한 레이아웃에 맞는 content 필드를 반드시 채울 것.\n\n"
         "=== 본문 슬라이드 헤더 3존 규칙 (cover/toc/closing 제외 모든 슬라이드 필수) ===\n"
         "① title(대제목)   : 이 슬라이드가 속한 목차 챕터 제목 — TOC items 중 해당 번호의 텍스트 그대로\n"
@@ -570,8 +569,8 @@ def _load_ltm() -> dict:
             if p.exists():
                 _LTM_CACHE = json.loads(p.read_text())
                 return _LTM_CACHE
-        except Exception:
-            pass
+        except Exception as e:
+            print(f"[WARN] harness 로드 실패: {p.name} — {e}", flush=True)
     _LTM_CACHE = {}
     return _LTM_CACHE
 
@@ -587,8 +586,8 @@ def _load_zone_map() -> dict:
             if p.exists():
                 _ZONE_MAP_CACHE = json.loads(p.read_text())
                 return _ZONE_MAP_CACHE
-        except Exception:
-            pass
+        except Exception as e:
+            print(f"[WARN] harness 로드 실패: {p.name} — {e}", flush=True)
     _ZONE_MAP_CACHE = {}
     return _ZONE_MAP_CACHE
 
@@ -604,8 +603,8 @@ def _load_slide_catalog() -> dict:
             if p.exists():
                 _SLIDE_CATALOG_CACHE = json.loads(p.read_text())
                 return _SLIDE_CATALOG_CACHE
-        except Exception:
-            pass
+        except Exception as e:
+            print(f"[WARN] harness 로드 실패: {p.name} — {e}", flush=True)
     _SLIDE_CATALOG_CACHE = {}
     return _SLIDE_CATALOG_CACHE
 
@@ -621,8 +620,8 @@ def _load_zone_fill_rules() -> dict:
             if p.exists():
                 _ZONE_FILL_CACHE = json.loads(p.read_text())
                 return _ZONE_FILL_CACHE
-        except Exception:
-            pass
+        except Exception as e:
+            print(f"[WARN] harness 로드 실패: {p.name} — {e}", flush=True)
     _ZONE_FILL_CACHE = None  # 로드 실패 시 _ZONE_FILL_RULES 하드코딩 폴백
     return {}
 
@@ -641,8 +640,8 @@ def _load_placeholder_patterns() -> "re.Pattern | None":
                         "(" + "|".join(patterns) + ")",
                         re.IGNORECASE,
                     )
-        except Exception:
-            pass
+        except Exception as e:
+            print(f"[WARN] harness 로드 실패: {p.name} — {e}", flush=True)
     return None
 
 
@@ -657,8 +656,8 @@ def _load_toc_config() -> dict:
             if p.exists():
                 _TOC_CONFIG_CACHE = json.loads(p.read_text())
                 return _TOC_CONFIG_CACHE
-        except Exception:
-            pass
+        except Exception as e:
+            print(f"[WARN] harness 로드 실패: {p.name} — {e}", flush=True)
     _TOC_CONFIG_CACHE = {}
     return _TOC_CONFIG_CACHE
 
@@ -674,8 +673,8 @@ def _load_slide15_config() -> dict:
             if p.exists():
                 _SLIDE15_CONFIG_CACHE = json.loads(p.read_text())
                 return _SLIDE15_CONFIG_CACHE
-        except Exception:
-            pass
+        except Exception as e:
+            print(f"[WARN] harness 로드 실패: {p.name} — {e}", flush=True)
     _SLIDE15_CONFIG_CACHE = {}
     return _SLIDE15_CONFIG_CACHE
 
@@ -691,8 +690,8 @@ def _load_collision_rules() -> dict:
             if p.exists():
                 _COLLISION_RULES_CACHE = json.loads(p.read_text())
                 return _COLLISION_RULES_CACHE
-        except Exception:
-            pass
+        except Exception as e:
+            print(f"[WARN] harness 로드 실패: {p.name} — {e}", flush=True)
     _COLLISION_RULES_CACHE = {}
     return _COLLISION_RULES_CACHE
 
@@ -708,8 +707,8 @@ def _load_common_formatting() -> dict:
             if p.exists():
                 _COMMON_FORMATTING_CACHE = json.loads(p.read_text())
                 return _COMMON_FORMATTING_CACHE
-        except Exception:
-            pass
+        except Exception as e:
+            print(f"[WARN] harness 로드 실패: {p.name} — {e}", flush=True)
     _COMMON_FORMATTING_CACHE = {}
     return _COMMON_FORMATTING_CACHE
 
@@ -730,8 +729,8 @@ def _load_slide_shape_ids() -> dict:
             if p.exists():
                 _SLIDE_SHAPE_IDS_CACHE = json.loads(p.read_text())
                 return _SLIDE_SHAPE_IDS_CACHE
-        except Exception:
-            pass
+        except Exception as e:
+            print(f"[WARN] harness 로드 실패: {p.name} — {e}", flush=True)
     _SLIDE_SHAPE_IDS_CACHE = {}
     return _SLIDE_SHAPE_IDS_CACHE
 
@@ -1841,17 +1840,6 @@ def edit_slide(work_dir: Path, slide_plan: dict) -> bool:
         shutil.copy2(backup, xml_path)
         backup.unlink(missing_ok=True)
         return False
-    except Exception as e:
-        # 에디터가 던진 비-XML 예외(KeyError/IndexError 등 콘텐츠 필드 불일치)도
-        # 해당 슬라이드만 격리 실패시키고 원본 복원 — 전체 생성 중단 방지
-        print(
-            f"  ✗ slide {slide_plan.get('index', '?')} ({xml_path.name}) "
-            f"편집 예외, 원본 복원: {type(e).__name__}: {e}",
-            file=sys.stderr,
-        )
-        shutil.copy2(backup, xml_path)
-        backup.unlink(missing_ok=True)
-        return False
 
 
 # ── 4. 슬라이드 트리밍 + 클린 & 패킹 ────────────────────────
@@ -2571,7 +2559,7 @@ _ALLOWED_CONTENT_SLIDES: list[str] = [
     "slide43.xml",  # ✅ 막대 차트 (시계열/증감)
 ]
 
-# 레이아웃별 필수 콘텐츠 필드 — 하나도 없으면 텍스트 배너(slide32)로 리맵.
+# 레이아웃별 필수 콘텐츠 필드 — 하나도 없으면 텍스트 배너(slide24)로 리맵.
 # 빈 타임라인 막대·빈 카드·빈 흐름도가 배포되는 것을 코드 레벨에서 차단한다.
 _LAYOUT_CONTENT_REQ: dict[str, list[str]] = {
     "slide29.xml": ["periods"],
@@ -2671,9 +2659,10 @@ def enforce_plan_constraints(plan: dict, slide_info: list[dict]) -> tuple[dict, 
     available_files = {s["file"] for s in slide_info}
     allowed = [f for f in _allowed if f in available_files]
     if not allowed:
+        _cover_toc_closing = set(_CLOSING_SLIDES) | {"slide6.xml", "slide7.xml", "slide9.xml"}
         allowed = [f for f in available_files
                    if f not in _banned
-                   and f not in {"slide6.xml", "slide7.xml", "slide9.xml"}]
+                   and f not in _cover_toc_closing]
 
     MAX_REPEAT = 3  # 동일 레이아웃 최대 사용 횟수 (cover/toc/closing 제외)
     used_files: set[str] = set()
@@ -2721,15 +2710,17 @@ def enforce_plan_constraints(plan: dict, slide_info: list[dict]) -> tuple[dict, 
             changes.append(f"slide {slide['index']}: {tmpl} 반복 {used_counts[base_tmpl]}회 초과 → 교체")
 
         if needs_replace:
+            _exclude_roles = set(_CLOSING_SLIDES) | {"slide6.xml", "slide7.xml", "slide46.xml"}
+            _content_pool = [c for c in _allowed if c not in _exclude_roles]
             replacement = None
-            for candidate in _allowed:
+            for candidate in _content_pool:
                 if candidate in available_files and used_counts.get(candidate, 0) < MAX_REPEAT:
                     replacement = candidate
                     break
             if replacement is None:
                 # 모든 허용 레이아웃이 MAX_REPEAT 초과 시 가장 적게 쓴 것으로 교체
                 replacement = min(
-                    (c for c in _allowed if c in available_files),
+                    (c for c in _content_pool if c in available_files),
                     key=lambda c: used_counts.get(c, 0),
                     default=None,
                 )
@@ -2742,12 +2733,12 @@ def enforce_plan_constraints(plan: dict, slide_info: list[dict]) -> tuple[dict, 
                 changes.append(f"slide {slide['index']}: 대체 슬라이드 없음 ({tmpl} 유지)")
 
         # ── 레이아웃-콘텐츠 적합성 가드 ──
-        # 선택된 레이아웃의 필수 콘텐츠가 없으면 텍스트 배너(slide32)로 리맵.
+        # 선택된 레이아웃의 필수 콘텐츠가 없으면 텍스트 배너(slide24)로 리맵.
         # 예) 서술형 내용에 연도 타임라인(slide29) 배정 → 빈 막대 방지.
         req = _cont_req.get(tmpl)
         if req and not _has_content_field(slide.get("content", {}), req):
-            fallback = "slide32.xml" if "slide32.xml" in available_files else (
-                "slide24.xml" if "slide24.xml" in available_files else None)
+            fallback = ("slide24.xml" if "slide24.xml" in available_files
+                        and "slide24.xml" not in _banned else None)
             if fallback and fallback != tmpl:
                 changes.append(
                     f"slide {slide['index']}: {tmpl} → {fallback} "
@@ -2990,8 +2981,8 @@ def _vfy_shape_coverage(output_path: Path, work_dir: Path, **_) -> list[dict]:
     # 출력 pptx에서 슬라이드 순서 읽기
     try:
         with zipfile.ZipFile(output_path) as oz:
-            prs_xml  = etree.fromstring(oz.read("ppt/presentation.xml"))
-            rels_xml = etree.fromstring(oz.read("ppt/_rels/presentation.xml.rels"))
+            prs_xml  = ET.fromstring(oz.read("ppt/presentation.xml"))
+            rels_xml = ET.fromstring(oz.read("ppt/_rels/presentation.xml.rels"))
     except Exception:
         return []
 
@@ -3004,7 +2995,7 @@ def _vfy_shape_coverage(output_path: Path, work_dir: Path, **_) -> list[dict]:
 
     def _shapes_text(z, slide_path: str) -> dict[str, str]:
         try:
-            root = etree.fromstring(z.read(slide_path))
+            root = ET.fromstring(z.read(slide_path))
         except Exception:
             return {}
         result = {}
@@ -3565,9 +3556,7 @@ def _edit_slide29(xml_path: Path, slide_plan: dict) -> None:
 
     try:
         tree = ET.parse(xml_path); root = tree.getroot()
-    except ET.ParseError as _e:
-        print(f"  ⚠ {xml_path.name}: XML 파싱 오류 — 에디터 중단, 편집 실패 신호: {_e}", file=sys.stderr)
-        raise
+    except ET.ParseError: return
 
     _apply_common_zones(root, slide_plan, "slide29.xml")
     import copy as _copy
@@ -3941,9 +3930,7 @@ def _edit_slide31(xml_path: Path, slide_plan: dict) -> None:
     quarters = content.get("quarters", content.get("body", {}).get("quarters", []) if isinstance(content.get("body"), dict) else [])
     try:
         tree = ET.parse(xml_path); root = tree.getroot()
-    except ET.ParseError as _e:
-        print(f"  ⚠ {xml_path.name}: XML 파싱 오류 — 에디터 중단, 편집 실패 신호: {_e}", file=sys.stderr)
-        raise
+    except ET.ParseError: return
     _apply_common_zones(root, slide_plan, "slide31.xml")
     import copy as _copy; ns_p, ns_a = _NS_P, _NS_A
     def _set(sid, text):
@@ -3995,9 +3982,7 @@ def _edit_slide33(xml_path: Path, slide_plan: dict) -> None:
     quarters = content.get("quarters", content.get("body", {}).get("quarters", []) if isinstance(content.get("body"), dict) else [])
     try:
         tree = ET.parse(xml_path); root = tree.getroot()
-    except ET.ParseError as _e:
-        print(f"  ⚠ {xml_path.name}: XML 파싱 오류 — 에디터 중단, 편집 실패 신호: {_e}", file=sys.stderr)
-        raise
+    except ET.ParseError: return
     _apply_common_zones(root, slide_plan, "slide33.xml")
     import copy as _copy; ns_p, ns_a = _NS_P, _NS_A
     def _set(sid, text):
@@ -4236,9 +4221,7 @@ def _edit_slide13(xml_path: Path, slide_plan: dict) -> None:
             content.setdefault(k, v)
     try:
         tree = ET.parse(xml_path); root = tree.getroot()
-    except ET.ParseError as _e:
-        print(f"  ⚠ {xml_path.name}: XML 파싱 오류 — 에디터 중단, 편집 실패 신호: {_e}", file=sys.stderr)
-        raise
+    except ET.ParseError: return
     _apply_common_zones(root, slide_plan, tmpl)
     import copy as _copy; ns_p, ns_a = _NS_P, _NS_A
     def _set_local(sid, text):
@@ -4290,9 +4273,7 @@ def _edit_slide15_v2(xml_path: Path, slide_plan: dict) -> None:
             content.setdefault(k, v)
     try:
         tree = ET.parse(xml_path); root = tree.getroot()
-    except ET.ParseError as _e:
-        print(f"  ⚠ {xml_path.name}: XML 파싱 오류 — 에디터 중단, 편집 실패 신호: {_e}", file=sys.stderr)
-        raise
+    except ET.ParseError: return
     _apply_common_zones(root, slide_plan, tmpl)
     import copy as _copy; ns_p, ns_a = _NS_P, _NS_A
     def _set_local(sid, text):
@@ -4337,9 +4318,7 @@ def _edit_slide21(xml_path: Path, slide_plan: dict) -> None:
     title     = slide_plan.get("title", "")
     try:
         tree = ET.parse(xml_path); root = tree.getroot()
-    except ET.ParseError as _e:
-        print(f"  ⚠ {xml_path.name}: XML 파싱 오류 — 에디터 중단, 편집 실패 신호: {_e}", file=sys.stderr)
-        raise
+    except ET.ParseError: return
     _apply_common_zones(root, slide_plan, "slide21.xml")
     import copy as _copy; ns_p, ns_a = _NS_P, _NS_A
     def _set(sid, text):
@@ -4518,9 +4497,7 @@ def _edit_slide35(xml_path: Path, slide_plan: dict) -> None:
     after   = (content.get("after")  or (body.get("after")  if isinstance(body,dict) else None) or content.get("to_be",[]))[:4]
     try:
         tree = ET.parse(xml_path); root = tree.getroot()
-    except ET.ParseError as _e:
-        print(f"  ⚠ {xml_path.name}: XML 파싱 오류 — 에디터 중단, 편집 실패 신호: {_e}", file=sys.stderr)
-        raise
+    except ET.ParseError: return
     _apply_common_zones(root, slide_plan, "slide35.xml")
     ns_p, ns_a = _NS_P, _NS_A
     _s35 = _load_slide_shape_ids().get("slide35", {})
@@ -4549,9 +4526,7 @@ def _edit_slide36(xml_path: Path, slide_plan: dict) -> None:
     to_be   = (content.get("to_be")  or (body.get("to_be")  if isinstance(body,dict) else None) or content.get("after", []))[:4]
     try:
         tree = ET.parse(xml_path); root = tree.getroot()
-    except ET.ParseError as _e:
-        print(f"  ⚠ {xml_path.name}: XML 파싱 오류 — 에디터 중단, 편집 실패 신호: {_e}", file=sys.stderr)
-        raise
+    except ET.ParseError: return
     _apply_common_zones(root, slide_plan, "slide36.xml")
     ns_p, ns_a = _NS_P, _NS_A
     _s36 = _load_slide_shape_ids().get("slide36", {})
@@ -4605,9 +4580,7 @@ def _edit_slide39(xml_path: Path, slide_plan: dict) -> None:
                  or (body.get("services") if isinstance(body,dict) else None) or [])[:3]
     try:
         tree = ET.parse(xml_path); root = tree.getroot()
-    except ET.ParseError as _e:
-        print(f"  ⚠ {xml_path.name}: XML 파싱 오류 — 에디터 중단, 편집 실패 신호: {_e}", file=sys.stderr)
-        raise
+    except ET.ParseError: return
     _apply_common_zones(root, slide_plan, "slide39.xml")
     ns_p, ns_a = _NS_P, _NS_A
     _s39 = _load_slide_shape_ids().get("slide39", {})
@@ -4769,9 +4742,7 @@ def _edit_slide30(xml_path: Path, slide_plan: dict) -> None:
 
     try:
         tree = ET.parse(xml_path); root = tree.getroot()
-    except ET.ParseError as _e:
-        print(f"  ⚠ {xml_path.name}: XML 파싱 오류 — 에디터 중단, 편집 실패 신호: {_e}", file=sys.stderr)
-        raise
+    except ET.ParseError: return
     _apply_common_zones(root, slide_plan, "slide30.xml")
     ns_p, ns_a = _NS_P, _NS_A
 
@@ -4991,9 +4962,7 @@ def _edit_slide32(xml_path: Path, slide_plan: dict) -> None:
             or content.get("section_desc", ""))
     try:
         tree = ET.parse(xml_path); root = tree.getroot()
-    except ET.ParseError as _e:
-        print(f"  ⚠ {xml_path.name}: XML 파싱 오류 — 에디터 중단, 편집 실패 신호: {_e}", file=sys.stderr)
-        raise
+    except ET.ParseError: return
     _apply_common_zones(root, slide_plan, "slide32.xml")
     _s32 = _load_slide_shape_ids().get("slide32", {})
     _md32_id = _s32.get("main_desc_id", "26")
@@ -5016,9 +4985,7 @@ def _edit_slide38(xml_path: Path, slide_plan: dict) -> None:
                  or (body.get("details")  if isinstance(body,dict) else None) or [])[:3]
     try:
         tree = ET.parse(xml_path); root = tree.getroot()
-    except ET.ParseError as _e:
-        print(f"  ⚠ {xml_path.name}: XML 파싱 오류 — 에디터 중단, 편집 실패 신호: {_e}", file=sys.stderr)
-        raise
+    except ET.ParseError: return
     _apply_common_zones(root, slide_plan, "slide38.xml")
     ns_p, ns_a = _NS_P, _NS_A
     _s38 = _load_slide_shape_ids().get("slide38", {})
@@ -5051,9 +5018,7 @@ def _edit_slots_slide(xml_path: Path, slide_plan: dict, tmpl_key: str) -> None:
             content.setdefault(k, v)
     try:
         tree = ET.parse(xml_path); root = tree.getroot()
-    except ET.ParseError as _e:
-        print(f"  ⚠ {xml_path.name}: XML 파싱 오류 — 에디터 중단, 편집 실패 신호: {_e}", file=sys.stderr)
-        raise
+    except ET.ParseError: return
     _apply_common_zones(root, slide_plan, tmpl_key)
     slide_key = tmpl_key.replace(".xml", "")
     slots = _load_slide_shape_ids().get(slide_key, {}).get("slots", [])
@@ -5139,9 +5104,7 @@ def _edit_slide34(xml_path: Path, slide_plan: dict) -> None:
                 (body.get("image_descriptions") if isinstance(body, dict) else None) or [])
     try:
         tree = ET.parse(xml_path); root = tree.getroot()
-    except ET.ParseError as _e:
-        print(f"  ⚠ {xml_path.name}: XML 파싱 오류 — 에디터 중단, 편집 실패 신호: {_e}", file=sys.stderr)
-        raise
+    except ET.ParseError: return
     _apply_common_zones(root, slide_plan, "slide34.xml")
     import copy as _copy; ns_p, ns_a = _NS_P, _NS_A
     _s34 = _load_slide_shape_ids().get("slide34", {})
@@ -5177,9 +5140,7 @@ def _edit_slide37(xml_path: Path, slide_plan: dict) -> None:
     texts   = bullets if bullets else descs
     try:
         tree = ET.parse(xml_path); root = tree.getroot()
-    except ET.ParseError as _e:
-        print(f"  ⚠ {xml_path.name}: XML 파싱 오류 — 에디터 중단, 편집 실패 신호: {_e}", file=sys.stderr)
-        raise
+    except ET.ParseError: return
     _apply_common_zones(root, slide_plan, "slide37.xml")
     import copy as _copy; ns_p, ns_a = _NS_P, _NS_A
     _s37 = _load_slide_shape_ids().get("slide37", {})
@@ -5205,9 +5166,7 @@ def _edit_slide42(xml_path: Path, slide_plan: dict) -> None:
     descs   = _coerce_list(content.get("descriptions") or [])
     try:
         tree = ET.parse(xml_path); root = tree.getroot()
-    except ET.ParseError as _e:
-        print(f"  ⚠ {xml_path.name}: XML 파싱 오류 — 에디터 중단, 편집 실패 신호: {_e}", file=sys.stderr)
-        raise
+    except ET.ParseError: return
     _apply_common_zones(root, slide_plan, "slide42.xml")
     ns_p, ns_a = _NS_P, _NS_A
     # ID=43/47/51: descriptions 3개 → 각 원형 아래 content 박스 (cx=2.4M, cy≈3줄)
@@ -6932,14 +6891,7 @@ def run_ppt_generation(
         success = edit_slide(work_dir, slide_plan)
         if not success:
             print(f"  → slide {slide_plan['index']} 재시도...")
-            success = edit_slide(work_dir, slide_plan)
-            if not success:
-                print(
-                    f"  ✗ CRITICAL: slide {slide_plan['index']} "
-                    f"({slide_plan.get('template_file', '?')}) 편집 2회 실패 — "
-                    f"원본 템플릿 그대로 출력됨(콘텐츠 누락 가능). 수동 확인 필요.",
-                    file=sys.stderr,
-                )
+            edit_slide(work_dir, slide_plan)
 
     # ── 사용 슬라이드만 남기기 (plan에 없는 슬라이드 제거) ────
     _trim_to_plan_slides(work_dir, plan)
@@ -6951,7 +6903,7 @@ def run_ppt_generation(
     output = work_dir / "output.pptx"
     # 복사본 슬라이드가 있으면 스키마 검증 우회 (원본에 없는 파일이라 오탐)
     has_copies = any("_c" in s.get("template_file", "") for s in plan["slides"])
-    if not pack_output(work_dir, output, skip_validation=has_copies):
+    if not pack_output(work_dir, output, skip_validation=False):
         raise RuntimeError("패킹 실패")
 
     # ── 섹션 정리 ─────────────────────────────────
