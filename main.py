@@ -11,7 +11,7 @@ import sys
 from datetime import datetime
 from pathlib import Path
 
-SKILL_DIR = Path.home() / ".ppt-skill"
+SKILL_DIR = Path(__file__).resolve().parent
 
 
 def _inject_claude_settings_env() -> None:
