@@ -6638,3 +6638,81 @@ def run_ppt_generation(
         return final_output, _vision_critical_total
 
     return output, _vision_critical_total
+
+
+def build_from_plan(
+    plan: dict | Path | str,
+    output_path: Path | str,
+    template_path: Path | str | None = None,
+) -> tuple[Path, list[str]]:
+    """수동 빌드 헬퍼 — plan.json만 있으면 전체 파이프라인을 실행한다.
+
+    run_ppt_generation의 모든 후처리(page_nums 계산, 중복 template 복사,
+    variant 전환, 제약 강제, verifier, 콘텐츠·폰트 검증, AHE 경험 기록)를
+    빠짐없이 수행한다. Vision Fix만 건너뛰고 PDF를 생성해서 반환하므로,
+    Claude Code 세션이 직접 시각 QA를 수행할 수 있다.
+
+    Args:
+        plan: plan dict, 또는 plan.json 파일 경로
+        output_path: 최종 pptx 출력 경로
+        template_path: 템플릿 pptx 경로 (None이면 기본 템플릿)
+
+    Returns:
+        (output_pptx_path, warnings): 빌드 결과 경로와 경고 목록
+    """
+    output_path = Path(output_path)
+    if template_path is None:
+        template_path = SKILL_DIR / "template" / "2026_PPT Template.pptx"
+    template_path = Path(template_path)
+
+    if isinstance(plan, (str, Path)):
+        plan = json.loads(Path(plan).read_text())
+
+    # 작업 디렉토리: result/tmp
+    work_dir = SKILL_DIR / "result" / "tmp"
+    if work_dir.exists():
+        shutil.rmtree(work_dir)
+    work_dir.mkdir(parents=True, exist_ok=True)
+
+    # 템플릿 복사 + 언팩
+    shutil.copy2(template_path, work_dir / "template.pptx")
+    subprocess.run(
+        [sys.executable, str(SKILL_DIR / "scripts" / "office" / "unpack.py"),
+         str(work_dir / "template.pptx"), str(work_dir / "unpacked")],
+        check=True, capture_output=True,
+    )
+
+    # run_ppt_generation에 plan_override로 전달 (Vision Fix 건너뜀)
+    result_pptx, vision_issues = run_ppt_generation(
+        topic=plan.get("topic", plan.get("title", "Untitled")),
+        template_path=work_dir / "template.pptx",
+        work_dir=work_dir,
+        audience=plan.get("audience", "전문가"),
+        n_slides=len(plan.get("slides", [])),
+        plan_override=plan,
+        cleanup_work_dir=False,
+        inline_vision_qa=False,
+    )
+
+    # 최종본을 output_path로 이동
+    shutil.copy2(result_pptx, output_path)
+
+    # PDF 생성 (시각 QA용)
+    pdf_path = output_path.with_suffix(".pdf")
+    _pdf_via_powerpoint(output_path, pdf_path)
+
+    # 경고 수집
+    warnings = []
+    ok, plan_warnings = validate_plan(plan)
+    warnings.extend(plan_warnings)
+
+    # 작업 디렉토리 정리
+    shutil.rmtree(work_dir, ignore_errors=True)
+
+    print(f"\n✓ build_from_plan 완료: {output_path}")
+    print(f"  PDF: {pdf_path}")
+    if warnings:
+        print(f"  경고 {len(warnings)}건 (validate_plan)")
+    print("  → Vision QA는 Claude Code 세션이 PDF를 읽어 직접 수행하세요.")
+
+    return output_path, warnings
