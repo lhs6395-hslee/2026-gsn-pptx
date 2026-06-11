@@ -6697,10 +6697,6 @@ def build_from_plan(
     # 최종본을 output_path로 이동
     shutil.copy2(result_pptx, output_path)
 
-    # PDF 생성 (시각 QA용)
-    pdf_path = output_path.with_suffix(".pdf")
-    _pdf_via_powerpoint(output_path, pdf_path)
-
     # 경고 수집
     warnings = []
     ok, plan_warnings = validate_plan(plan)
@@ -6710,9 +6706,7 @@ def build_from_plan(
     shutil.rmtree(work_dir, ignore_errors=True)
 
     print(f"\n✓ build_from_plan 완료: {output_path}")
-    print(f"  PDF: {pdf_path}")
     if warnings:
         print(f"  경고 {len(warnings)}건 (validate_plan)")
-    print("  → Vision QA는 Claude Code 세션이 PDF를 읽어 직접 수행하세요.")
 
     return output_path, warnings
