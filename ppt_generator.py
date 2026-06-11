@@ -1455,11 +1455,13 @@ def edit_slide(work_dir: Path, slide_plan: dict) -> bool:
                 # 전용 편집기 없으면 존 맵 기반 제너릭 편집기 (이미지 그리드 등)
                 _edit_zonemap_slide(xml_path, slide_plan)
 
-        # 편집 후 남은 placeholder 자동 제거
+        # 편집 후 남은 placeholder 자동 제거 + 단어 잘림 방지
         try:
             tree = ET.parse(xml_path)
-            if _clear_residual_placeholders(tree.getroot()):
-                _write_xml(tree.getroot(), xml_path)
+            root_post = tree.getroot()
+            _clear_residual_placeholders(root_post)
+            _apply_word_wrap(root_post)
+            _write_xml(root_post, xml_path)
         except ET.ParseError:
             pass
 
@@ -5316,6 +5318,23 @@ _PLACEHOLDER_TEXTS = (
         re.IGNORECASE,
     )
 )
+
+
+def _apply_word_wrap(root: ET.Element) -> None:
+    """모든 텍스트 paragraph에 eaLnBrk=0을 적용하여 한국어 단어 중간 분리를 방지한다."""
+    ns_a = _NS_A
+    ns_p = _NS_P
+    for sp in root.findall(f".//{{{ns_p}}}sp"):
+        txBody = sp.find(f"{{{ns_p}}}txBody")
+        if txBody is None:
+            continue
+        for p in txBody.findall(f".//{{{ns_a}}}p"):
+            pPr = p.find(f"{{{ns_a}}}pPr")
+            if pPr is None:
+                pPr = ET.SubElement(p, f"{{{ns_a}}}pPr")
+                p.remove(pPr)
+                p.insert(0, pPr)
+            pPr.set("eaLnBrk", "0")
 
 
 def _clear_residual_placeholders(root: ET.Element) -> bool:
