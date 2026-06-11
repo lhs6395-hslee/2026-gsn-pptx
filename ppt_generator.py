@@ -4826,10 +4826,11 @@ def _edit_chart_slide(xml_path: Path, slide_plan: dict, tmpl_key: str) -> None:
     if body_desc_id and sec_desc:
         _set_shape_text(body_desc_id, sec_desc)
 
-    # 소제목 (하단 메인 텍스트)
+    # 소제목 (하단 메인 텍스트) — sub_heading_tail 우선, 없으면 section_title
     sub_heading_id = sdata.get("sub_heading_id") or sdata.get("chart_title_id")
-    if sub_heading_id and sec_title:
-        _set_shape_text(sub_heading_id, sec_title)
+    sub_text = sub_heading or sec_title
+    if sub_heading_id and sub_text:
+        _set_shape_text(sub_heading_id, sub_text)
 
     # 소제목 설명 (하단 상세)
     sub_heading_desc_id = sdata.get("sub_heading_desc_id") or sdata.get("chart_desc_id")
