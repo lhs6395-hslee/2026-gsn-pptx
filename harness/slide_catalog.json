@@ -148,8 +148,13 @@
   "unverified_slides": {},
   "banned_slides": {
     "slide8.xml": "section 구분 — 명시 요청 시에만",
+    "slide18.xml": "이미지가 화면 대부분 차지 — 텍스트 자동 채움 불가",
+    "slide19.xml": "이미지가 화면 대부분 차지 — 텍스트 자동 채움 불가",
+    "slide20.xml": "이미지가 화면 대부분 차지 — 텍스트 자동 채움 불가",
+    "slide21.xml": "이미지가 화면 대부분 차지 — 텍스트 자동 채움 불가",
+    "slide22.xml": "이미지가 화면 대부분 차지 — 텍스트 자동 채움 불가",
     "slide23.xml": "복잡한 고정 인포그래픽 — 6 타이틀박스 vs 3설명 슬롯 불일치, 자동 채움 시 설명-박스 정렬 불가",
-    "slide32.xml": "내부 콘텐츠 부족 — 실제 프레젠테이션 생성 시 사용 금지",
+    "slide28.xml": "layout_variants 자동 선택 전용 — LLM 직접 지정 금지",
     "slide44.xml": "closing 전용 — 미검증 변형",
     "slide45.xml": "closing 전용 — 미검증 변형"
   },
@@ -211,6 +216,20 @@
     ],
     "slide43.xml": [
       "chart_data"
+    ]
+  },
+  "layout_content_req_all": {
+    "_comment": "AND 가드 — 나열된 모든 필드가 있어야 레이아웃 유지(없으면 텍스트 레이아웃으로 리맵). 'a|b'는 둘 중 하나면 충족. 기존 layout_content_req(OR)와 별도로 검사.",
+    "slide38.xml": [
+      "keywords",
+      "solutions",
+      "services|details"
+    ],
+    "slide39.xml": [
+      "keywords",
+      "solutions",
+      "details",
+      "services|details2"
     ]
   },
   "closing_slides": [

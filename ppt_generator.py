@@ -32,23 +32,6 @@ NS = {
 
 # ── Plan 콘텐츠 스키마 ────────────────────────────────────────
 # role별 content 필드 요구사항 정의
-PLAN_CONTENT_SCHEMA: dict[str, dict] = {
-    "cover":     {"required": ["subtitle"], "optional": ["date"]},
-    "toc":       {"required": ["items"]},
-    "closing":   {"required": [], "optional": []},
-    # 모든 본문 슬라이드 공통 필드:
-    #   section_no: "1.1" 형식 번호
-    #   section_title: 사이드바 본문제목 (20자 이내)
-    #   section_desc: 사이드바 본문설명 (3줄 이내)
-    #   body: 슬라이드 유형별 상세 내용
-    "content":   {"required": ["section_title"], "optional": ["section_desc","body"]},
-    "timeline":  {"required": ["section_title"], "recommended": ["periods"]},
-    "quarterly": {"required": ["section_title"], "recommended": ["quarters"]},
-    "steps":     {"required": ["section_title"], "recommended": ["steps"]},
-    "flow":      {"required": ["section_title"], "recommended": ["keywords","solutions"]},
-    "comparison":{"required": ["section_title"], "recommended": ["before","after"]},
-}
-
 
 # ── 레이아웃 레지스트리 ────────────────────────────────────────
 # CLAUDE.md 카탈로그 기반: 역할별 최적 슬라이드 + 편집기 함수명
@@ -555,6 +538,24 @@ _TOC_CONFIG_CACHE: dict | None = None
 _COMMON_FORMATTING_CACHE: dict | None = None
 _SLIDE_SHAPE_IDS_CACHE: dict | None = None
 _LTM_CACHE: dict | None = None
+_PLAN_CONTENT_SCHEMA_CACHE: dict | None = None
+
+
+def _load_plan_content_schema() -> dict:
+    """harness/plan_content_schema.json 로드 (캐시). 없으면 빈 dict."""
+    global _PLAN_CONTENT_SCHEMA_CACHE
+    if _PLAN_CONTENT_SCHEMA_CACHE is not None:
+        return _PLAN_CONTENT_SCHEMA_CACHE
+    for p in (SKILL_DIR / "harness" / "plan_content_schema.json",
+              Path(__file__).parent / "harness" / "plan_content_schema.json"):
+        try:
+            if p.exists():
+                _PLAN_CONTENT_SCHEMA_CACHE = json.loads(p.read_text())
+                return _PLAN_CONTENT_SCHEMA_CACHE
+        except Exception:
+            pass
+    _PLAN_CONTENT_SCHEMA_CACHE = {}
+    return _PLAN_CONTENT_SCHEMA_CACHE
 
 
 def _load_ltm() -> dict:
@@ -1523,9 +1524,12 @@ def generate_excel_for_charts(work_dir: Path, plan: dict, output_dir: Path) -> P
     차트 슬라이드(slide40~43)가 있을 때 Excel 데이터 파일을 생성한다.
     생성된 xlsx를 PPT와 같은 폴더에 저장 — 사용자가 PPT에서 '데이터 편집'으로 열 수 있다.
     """
+    _chart_templates = {k for k, v in _load_slide_catalog().get("verified_slides", {}).items()
+                        if v.get("role") == "charts"}
+    if not _chart_templates:
+        _chart_templates = {"slide40.xml", "slide41.xml", "slide43.xml"}
     chart_slides = [s for s in plan.get("slides", [])
-                    if s.get("template_file","") in
-                    {"slide40.xml","slide41.xml","slide43.xml"}]
+                    if s.get("template_file", "") in _chart_templates]
     if not chart_slides:
         return None
     try:
@@ -2181,78 +2185,6 @@ for slide in prs.slides:
 
 # planning_constraints에서 파싱한 금지/허용 슬라이드 목록
 # 사용 불가 슬라이드 (이미지 전용, 차트 고정, 구조적 편집 불가)
-_BANNED_SLIDES: set[str] = {
-    # 섹션 구분: 명시적 요청 시에만 (section role 자동 선택 금지)
-    "slide8.xml",
-    # 이미지가 화면 대부분을 차지해 텍스트 설명으로 대체가 어려운 레이아웃
-    "slide18.xml", "slide19.xml", "slide20.xml", "slide23.xml",
-    "slide21.xml", "slide22.xml",
-    # layout_variants 자동 선택 전용 (LLM 직접 지정 금지)
-    "slide28.xml",
-    # (slide40/41/43 차트는 Excel 연동 완성으로 un-ban — _update_chart_data가 데이터 주입)
-}
-
-# ── 콘텐츠 유형별 슬라이드 카탈로그 ───────────────────────────────
-# Claude가 콘텐츠를 분석한 후 아래 목록에서 template_file을 선택
-_ALLOWED_CONTENT_SLIDES: list[str] = [
-    # 텍스트 위주 (가장 안전 — 이미지/도형 불필요, 미배정 시 기본 폴백)
-    "slide32.xml",  # ✅ 상단 텍스트 + 하단 3열 콘텐츠 (텍스트/이미지 삽입형)
-    # 프로세스/흐름
-    "slide38.xml",  # ✅ 3행 흐름도 (keyword→Solution→Service) — flow 표준
-    "slide30.xml",  # ✅ 4단계 스텝 프로세스
-    # 시간축 레이아웃 (반드시 연도/분기 시계열 콘텐츠일 때만)
-    "slide29.xml",  # ✅ 연도별/월별 타임라인 (2023→2026)
-    "slide31.xml",  # ✅ 분기별 Q1→Q2→Q3→Q4
-    "slide33.xml",  # ✅ 분기별 (상단 설명+Q4열, slide31 변형)
-    # 비교/분석
-    "slide36.xml",  # 🟡 As-is/To-be 벤다이어그램
-    # 카드/아이콘 (아이콘 영역은 비워둠 — placeholder 텍스트 미노출)
-    "slide13.xml",  # 🟡 3열 아이콘카드 (3가지 기능/특징/장점)
-    "slide15.xml",  # 🟡 3열 대형아이콘 (3가지 핵심 가치)
-    "slide14.xml",  # 🟡 4열 아이콘카드 + Insight
-    "slide16.xml",  # 🟡 4열 아이콘 컴팩트
-    # 이미지+텍스트 (이미지 자리는 '어떤 이미지' 설명 텍스트로 채움)
-    "slide9.xml",   # 3열 이미지+제목+설명
-    "slide10.xml",  # 3열 이미지+제목+설명 + Insight 배너
-    "slide11.xml",  # 3행 이미지(좌)+설명
-    "slide12.xml",  # 3열 이미지+우측 텍스트
-    "slide17.xml",  # 2x2 이미지+설명
-    "slide24.xml",  # ✅ 2블록 텍스트 (bullets + body)
-    "slide25.xml",  # ✅ 이미지+우측3열
-    "slide26.xml",  # ✅ 이미지+3항목
-    "slide27.xml",  # ✅ 이미지+우측3행 (body_title ≤2줄; slide28로 자동 전환 가능)
-    "slide35.xml",  # ✅ Before→After 비교
-    "slide34.xml",  # ✅ 2이미지+키워드×4 버블 개념도
-    "slide37.xml",  # ✅ 3구역 텍스트 비교
-    "slide39.xml",  # ✅ 4열 흐름도 (keyword/solution/detail/service)
-    "slide42.xml",  # ✅ 대형 본문 텍스트 박스
-    # slide28: layout_variants로 자동 선택 (LLM 직접 지정 금지)
-    # 차트 레이아웃 (Excel 연동 완성 — content.chart_data로 캐시+임베디드 xlsx 갱신)
-    "slide40.xml",  # ✅ 도넛 차트 3개 (KPI/비율)
-    "slide41.xml",  # ✅ 막대 차트 (다범주 비교)
-    "slide43.xml",  # ✅ 막대 차트 (시계열/증감)
-]
-
-# 레이아웃별 필수 콘텐츠 필드 — 하나도 없으면 텍스트 배너(slide32)로 리맵.
-# 빈 타임라인 막대·빈 카드·빈 흐름도가 배포되는 것을 코드 레벨에서 차단한다.
-_LAYOUT_CONTENT_REQ: dict[str, list[str]] = {
-    "slide29.xml": ["periods"],
-    "slide31.xml": ["quarters"],
-    "slide33.xml": ["quarters"],
-    "slide30.xml": ["steps"],
-    "slide40.xml": ["chart_data"],
-    "slide41.xml": ["chart_data"],
-    "slide43.xml": ["chart_data"],
-    "slide38.xml": ["keywords"],
-    "slide35.xml": ["before", "after"],
-    "slide36.xml": ["as_is", "to_be"],
-    "slide13.xml": ["items"],
-    "slide15.xml": ["items"],
-    # slide9-12, slide14, slide16-17, slide25-26, slide34, slide37, slide42 는
-    # 에디터 내부에서 items/bullets/descriptions 폴백 처리를 하므로 가드 불필요.
-}
-
-
 def _has_content_field(content: dict, fields: list[str]) -> bool:
     """content(또는 content.body) 안에 주어진 필드 중 하나라도 값이 있으면 True."""
     body = content.get("body") if isinstance(content.get("body"), dict) else {}
@@ -2319,16 +2251,15 @@ def enforce_plan_constraints(plan: dict, slide_info: list[dict]) -> tuple[dict, 
     planning_constraints를 Claude에게만 맡기지 않고 코드 레벨에서 강제.
     반환: (수정된 plan, 변경 로그)
     """
-    # slide_catalog.json 우선, 없으면 하드코딩 폴백
     _cat = _load_slide_catalog()
-    _banned    = set(_cat["banned_slides"].keys())    if _cat.get("banned_slides")         else _BANNED_SLIDES
+    _banned = set(_cat.get("banned_slides", {}).keys())
     # verified + unverified 합집합. 구버전 키(allowed_content_slides) 폴백 유지
     if _cat.get("verified_slides") or _cat.get("unverified_slides"):
         _allowed = (list(_cat.get("verified_slides", {}).keys()) +
                     list(_cat.get("unverified_slides", {}).keys()))
     else:
-        _allowed = _cat.get("allowed_content_slides", _ALLOWED_CONTENT_SLIDES)
-    _cont_req  = _cat.get("layout_content_req", {})   or _LAYOUT_CONTENT_REQ
+        _allowed = _cat.get("allowed_content_slides", [])
+    _cont_req = _cat.get("layout_content_req", {})
 
     available_files = {s["file"] for s in slide_info}
     allowed = [f for f in _allowed if f in available_files]
@@ -2433,7 +2364,7 @@ def validate_plan(plan: dict) -> tuple[bool, list[str]]:
     for slide in plan.get("slides", []):
         role = slide.get("role", "content")
         content = slide.get("content", {})
-        schema = PLAN_CONTENT_SCHEMA.get(role, {})
+        schema = _load_plan_content_schema().get(role, {})
 
         for field in schema.get("required", []):
             if field not in content or not content[field]:
@@ -5411,7 +5342,7 @@ def _generate_single_slide_content(args: tuple) -> dict:
     title = slide_outline.get("title", "")
     keys  = slide_outline.get("key_points", [])
 
-    schema = PLAN_CONTENT_SCHEMA.get(role, {})
+    schema = _load_plan_content_schema().get(role, {})
     req_fields = schema.get("required", []) + schema.get("recommended", [])
     constraint_str = "\n".join(f"- {c}" for c in constraints) if constraints else "없음"
 
