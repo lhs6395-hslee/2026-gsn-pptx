@@ -3356,6 +3356,8 @@ def _insert_rich_quarter_content(
                 r2.append(_mk_rPr(sz, bold, col))
                 ET.SubElement(r2, f"{{{ns_a}}}t").text = txt
 
+    _upper_lnspc = _bd.get("upper_lnspc_pct", 100000)
+
     def _add_desc(sid, x, y, cx, cy, lines):
         sp = ET.SubElement(spTree, f"{{{ns_p}}}sp")
         nv = ET.SubElement(sp, f"{{{ns_p}}}nvSpPr")
@@ -3371,11 +3373,17 @@ def _insert_rich_quarter_content(
         ET.SubElement(pg, f"{{{ns_a}}}avLst")
         ET.SubElement(s2, f"{{{ns_a}}}noFill")
         tb = ET.SubElement(sp, f"{{{ns_p}}}txBody")
-        ET.SubElement(tb, f"{{{ns_a}}}bodyPr", wrap="square",
+        bpr = ET.SubElement(tb, f"{{{ns_a}}}bodyPr", wrap="square",
                       lIns="152400", tIns="114300", rIns="152400", bIns="114300", anchor="t")
+        if _upper_lnspc != 100000:
+            ET.SubElement(bpr, f"{{{ns_a}}}normAutofit")
         ET.SubElement(tb, f"{{{ns_a}}}lstStyle")
         for txt, sz, bold, col in lines:
             p = ET.SubElement(tb, f"{{{ns_a}}}p")
+            if _upper_lnspc != 100000:
+                pPr = ET.SubElement(p, f"{{{ns_a}}}pPr")
+                lnSpc = ET.SubElement(pPr, f"{{{ns_a}}}lnSpc")
+                ET.SubElement(lnSpc, f"{{{ns_a}}}spcPct", val=str(_upper_lnspc))
             r2 = ET.SubElement(p, f"{{{ns_a}}}r")
             r2.append(_mk_rPr(sz, bold, col))
             ET.SubElement(r2, f"{{{ns_a}}}t").text = txt
@@ -3386,8 +3394,9 @@ def _insert_rich_quarter_content(
         default=3
     ), 5)
     _has_team  = any(q.get("team") for q in quarters if isinstance(q, dict))
-    UPPER_LINES = 1 + 1 + _max_items + (2 if _has_team else 0)  # period+blank+items[+blank+team]
-    UPPER_CONT_H = UPPER_LINES * LINE_H
+    UPPER_LINES = 1 + 1 + _max_items + (2 if _has_team else 0)
+    _lnspc_mult = _upper_lnspc / 100000.0
+    UPPER_CONT_H = int(UPPER_LINES * LINE_H * _lnspc_mult)
     DESC_START_Y = content_top_y + upper_top_pad
 
     SEP_Y    = DESC_START_Y + UPPER_CONT_H + sep_lower_pad
