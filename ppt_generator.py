@@ -2015,6 +2015,8 @@ def pack_output(work_dir: Path, output_path: Path,
         return False
 
     print(f"  ✓ 패킹 완료: {output_path}")
+    # 섹션 정리는 여기(pack 직후)서만 호출하는 것이 authoritative (#22).
+    # 멱등이지만 외부 중복 호출은 제거됨 — pack_output 호출자는 별도로 부르지 말 것.
     restructure_sections(output_path)
     return True
 
@@ -6737,8 +6739,7 @@ def run_ppt_generation(
     if not pack_output(work_dir, output, skip_validation=has_copies):
         raise RuntimeError("패킹 실패")
 
-    # ── 섹션 정리 ─────────────────────────────────
-    restructure_sections(output)
+    # 섹션 정리는 pack_output 내부에서 수행됨 (#22, 중복 호출 제거)
 
     # ── Verifier 실행 ─────────────────────────────
     print("\n  [Verifier] 규칙 검증 중...")
@@ -6755,9 +6756,8 @@ def run_ppt_generation(
                 if xml_path.exists():
                     apply_known_fixes(xml_path, slide_plan, known_fixes)
                 edit_slide(work_dir, slide_plan)
-        # 재패킹 후 재검증
+        # 재패킹 후 재검증 (섹션 정리는 pack_output 내부에서, #22)
         pack_output(work_dir, output)
-        restructure_sections(output)
         violations2 = execute_verifier_rules(output, work_dir)
         remaining = [v for v in violations2 if v["severity"] == "CRITICAL"]
         if remaining:
@@ -6801,8 +6801,7 @@ def run_ppt_generation(
 
             print(f"  → 수정 적용 후 재패킹 (이터레이션 {vision_iter})...")
             _trim_to_plan_slides(work_dir, plan)
-            pack_output(work_dir, output)
-            restructure_sections(output)
+            pack_output(work_dir, output)  # 섹션 정리 내부 포함 (#22)
 
             # 재검증 후 QA 이미지 갱신
             violations = execute_verifier_rules(output, work_dir)
