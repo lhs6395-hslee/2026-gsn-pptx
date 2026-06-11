@@ -1068,6 +1068,11 @@ def maybe_run_evolve_loop(work_dir: Path, topic: str,
 
 def run_evolve_loop(work_dir: Path, topic: str) -> None:
     """AHE 세 기둥을 순서대로 실행한다."""
+    # #23: cleanup_work_dir=True로 work_dir가 이미 정리됐다면 phantom 데이터(빈 trace)로
+    # 잘못 진화하지 않도록 건너뛴다. 호출부는 evolve 전에 work_dir를 보존해야 한다.
+    if not Path(work_dir).exists():
+        print(f"\n[AHE Evolve Loop] 건너뜀 — work_dir 없음(정리됨): {work_dir}")
+        return
     print("\n[AHE Evolve Loop] 시작")
     harness_dir   = SKILL_DIR / "harness"
     evolution_dir = SKILL_DIR / "evolution"

@@ -6414,7 +6414,7 @@ def run_ppt_generation(
     cleanup_work_dir: bool = True,
     layout_from_pptx: Path | None = None,
     inline_vision_qa: bool = True,
-) -> Path:
+) -> tuple[Path, int]:
     """
     analyze_template → generate_plan → edit_slide 루프 → pack → verify
     layout_from_pptx가 지정되면 해당 PPTX의 슬라이드 순서를 그대로 사용한다.
@@ -6776,6 +6776,7 @@ def run_ppt_generation(
 
     # ── Vision Fix Agent 루프 (최대 3회) ────────
     MAX_VISION_ITER = 3
+    fix_instructions: list[dict] = []  # images 없어도 항상 바인딩 (#23 — `in dir()` 가드 제거)
     if images:
         for vision_iter in range(1, MAX_VISION_ITER + 1):
             print(f"\n  [Vision Fix Agent] 검증 {vision_iter}/{MAX_VISION_ITER}회...")
@@ -6817,7 +6818,7 @@ def run_ppt_generation(
                 print(f"  ⚠ 최대 반복({MAX_VISION_ITER}회) 도달 — best-effort 출력")
 
     # ── Vision QA 최종 결과 요약 (미통과 페이지 명시) ──────────
-    if "fix_instructions" in dir() and fix_instructions:
+    if fix_instructions:
         failed = [(f.get("slide_index"), f.get("slide_file"), f.get("issue_summary", ""))
                   for f in fix_instructions if f.get("has_issues")]
         if failed:
@@ -6847,7 +6848,7 @@ def run_ppt_generation(
 
     # Vision 이슈 수를 meta로 반환 (조건부 auto-evolve용)
     _vision_critical_total = sum(
-        1 for slide in (fix_instructions if "fix_instructions" in dir() else [])
+        1 for slide in fix_instructions
         if slide.get("has_issues")
     )
     # ── Excel 차트 데이터 파일 생성 ─────────────────

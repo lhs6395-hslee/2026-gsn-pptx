@@ -84,12 +84,15 @@ def main() -> None:
 
     # PPT 생성
     from ppt_generator import run_ppt_generation
+    # #23: evolve가 work_dir의 trace를 읽어야 하므로 여기서 정리하지 않는다(cleanup_work_dir=False).
+    # evolve 종료 후 main()이 직접 정리한다.
     output, vision_issues = run_ppt_generation(
         topic=args.topic,
         template_path=work_dir / "template.pptx",
         work_dir=work_dir,
         audience=args.audience,
         n_slides=args.slides,
+        cleanup_work_dir=False,
     )
 
     # 결과 복사
@@ -115,6 +118,9 @@ def main() -> None:
     )
     if not ran and not (args.evolve or vision_issues > 0):
         print("\n[Auto Evolve] 이슈 없음 — Evolve 건너뜀 (다음 실행 빠름)")
+
+    # #23: evolve가 trace를 다 읽은 뒤 work_dir 정리 (cleanup_work_dir=False로 보존했음)
+    shutil.rmtree(work_dir, ignore_errors=True)
 
 
 if __name__ == "__main__":

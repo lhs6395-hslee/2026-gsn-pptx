@@ -1149,6 +1149,16 @@ class TestEvalMetric(unittest.TestCase):
         self.assertEqual(ahe_loop._eval_metric(None, {}), "UNVERIFIED")
 
 
+class TestEvolveLoopWorkdirGuard(unittest.TestCase):
+    """#23 run_evolve_loop — 정리된(없는) work_dir면 phantom 진화 없이 건너뛴다."""
+
+    def test_missing_work_dir_skips(self):
+        missing = pathlib.Path(tempfile.gettempdir()) / "ahe_nonexistent_workdir_zzz"
+        shutil.rmtree(missing, ignore_errors=True)
+        # 예외 없이 None 반환(건너뜀) — 없는 디렉터리를 trace로 읽지 않음
+        self.assertIsNone(ahe_loop.run_evolve_loop(missing, "테스트 주제"))
+
+
 # ---------------------------------------------------------------------------
 # 글로벌 캐시 리셋 픽스처
 # ---------------------------------------------------------------------------
