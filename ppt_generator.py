@@ -5185,8 +5185,8 @@ def _edit_zonemap_slide(xml_path: Path, slide_plan: dict) -> None:
                 dext = dsp.find(f".//{{{ns_a}}}xfrm/{{{ns_a}}}ext")
                 if dext is not None:
                     desc_cy = int(dext.get("cy", "712993"))
-        row_h = (area_bottom - area_top) // n
         gap = 30000
+        row_h = title_cy + desc_cy + gap + 80000
         for i, tid in enumerate(title_ids):
             sp_t = _find_shape_by_id(root, tid)
             if sp_t is None:
