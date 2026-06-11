@@ -266,48 +266,6 @@
   },
   "runs": [
     {
-      "run_id": "20260602_111716_GoldenGate_Oracle_DB_이관",
-      "success": false,
-      "issue_count": 0,
-      "patterns": []
-    },
-    {
-      "run_id": "20260602_112757_GoldenGate_Oracle_DB_이관",
-      "success": false,
-      "issue_count": 0,
-      "patterns": []
-    },
-    {
-      "run_id": "20260602_113421_GoldenGate_Oracle_DB_이관",
-      "success": false,
-      "issue_count": 0,
-      "patterns": []
-    },
-    {
-      "run_id": "20260602_115758_GoldenGate_Oracle_DB_이관",
-      "success": false,
-      "issue_count": 0,
-      "patterns": []
-    },
-    {
-      "run_id": "20260602_132538_GoldenGate_Oracle_DB_이관",
-      "success": false,
-      "issue_count": 0,
-      "patterns": []
-    },
-    {
-      "run_id": "20260602_134747_GoldenGate_Oracle_DB_이관",
-      "success": false,
-      "issue_count": 0,
-      "patterns": []
-    },
-    {
-      "run_id": "20260602_135432_GoldenGate_Oracle_DB_이관",
-      "success": false,
-      "issue_count": 0,
-      "patterns": []
-    },
-    {
       "run_id": "20260602_141735_GoldenGate_Oracle_DB_이관",
       "success": false,
       "issue_count": 0,
@@ -1560,13 +1518,138 @@
       "vision_issues": 0,
       "qa_done": false,
       "qa_ok": null
+    },
+    {
+      "ts": "2026-06-11T16:53:27",
+      "topic": "안양시 비산 삼성래미안",
+      "n_slides": 6,
+      "templates": [
+        "slide6.xml",
+        "slide6_c2.xml",
+        "slide6_c3.xml",
+        "slide7.xml",
+        "slide7_c2.xml",
+        "slide46.xml"
+      ],
+      "vision_issues": 0,
+      "qa_done": false,
+      "qa_ok": null
+    },
+    {
+      "ts": "2026-06-11T16:55:22",
+      "topic": "안양시 비산 삼성래미안",
+      "n_slides": 8,
+      "templates": [
+        "slide6.xml",
+        "slide7.xml",
+        "slide37.xml",
+        "slide32.xml",
+        "slide14.xml",
+        "slide32_c2.xml",
+        "slide32_c3.xml",
+        "slide46.xml"
+      ],
+      "vision_issues": 0,
+      "qa_done": false,
+      "qa_ok": null
+    },
+    {
+      "ts": "2026-06-11T16:57:49",
+      "topic": "안양시 비산 삼성래미안",
+      "n_slides": 8,
+      "templates": [
+        "slide6.xml",
+        "slide7.xml",
+        "slide37.xml",
+        "slide13.xml",
+        "slide14.xml",
+        "slide15.xml",
+        "slide35.xml",
+        "slide46.xml"
+      ],
+      "vision_issues": 0,
+      "qa_done": false,
+      "qa_ok": null
+    },
+    {
+      "ts": "2026-06-11T17:00:01",
+      "topic": "안양시 비산 삼성래미안",
+      "n_slides": 8,
+      "templates": [
+        "slide6.xml",
+        "slide7.xml",
+        "slide37.xml",
+        "slide13.xml",
+        "slide14.xml",
+        "slide15.xml",
+        "slide35.xml",
+        "slide46.xml"
+      ],
+      "vision_issues": 0,
+      "qa_done": false,
+      "qa_ok": null
+    },
+    {
+      "ts": "2026-06-11T17:00:45",
+      "topic": "안양시 비산 삼성래미안",
+      "n_slides": 8,
+      "templates": [
+        "slide6.xml",
+        "slide7.xml",
+        "slide24.xml",
+        "slide13.xml",
+        "slide14.xml",
+        "slide15.xml",
+        "slide35.xml",
+        "slide46.xml"
+      ],
+      "vision_issues": 0,
+      "qa_done": false,
+      "qa_ok": null
+    },
+    {
+      "ts": "2026-06-11T17:02:08",
+      "topic": "안양시 비산 삼성래미안",
+      "n_slides": 8,
+      "templates": [
+        "slide6.xml",
+        "slide7.xml",
+        "slide10.xml",
+        "slide13.xml",
+        "slide14.xml",
+        "slide15.xml",
+        "slide35.xml",
+        "slide46.xml"
+      ],
+      "vision_issues": 0,
+      "qa_done": false,
+      "qa_ok": null
+    },
+    {
+      "ts": "2026-06-11T17:02:52",
+      "topic": "안양시 비산 삼성래미안",
+      "n_slides": 8,
+      "templates": [
+        "slide6.xml",
+        "slide7.xml",
+        "slide10.xml",
+        "slide13.xml",
+        "slide14.xml",
+        "slide15.xml",
+        "slide35.xml",
+        "slide46.xml"
+      ],
+      "vision_issues": 0,
+      "qa_done": false,
+      "qa_ok": true,
+      "qa_method": "claude_code_session"
     }
   ],
-  "total_runs": 56,
+  "total_runs": 63,
   "evolution_notes": "v0.4 — 2026-06-09: AHE 공식 원칙 명문화(AHE_PRINCIPLES.md) + 결정관찰성 원장(change_manifest.jsonl) 도입. slide_catalog verified 13→33 재분류(slide23 ban). slide31/33 하단 메타 데이터주도화. group_title(사이드 소제목=subtitle) 도입. 원칙: 생성≠판정 분리(확증편향 방지), stale scaffolding 제거(Opus 4.8 기준 stress test), falsifiable-contract 의무.",
   "qa_enforcement_note": "qa_ok=false인 실행은 issue_count=0이더라도 완료 조건 미검증으로 간주. verifier에서 qa_done 플래그를 반드시 확인하고, false인 경우 WARN 처리하여 다음 실행에서 QA 단계를 강제 수행할 것.",
   "last_evolved": "2026-06-02T06:14:48.197792",
-  "success_rate": 0.4,
+  "success_rate": 0.5,
   "last_updated": "2026-06-11",
   "planning_constraints": [
     "텍스트 간결화: 본문제목 25자·항목 30자 이내 권장. 엔진이 _truncate_to_lines로 자동 절단하고 텍스트박스 cy를 자동 확장하므로, 가독성을 위해 plan 단계에서 핵심만 간결하게 작성한다.",
