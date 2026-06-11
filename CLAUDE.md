@@ -82,6 +82,11 @@ AHE(Agentic Harness Engineering, arXiv:2604.25850) 기법으로 하네스가 실
 
 원칙은 `harness/AHE_PRINCIPLES.md`에 명문화(2026-06 공식 출처 기반). 모든 하네스 변경은 이 문서 기준으로 판단.
 
+### 디자인 가이드 참조
+- `design.md` — 프레젠테이션 디자인 판단 기준 문서 (색상/타이포/차트/스토리/접근성 규칙의 근거)
+- **참조 시점**: Vision Fix QA, common_formatting.json 변경, plan 스토리 구조 설계, 차트 시각화 검토
+- plan 생성·Vision Fix 프롬프트에 자동 주입됨 (ppt_generator.py에서 design.md를 읽어 LLM에 전달)
+
 | AHE 기둥 | 구현 위치 | 역할 |
 |---------|-----------|------|
 | ❶ Component Observability | `harness/` 파일들 | 하네스를 파일로 분리, git 추적 |

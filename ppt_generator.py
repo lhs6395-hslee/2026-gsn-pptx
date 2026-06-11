@@ -153,10 +153,28 @@ def generate_plan_with_claude(
     for tmpl_data in memory.get("template_patterns", {}).values():
         known_issues = [i["issue"] for i in tmpl_data.get("known_issues", [])]
 
+    # design.md 스토리 설계 원칙 로드
+    _design_path = None
+    for _dp in (SKILL_DIR / "design.md", Path(__file__).parent / "design.md"):
+        if _dp.exists():
+            _design_path = _dp
+            break
+    _design_story_rules = ""
+    if _design_path:
+        _design_story_rules = (
+            "\n=== 프레젠테이션 디자인 원칙 (design.md) ===\n"
+            "- 스토리: 결론 우선(두괄식), 피라미드 원칙 — 각 슬라이드 title은 결론·수치로 시작\n"
+            "- 본문 구조: 헤드라인=결론 → 증거(차트/불릿) — 수평 논리 테스트(제목만 읽어도 전체 스토리 완성)\n"
+            "- 불릿: 항목당 1줄, 명사형 종결(~확대/~개선), 키워드: 설명 패턴\n"
+            "- section_desc: 완결 문장으로, 개조식·명사형 금지\n"
+            "- 차트 선택: 시간=라인/컬럼, 비교=막대, 구성=누적/트리맵, 편차=다이버징바\n\n"
+        )
+
     system = (
         "당신은 프로 컨설턴트 수준의 PowerPoint 슬라이드 기획자입니다.\n"
         "콘텐츠를 먼저 설계하고, 그 콘텐츠에 가장 적합한 template_file을 선택합니다.\n"
-        "반드시 JSON만 출력하고 다른 텍스트는 포함하지 않습니다.\n\n"
+        "반드시 JSON만 출력하고 다른 텍스트는 포함하지 않습니다.\n"
+        + _design_story_rules + "\n"
         "=== 사용 가능한 template_file 카탈로그 ===\n"
         + _build_catalog_prompt() + "\n\n"
         "=== template 선택 기준 (반드시 콘텐츠 형태와 일치시킬 것) ===\n"
@@ -5494,6 +5512,13 @@ def _run_vision_fix_agent(
     # 이미지 순서 → slide index 매핑 (이미지는 1-indexed)
     image_paths = [p for p in qa_images if Path(p).exists()]
 
+    # design.md 디자인 가이드 로드 — Vision Fix 프롬프트에 참조 제공
+    _design_guide = ""
+    for _dp in (SKILL_DIR / "design.md", Path(__file__).parent / "design.md"):
+        if _dp.exists():
+            _design_guide = _dp.read_text(errors="ignore")[:4000]
+            break
+
     system = """당신은 독립적인 PPT 슬라이드 품질 검증 에이전트입니다.
 슬라이드 이미지, 계획된 콘텐츠, shape 구조를 보고 정확한 수정 지시를 생성합니다.
 
@@ -5515,6 +5540,13 @@ def _run_vision_fix_agent(
     ]
   }
 ]
+
+디자인 판단 기준 (design.md 요약):
+- 색상: 강조색은 브랜드 단일색, 비교군은 회색. 텍스트 대비 4.5:1 이상(WCAG AA)
+- 타이포: 18pt 미만 텍스트 금지, 불릿은 항목당 1줄, 산세리프 사용
+- 차트: 시간=라인, 비교=막대, 구성=누적. 색+라벨/모양 이중 부호화 필수
+- 헤드라인: 결론(수치) 우선, 완결 문장, 15단어/2줄 이내
+- 불릿 문체: 명사형 종결(~확대, ~개선), 키워드: 설명 패턴
 
 수정 원칙:
 - placeholder(작성해주세요, 중제목, 대제목, lorem ipsum 등)는 반드시 제거 또는 교체

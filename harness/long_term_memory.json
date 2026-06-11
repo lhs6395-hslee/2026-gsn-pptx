@@ -697,5 +697,15 @@
     }
   },
   "principles_doc": "harness/AHE_PRINCIPLES.md",
-  "decision_ledger": "harness/change_manifest.jsonl"
+  "decision_ledger": "harness/change_manifest.jsonl",
+  "design_guide": {
+    "path": "design.md",
+    "purpose": "프레젠테이션 디자인 판단 기준 문서 — 색상/타이포/차트/스토리/접근성 규칙의 근거",
+    "when_to_read": [
+      "Vision Fix QA — 디자인 품질 판단 시",
+      "common_formatting.json 변경 시 — 디자인 규칙 근거 확인",
+      "plan 생성 시 — 스토리 구조(두괄식/피라미드/SCQ) 참조",
+      "차트 데이터 시각화 검토 시 — FT Visual Vocabulary/IBCS 기준"
+    ]
+  }
 }
