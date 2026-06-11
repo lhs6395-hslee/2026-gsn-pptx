@@ -5139,6 +5139,53 @@ def _edit_zonemap_slide(xml_path: Path, slide_plan: dict) -> None:
             else:
                 _slide_set_helper(root, ns_p, ns_a, sid, txt)
 
+    # item_titles/item_descs y좌표 균등 분배 — 템플릿에서 같은 y에 겹쳐있는 경우 해소
+    for role_pair in [("item_titles", "item_descs")]:
+        title_ids = body_zones.get(role_pair[0], [])
+        desc_ids = body_zones.get(role_pair[1], [])
+        if len(title_ids) < 2:
+            continue
+        # 첫 번째 title의 y와 마지막 shape 범위로 균등 분배 계산
+        first_sp = _find_shape_by_id(root, title_ids[0])
+        if first_sp is None:
+            continue
+        xfrm0 = first_sp.find(f".//{{{ns_a}}}xfrm")
+        if xfrm0 is None:
+            continue
+        off0 = xfrm0.find(f"{{{ns_a}}}off")
+        ext0 = xfrm0.find(f"{{{ns_a}}}ext")
+        base_y = int(off0.get("y", "0"))
+        title_cy = int(ext0.get("cy", "384019"))
+        # desc cy 확인
+        desc_cy = 712993
+        if desc_ids:
+            dsp = _find_shape_by_id(root, desc_ids[0])
+            if dsp is not None:
+                dxfrm = dsp.find(f".//{{{ns_a}}}xfrm")
+                if dxfrm is not None:
+                    dext = dxfrm.find(f"{{{ns_a}}}ext")
+                    if dext is not None:
+                        desc_cy = int(dext.get("cy", "712993"))
+        row_h = title_cy + desc_cy + 60000
+        for i, tid in enumerate(title_ids):
+            sp_t = _find_shape_by_id(root, tid)
+            if sp_t is None:
+                continue
+            xfrm_t = sp_t.find(f".//{{{ns_a}}}xfrm")
+            if xfrm_t is None:
+                continue
+            off_t = xfrm_t.find(f"{{{ns_a}}}off")
+            if off_t is not None:
+                off_t.set("y", str(base_y + i * row_h))
+            if i < len(desc_ids):
+                sp_d = _find_shape_by_id(root, desc_ids[i])
+                if sp_d is not None:
+                    xfrm_d = sp_d.find(f".//{{{ns_a}}}xfrm")
+                    if xfrm_d is not None:
+                        off_d = xfrm_d.find(f"{{{ns_a}}}off")
+                        if off_d is not None:
+                            off_d.set("y", str(base_y + i * row_h + title_cy + 30000))
+
     _clear_residual_placeholders(root)
     _write_xml(root, xml_path)
 
