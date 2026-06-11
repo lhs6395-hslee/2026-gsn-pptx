@@ -6771,3 +6771,144 @@ def build_from_plan(
         print(f"  경고 {len(warnings)}건 (validate_plan)")
 
     return output_path, warnings
+
+
+def prepare_vision_qa(pptx_path: Path | str) -> Path | None:
+    """Vision QA용 PDF를 result/tmp에 생성하고 경로를 반환한다.
+    Claude Code 세션이 이 PDF를 Read하여 시각 분석을 수행한다."""
+    pptx_path = Path(pptx_path)
+    if not pptx_path.exists():
+        print(f"  ✗ PPTX 없음: {pptx_path}")
+        return None
+    tmp_dir = SKILL_DIR / "result" / "tmp"
+    tmp_dir.mkdir(parents=True, exist_ok=True)
+    pdf_path = tmp_dir / pptx_path.with_suffix(".pdf").name
+    ok = _pdf_via_powerpoint(pptx_path, pdf_path)
+    if ok:
+        print(f"  ✓ QA용 PDF 생성: {pdf_path}")
+        return pdf_path
+    print("  ✗ PDF 변환 실패")
+    return None
+
+
+def apply_vision_fixes(pptx_path: Path | str, fixes: list[dict]) -> Path:
+    """Vision QA에서 발견된 수정 지시를 PPTX에 적용한다.
+
+    fixes 형식: [{"slide_index": N, "slide_file": "slideN.xml",
+                   "fixes": [{"shape_id": "ID", "action": "set_text", "text": "..."}]}]
+
+    PPTX를 언팩 → 수정 → 리팩하여 같은 경로에 덮어쓴다.
+    """
+    import copy as _copy
+    pptx_path = Path(pptx_path)
+    tmp_dir = SKILL_DIR / "result" / "tmp"
+    tmp_dir.mkdir(parents=True, exist_ok=True)
+
+    # 언팩
+    shutil.copy2(pptx_path, tmp_dir / "fix_target.pptx")
+    unpacked = tmp_dir / "fix_unpacked"
+    subprocess.run(
+        [sys.executable, str(SKILL_DIR / "scripts" / "office" / "unpack.py"),
+         str(tmp_dir / "fix_target.pptx"), str(unpacked)],
+        check=True, capture_output=True,
+    )
+
+    # 슬라이드 인덱스 → 파일 매핑
+    ns_p = _NS_P
+    pres = ET.parse(unpacked / "ppt" / "presentation.xml").getroot()
+    rels = ET.parse(unpacked / "ppt" / "_rels" / "presentation.xml.rels").getroot()
+    rel_map = {r.get("Id", ""): r.get("Target", "") for r in rels}
+    slide_files = []
+    for sld in pres.findall(f".//{{{ns_p}}}sldId"):
+        rid = sld.get("{http://schemas.openxmlformats.org/officeDocument/2006/relationships}id", "")
+        slide_files.append(rel_map.get(rid, ""))
+
+    ns_a = _NS_A
+    applied = 0
+    for fix_instr in fixes:
+        idx = fix_instr.get("slide_index", 0) - 1  # 1-indexed → 0-indexed
+        if idx < 0 or idx >= len(slide_files):
+            continue
+        target = slide_files[idx]
+        xml_path = unpacked / "ppt" / target
+        if not xml_path.exists():
+            continue
+
+        root = ET.parse(xml_path).getroot()
+        for fix in fix_instr.get("fixes", []):
+            shape_id = fix.get("shape_id", "")
+            action = fix.get("action", "")
+            sp = _find_shape_by_id(root, shape_id)
+            if sp is None:
+                continue
+
+            if action == "set_text":
+                text = fix.get("text", "")
+                txBody = sp.find(f"{{{ns_p}}}txBody")
+                if txBody is None:
+                    continue
+                orig_rPr = None
+                for r in sp.findall(f".//{{{ns_a}}}r"):
+                    rPr_e = r.find(f"{{{ns_a}}}rPr")
+                    if rPr_e is not None:
+                        orig_rPr = _copy.deepcopy(rPr_e)
+                        orig_rPr.set("lang", _ppt_lang())
+                        orig_rPr.set("dirty", "0")
+                        break
+                for p in txBody.findall(f"{{{ns_a}}}p"):
+                    for r in p.findall(f"{{{ns_a}}}r"):
+                        p.remove(r)
+                    end = p.find(f"{{{ns_a}}}endParaRPr")
+                    idx_p = list(p).index(end) if end is not None else len(p)
+                    r_new = ET.Element(f"{{{ns_a}}}r")
+                    if orig_rPr:
+                        r_new.append(_copy.deepcopy(orig_rPr))
+                    ET.SubElement(r_new, f"{{{ns_a}}}t").text = text
+                    p.insert(idx_p, r_new)
+                    break
+                applied += 1
+
+        _write_xml(root, xml_path)
+
+    # 리팩
+    pack_output(Path(tmp_dir), tmp_dir / "fixed.pptx", skip_validation=True)
+    shutil.copy2(tmp_dir / "fixed.pptx", pptx_path)
+    shutil.rmtree(tmp_dir, ignore_errors=True)
+
+    print(f"  ✓ Vision Fix 적용: {applied}건 수정 → {pptx_path}")
+    return pptx_path
+
+
+def finalize_qa(pptx_path: Path | str, qa_ok: bool, issues_count: int = 0) -> None:
+    """Vision QA 결과를 AHE 경험 기록에 확정 반영하고 tmp를 정리한다.
+
+    build_from_plan이 qa_ok=None(보류)으로 기록한 마지막 run을
+    실제 QA 결과(True/False)로 업데이트한다.
+    """
+    pptx_path = Path(pptx_path)
+
+    # long_term_memory.json의 마지막 run 업데이트
+    ltm_path = SKILL_DIR / "harness" / "long_term_memory.json"
+    if ltm_path.exists():
+        ltm = json.loads(ltm_path.read_text())
+        runs = ltm.get("runs", [])
+        # 마지막 qa_ok=None인 run을 찾아서 업데이트
+        for r in reversed(runs):
+            if r.get("qa_ok") is None:
+                r["qa_ok"] = qa_ok
+                r["vision_issues"] = issues_count
+                r["qa_method"] = "claude_code_session"
+                break
+        # success_rate 재계산
+        rated = [r for r in runs if isinstance(r.get("qa_ok"), bool)]
+        if rated:
+            ltm["success_rate"] = round(sum(1 for r in rated if r["qa_ok"]) / len(rated), 3)
+        ltm_path.write_text(json.dumps(ltm, ensure_ascii=False, indent=2))
+        print(f"  ✓ AHE 경험 기록 갱신: qa_ok={qa_ok}, issues={issues_count}, "
+              f"success_rate={ltm.get('success_rate', '?')}")
+
+    # tmp 정리
+    tmp_dir = SKILL_DIR / "result" / "tmp"
+    if tmp_dir.exists():
+        shutil.rmtree(tmp_dir, ignore_errors=True)
+        print("  ✓ result/tmp 정리 완료")
