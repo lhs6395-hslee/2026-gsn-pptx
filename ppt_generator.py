@@ -3400,6 +3400,13 @@ def _insert_rich_quarter_content(
     DESC_START_Y = content_top_y + upper_top_pad
 
     SEP_Y    = DESC_START_Y + UPPER_CONT_H + sep_lower_pad
+    # 하단 영역이 로고·슬라이드 경계를 벗어나지 않도록 구분선 위치 클램핑
+    _cf_global  = _load_common_formatting()
+    CONTENT_MAX = _cf_global.get("content_bottom_limit", 6_286_286)
+    LOWER_TOTAL = SEP_H_val + SUMM_GAP + SUMM_H + SUMM_GAP + lower_start_gap + KPI_H + GAP + RISK_H
+    SEP_MAX     = CONTENT_MAX - LOWER_TOTAL
+    if SEP_Y > SEP_MAX:
+        SEP_Y = SEP_MAX
     SUMM_Y   = SEP_Y + SEP_H_val + SUMM_GAP
     SUMM_BOT = SUMM_Y + SUMM_H + SUMM_GAP
     LOWER_START = SUMM_BOT + lower_start_gap
@@ -3454,6 +3461,15 @@ def _insert_rich_quarter_content(
             max_risk_h = max(max_risk_h, _box_h(entries[2][1], eff_w_i))
     KPI_H  = max_kpi_h
     RISK_H = max_risk_h
+
+    # 동적 높이 재계산 후 content_bottom_limit 기준 재클램핑
+    LOWER_TOTAL = SEP_H_val + SUMM_GAP + SUMM_H + SUMM_GAP + lower_start_gap + KPI_H + GAP + RISK_H
+    SEP_MAX     = CONTENT_MAX - LOWER_TOTAL
+    if SEP_Y > SEP_MAX:
+        SEP_Y = SEP_MAX
+    SUMM_Y   = SEP_Y + SEP_H_val + SUMM_GAP
+    SUMM_BOT = SUMM_Y + SUMM_H + SUMM_GAP
+    LOWER_START = SUMM_BOT + lower_start_gap
     # ────────────────────────────────────────────────────────────────
 
     all_x = col_x_list[0] + PAD
