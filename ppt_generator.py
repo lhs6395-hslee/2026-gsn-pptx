@@ -4423,8 +4423,7 @@ def _edit_slide30(xml_path: Path, slide_plan: dict) -> None:
     # col_desc 박스는 항상 grid 바로 위까지 꽉 채움 (grid_y는 harness 고정값)
     _g_y_fixed   = _s30.get("grid_y", 4100000)
     _g_gap       = _s30.get("grid_gap", 50000)
-    _unified_cy  = _g_y_fixed - _cd_y - _g_gap   # col_desc 박스 고정 높이
-    _unified_cy  = max(_unified_cy, _cd_cy)       # 최소값 보장
+    _unified_cy  = _g_y_fixed - _cd_y - _g_gap   # col_desc 높이 = grid 시작 - col_desc 시작 - 여백
     _cd_font_pt  = _cd_fsz / 100.0                # 1000 hundredths → 10 pt
     _cd_line_h   = int(_cd_font_pt * 12700 * (_cd_lnspc / 100000))  # EMU/line
     _cd_insets   = 91440 + 45720                  # tIns + bIns
